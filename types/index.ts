@@ -2,10 +2,11 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  phone?: string;
   role: 'admin' | 'seller' | 'manager';
   status: 'active' | 'inactive';
-  phone?: string;
   avatar?: string;
+  email_verified_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -30,11 +31,13 @@ export interface Product {
   stock: number;
   min_stock: number;
   image?: string;
+  images?: string[]; // JSON field
   category_id: number;
   category?: Category;
   status: 'active' | 'inactive';
   barcode?: string;
   weight?: number;
+  attributes?: Record<string, any>; // JSON field
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +53,11 @@ export interface Customer {
   city?: string;
   state?: string;
   zip_code?: string;
+  latitude?: number;
+  longitude?: number;
   status: 'active' | 'inactive';
+  additional_info?: Record<string, any>; // JSON field
+  sales_count?: number; // from withCount('sales')
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +71,8 @@ export interface SaleItem {
   unit_price: number;
   total_price: number;
   discount: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Sale {
@@ -82,6 +91,7 @@ export interface Sale {
   payment_status: 'pending' | 'paid' | 'partial';
   notes?: string;
   sale_date: string;
+  metadata?: Record<string, any>; // JSON field
   items?: SaleItem[];
   created_at: string;
   updated_at: string;
@@ -92,6 +102,8 @@ export interface DashboardMetrics {
   month_sales: number;
   low_stock_products: number;
   total_customers: number;
+  total_products?: number;
+  pending_sales?: number;
 }
 
 export interface SalesChart {
@@ -105,6 +117,7 @@ export interface DashboardData {
   recent_sales: Sale[];
   sales_chart: SalesChart[];
   top_products?: Product[];
+  low_stock_products?: Product[];
 }
 
 export interface ApiResponse<T> {
@@ -119,4 +132,24 @@ export interface PaginatedResponse<T> {
   last_page: number;
   per_page: number;
   total: number;
+  from: number;
+  to: number;
+  links: {
+    first: string;
+    last: string;
+    prev?: string;
+    next?: string;
+  };
+}
+
+export interface SyncResponse {
+  products?: Product[];
+  customers?: Customer[];
+  synced_sales?: {
+    offline_id: string;
+    server_id?: number;
+    sale_number?: string;
+    error?: string;
+  }[];
+  sync_time: string;
 }

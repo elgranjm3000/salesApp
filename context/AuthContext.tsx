@@ -15,11 +15,14 @@ type AuthAction =
   | { type: 'LOGIN_SUCCESS'; payload: { user: User; token: string } }
   | { type: 'LOGIN_ERROR'; payload: string }
   | { type: 'LOGOUT' }
-  | { type: 'RESTORE_TOKEN'; payload: { user: User; token: string } };
+  | { type: 'RESTORE_TOKEN'; payload: { user: User; token: string } }
+  | { type: 'UPDATE_USER'; payload: User };
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
+  updateUser: (user: User) => void;
+  refreshToken: () => Promise<void>;
 }
 
 interface AuthProviderProps {
@@ -70,6 +73,11 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         token: action.payload.token,
         loading: false,
       };
+    case 'UPDATE_USER':
+      return {
+        ...state,
+        user: action.payload,
+      };
     default:
       return state;
   }
@@ -89,14 +97,27 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       
       if (token && userString) {
         const user: User = JSON.parse(userString);
-        dispatch({
-          type: 'RESTORE_TOKEN',
-          payload: { token, user },
-        });
+        
+        // Verificar que el token siga siendo válido
+        try {
+          const currentUser = await api.me();
+          dispatch({
+            type: 'RESTORE_TOKEN',
+            payload: { token, user: currentUser },
+          });
+          
+          // Actualizar datos del usuario en storage
+          await AsyncStorage.setItem('user', JSON.stringify(currentUser));
+        } catch (error) {
+          // Token expirado o inválido
+          await AsyncStorage.multiRemove(['token', 'user']);
+          dispatch({ type: 'LOGOUT' });
+        }
       } else {
         dispatch({ type: 'LOGOUT' });
       }
     } catch (error) {
+      console.error('Error restoring token:', error);
       dispatch({ type: 'LOGOUT' });
     }
   };
@@ -118,6 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
       return { success: true };
     } catch (error: any) {
+      console.error('Login error:', error);
       const message = error.response?.data?.message || 'Error de login';
       dispatch({
         type: 'LOGIN_ERROR',
@@ -129,12 +151,39 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
   const logout = async (): Promise<void> => {
     try {
+      // Intentar hacer logout en el servidor
       await api.logout();
     } catch (error) {
-      // Ignorar errores del logout
+      // Ignorar errores del logout del servidor
+      console.log('Server logout error (ignored):', error);
     } finally {
+      // Siempre limpiar el storage local
       await AsyncStorage.multiRemove(['token', 'user']);
       dispatch({ type: 'LOGOUT' });
+    }
+  };
+
+  const updateUser = (user: User): void => {
+    dispatch({ type: 'UPDATE_USER', payload: user });
+    AsyncStorage.setItem('user', JSON.stringify(user));
+  };
+
+  const refreshToken = async (): Promise<void> => {
+    try {
+      const response = await api.refresh();
+      const newToken = response.token;
+      
+      await AsyncStorage.setItem('token', newToken);
+      
+      if (state.user) {
+        dispatch({
+          type: 'LOGIN_SUCCESS',
+          payload: { user: state.user, token: newToken },
+        });
+      }
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      await logout();
     }
   };
 
@@ -142,6 +191,8 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
     ...state,
     login,
     logout,
+    updateUser,
+    refreshToken,
   };
 
   return (
