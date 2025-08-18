@@ -11,7 +11,7 @@ import {
   User
 } from '../types';
 
-const BASE_URL = 'http://192.168.10.105/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://api.remodelacionestoro.com/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
