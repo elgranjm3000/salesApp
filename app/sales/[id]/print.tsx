@@ -1,17 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Clipboard,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Button } from '../../../components/ui/Button';
@@ -27,8 +25,8 @@ export default function PrintSaleScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [sale, setSale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
-  const [printing, setPrinting] = useState(false);
   const [htmlContent, setHtmlContent] = useState('');
+  const [selectedFormat, setSelectedFormat] = useState<'receipt' | 'a4' | 'card'>('receipt');
 
   useEffect(() => {
     loadSale();
@@ -38,7 +36,7 @@ export default function PrintSaleScreen(): JSX.Element {
     if (sale) {
       generateHTML();
     }
-  }, [sale]);
+  }, [sale, selectedFormat]);
 
   const loadSale = async () => {
     if (!id) return;
@@ -87,6 +85,34 @@ export default function PrintSaleScreen(): JSX.Element {
       }
     };
 
+    // Estilos CSS según el formato seleccionado
+    const getFormatStyles = () => {
+      switch (selectedFormat) {
+        case 'receipt':
+          return `
+            body { max-width: 80mm; font-size: 12px; }
+            .company-name { font-size: 18px; }
+            .sale-number { font-size: 16px; }
+          `;
+        case 'a4':
+          return `
+            body { max-width: 210mm; font-size: 14px; padding: 20px; }
+            .company-name { font-size: 24px; }
+            .sale-number { font-size: 20px; }
+            .items-table th, .items-table td { padding: 10px 5px; font-size: 12px; }
+          `;
+        case 'card':
+          return `
+            body { max-width: 54mm; font-size: 10px; padding: 5px; }
+            .company-name { font-size: 14px; }
+            .sale-number { font-size: 12px; }
+            .items-table th, .items-table td { padding: 2px 1px; font-size: 8px; }
+          `;
+        default:
+          return '';
+      }
+    };
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -105,11 +131,11 @@ export default function PrintSaleScreen(): JSX.Element {
             font-family: 'Arial', sans-serif;
             line-height: 1.4;
             color: #333;
-            max-width: 80mm;
             margin: 0 auto;
             padding: 10px;
-            font-size: 12px;
           }
+          
+          ${getFormatStyles()}
           
           .receipt {
             width: 100%;
@@ -123,13 +149,12 @@ export default function PrintSaleScreen(): JSX.Element {
           }
           
           .company-name {
-            font-size: 18px;
             font-weight: bold;
             margin-bottom: 5px;
           }
           
           .company-info {
-            font-size: 10px;
+            font-size: 0.9em;
             color: #666;
           }
           
@@ -138,7 +163,6 @@ export default function PrintSaleScreen(): JSX.Element {
           }
           
           .sale-number {
-            font-size: 16px;
             font-weight: bold;
             text-align: center;
             margin-bottom: 10px;
@@ -148,7 +172,7 @@ export default function PrintSaleScreen(): JSX.Element {
             display: flex;
             justify-content: space-between;
             margin-bottom: 3px;
-            font-size: 11px;
+            font-size: 0.9em;
           }
           
           .info-label {
@@ -165,7 +189,6 @@ export default function PrintSaleScreen(): JSX.Element {
           .section-title {
             font-weight: bold;
             margin-bottom: 5px;
-            font-size: 12px;
           }
           
           .items-table {
@@ -179,7 +202,6 @@ export default function PrintSaleScreen(): JSX.Element {
             padding: 5px 2px;
             text-align: left;
             border-bottom: 1px solid #ddd;
-            font-size: 10px;
           }
           
           .items-table th {
@@ -193,7 +215,7 @@ export default function PrintSaleScreen(): JSX.Element {
           
           .item-code {
             color: #666;
-            font-size: 9px;
+            font-size: 0.8em;
           }
           
           .quantity {
@@ -218,7 +240,7 @@ export default function PrintSaleScreen(): JSX.Element {
           
           .total-row.final {
             font-weight: bold;
-            font-size: 14px;
+            font-size: 1.2em;
             border-top: 1px solid #000;
             padding-top: 5px;
             margin-top: 5px;
@@ -233,12 +255,14 @@ export default function PrintSaleScreen(): JSX.Element {
             display: flex;
             justify-content: space-around;
             margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 5px;
           }
           
           .status-badge {
             padding: 3px 6px;
             border-radius: 3px;
-            font-size: 9px;
+            font-size: 0.8em;
             font-weight: bold;
           }
           
@@ -259,26 +283,10 @@ export default function PrintSaleScreen(): JSX.Element {
           
           .footer {
             text-align: center;
-            font-size: 10px;
+            font-size: 0.9em;
             color: #666;
             border-top: 1px solid #ddd;
             padding-top: 10px;
-          }
-          
-          .qr-section {
-            text-align: center;
-            margin: 15px 0;
-          }
-          
-          @media print {
-            body {
-              margin: 0;
-              padding: 5px;
-            }
-            
-            .no-print {
-              display: none;
-            }
           }
         </style>
       </head>
@@ -402,9 +410,9 @@ export default function PrintSaleScreen(): JSX.Element {
           <div class="footer">
             <div>¡Gracias por su compra!</div>
             <div style="margin-top: 5px;">
-              Impreso el ${formatDate(new Date().toISOString())}
+              Generado el ${formatDate(new Date().toISOString())}
             </div>
-            <div style="margin-top: 10px; font-size: 9px;">
+            <div style="margin-top: 10px; font-size: 0.8em;">
               Sistema desarrollado con Sales App<br>
               www.salesapp.com
             </div>
@@ -417,117 +425,76 @@ export default function PrintSaleScreen(): JSX.Element {
     setHtmlContent(html);
   };
 
-  const handlePrint = async () => {
-    if (!htmlContent) return;
+  const handleCopyToClipboard = async () => {
+    if (!sale) return;
 
     try {
-      setPrinting(true);
+      const saleText = `
+📋 VENTA ${sale.sale_number}
+📅 Fecha: ${formatDate(sale.sale_date)}
+👤 Cliente: ${sale.customer?.name || 'No especificado'}
+👨‍💼 Vendedor: ${sale.user?.name || 'No especificado'}
 
-      const options = {
-        html: htmlContent,
-        width: 612,
-        height: 792,
-        base64: false,
-      };
+📦 PRODUCTOS:
+${sale.items?.map(item => 
+  `• ${item.product?.name || 'Producto'} x${item.quantity} - ${formatCurrency(item.total_price)}`
+).join('\n') || ''}
 
-      const { uri } = await Print.printToFileAsync(options);
+💰 RESUMEN:
+💵 Subtotal: ${formatCurrency(sale.subtotal)}
+${sale.discount > 0 ? `🏷️ Descuento: -${formatCurrency(sale.discount)}\n` : ''}📊 IGV (18%): ${formatCurrency(sale.tax)}
+💰 TOTAL: ${formatCurrency(sale.total)}
 
-      if (Platform.OS === 'ios') {
-        await Sharing.shareAsync(uri, {
-          UTI: '.pdf',
-          mimeType: 'application/pdf',
-        });
-      } else {
-        await Print.printAsync({
-          html: htmlContent,
-          printerUrl: undefined, // Para usar el selector de impresora del sistema
-        });
-      }
+💳 Método de pago: ${sale.payment_method === 'cash' ? 'Efectivo' : 
+                     sale.payment_method === 'card' ? 'Tarjeta' : 
+                     sale.payment_method === 'transfer' ? 'Transferencia' : 
+                     sale.payment_method === 'credit' ? 'Crédito' : sale.payment_method}
 
-      Alert.alert('Éxito', 'Documento enviado a imprimir correctamente');
-    } catch (error) {
-      console.error('Error printing:', error);
-      Alert.alert('Error', 'No se pudo imprimir el documento');
-    } finally {
-      setPrinting(false);
-    }
-  };
+🔄 Estado: ${sale.status === 'completed' ? 'Completada' : 
+             sale.status === 'pending' ? 'Pendiente' : 
+             sale.status === 'cancelled' ? 'Cancelada' : sale.status}
 
-  const handleExportPDF = async () => {
-    if (!htmlContent) return;
+💸 Pago: ${sale.payment_status === 'paid' ? 'Pagado' : 
+           sale.payment_status === 'pending' ? 'Pendiente' : 
+           sale.payment_status === 'partial' ? 'Parcial' : sale.payment_status}
 
-    try {
-      setPrinting(true);
+${sale.notes ? `📝 Notas: ${sale.notes}\n` : ''}
+---
+Generado por Sales App
+      `.trim();
 
-      const options = {
-        html: htmlContent,
-        width: 612,
-        height: 792,
-        base64: false,
-      };
-
-      const { uri } = await Print.printToFileAsync(options);
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          UTI: '.pdf',
-          mimeType: 'application/pdf',
-        });
-      } else {
-        Alert.alert('Info', 'Archivo PDF generado correctamente');
-      }
-    } catch (error) {
-      console.error('Error exporting PDF:', error);
-      Alert.alert('Error', 'No se pudo generar el PDF');
-    } finally {
-      setPrinting(false);
-    }
-  };
-
-  const handleSavePDF = async () => {
-    if (!htmlContent || !sale) return;
-
-    try {
-      setPrinting(true);
-      
-      const fileName = `venta_${sale.sale_number}_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      const options = {
-        html: htmlContent,
-        width: 612,
-        height: 792,
-        base64: false,
-      };
-
-      const { uri } = await Print.printToFileAsync(options);
-      
-      // En una implementación real, aquí guardarías el archivo en el dispositivo
-      // Por ejemplo, usando expo-file-system para mover el archivo a Documents
+      await Clipboard.setString(saleText);
       
       Alert.alert(
-        'PDF Generado', 
-        `El archivo ${fileName} ha sido generado correctamente`,
+        'Información Copiada',
+        'La información de la venta ha sido copiada al portapapeles. Ahora puedes pegarla en cualquier aplicación.',
         [
           { text: 'OK' },
-          {
-            text: 'Compartir',
-            onPress: () => {
-              if (Sharing.isAvailableAsync()) {
-                Sharing.shareAsync(uri, {
-                  UTI: '.pdf',
-                  mimeType: 'application/pdf',
-                });
-              }
-            }
+          { 
+            text: 'Ver Información', 
+            onPress: () => Alert.alert('Venta Copiada', saleText)
           }
         ]
       );
     } catch (error) {
-      console.error('Error saving PDF:', error);
-      Alert.alert('Error', 'No se pudo guardar el PDF');
-    } finally {
-      setPrinting(false);
+      console.error('Error copying to clipboard:', error);
+      Alert.alert('Error', 'No se pudo copiar la información al portapapeles');
     }
+  };
+
+  const handleShowInfo = () => {
+    if (!sale) return;
+
+    const basicInfo = `Venta: ${sale.sale_number}\nTotal: ${formatCurrency(sale.total)}\nCliente: ${sale.customer?.name || 'No especificado'}`;
+    
+    Alert.alert(
+      'Información de la Venta',
+      basicInfo,
+      [
+        { text: 'Cerrar' },
+        { text: 'Copiar Todo', onPress: handleCopyToClipboard }
+      ]
+    );
   };
 
   if (loading) {
@@ -564,7 +531,7 @@ export default function PrintSaleScreen(): JSX.Element {
             <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerTitle}>Vista de Impresión</Text>
+            <Text style={styles.headerTitle}>Vista de Recibo</Text>
             <Text style={styles.headerSubtitle}>Venta {sale.sale_number}</Text>
           </View>
         </View>
@@ -593,36 +560,24 @@ export default function PrintSaleScreen(): JSX.Element {
           contentContainerStyle={styles.actionsScroll}
         >
           <Button
-            title="🖨️ Imprimir"
-            onPress={handlePrint}
-            loading={printing}
+            title="📋 Copiar Info"
+            onPress={handleCopyToClipboard}
             style={styles.actionButton}
             size="sm"
           />
           
           <Button
-            title="📄 Exportar PDF"
+            title="ℹ️ Ver Info"
             variant="outline"
-            onPress={handleExportPDF}
-            loading={printing}
+            onPress={handleShowInfo}
             style={styles.actionButton}
             size="sm"
           />
           
           <Button
-            title="💾 Guardar PDF"
-            variant="outline"
-            onPress={handleSavePDF}
-            loading={printing}
-            style={styles.actionButton}
-            size="sm"
-          />
-          
-          <Button
-            title="📤 Compartir"
+            title="🔄 Recargar"
             variant="ghost"
-            onPress={handleExportPDF}
-            loading={printing}
+            onPress={() => generateHTML()}
             style={styles.actionButton}
             size="sm"
           />
@@ -631,23 +586,64 @@ export default function PrintSaleScreen(): JSX.Element {
 
       {/* Format Options */}
       <View style={styles.formatOptions}>
-        <Text style={styles.formatTitle}>Opciones de Formato</Text>
+        <Text style={styles.formatTitle}>Formato de Vista</Text>
         <View style={styles.formatButtons}>
-          <TouchableOpacity style={styles.formatButton}>
-            <Ionicons name="receipt" size={20} color={colors.primary[500]} />
-            <Text style={styles.formatButtonText}>Recibo (80mm)</Text>
+          <TouchableOpacity 
+            style={[
+              styles.formatButton, 
+              selectedFormat === 'receipt' && styles.formatButtonActive
+            ]}
+            onPress={() => setSelectedFormat('receipt')}
+          >
+            <Ionicons 
+              name="receipt" 
+              size={20} 
+              color={selectedFormat === 'receipt' ? colors.primary[500] : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.formatButtonText,
+              { color: selectedFormat === 'receipt' ? colors.primary[500] : colors.text.secondary }
+            ]}>
+              Recibo (80mm)
+            </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.formatButton}>
-            <Ionicons name="document" size={20} color={colors.text.secondary} />
-            <Text style={[styles.formatButtonText, { color: colors.text.secondary }]}>
+          <TouchableOpacity 
+            style={[
+              styles.formatButton, 
+              selectedFormat === 'a4' && styles.formatButtonActive
+            ]}
+            onPress={() => setSelectedFormat('a4')}
+          >
+            <Ionicons 
+              name="document" 
+              size={20} 
+              color={selectedFormat === 'a4' ? colors.primary[500] : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.formatButtonText,
+              { color: selectedFormat === 'a4' ? colors.primary[500] : colors.text.secondary }
+            ]}>
               A4 Completo
             </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.formatButton}>
-            <Ionicons name="card" size={20} color={colors.text.secondary} />
-            <Text style={[styles.formatButtonText, { color: colors.text.secondary }]}>
+          <TouchableOpacity 
+            style={[
+              styles.formatButton, 
+              selectedFormat === 'card' && styles.formatButtonActive
+            ]}
+            onPress={() => setSelectedFormat('card')}
+          >
+            <Ionicons 
+              name="card" 
+              size={20} 
+              color={selectedFormat === 'card' ? colors.primary[500] : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.formatButtonText,
+              { color: selectedFormat === 'card' ? colors.primary[500] : colors.text.secondary }
+            ]}>
               Tarjeta
             </Text>
           </TouchableOpacity>
@@ -679,9 +675,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.md,
     marginBottom: spacing.lg,
-  },
-  backButton: {
-    marginTop: spacing.lg,
   },
   header: {
     flexDirection: 'row',
@@ -773,9 +766,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray[50],
     minWidth: 80,
   },
+  formatButtonActive: {
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
   formatButtonText: {
     fontSize: typography.fontSize.sm,
-    color: colors.primary[500],
     marginTop: spacing.xs,
     textAlign: 'center',
     fontWeight: typography.fontWeight.medium,
