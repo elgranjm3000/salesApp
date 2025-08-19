@@ -15,7 +15,7 @@ import { Card } from '../../components/ui/Card';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
-import type { DashboardData, Sale } from '../../types'; // Corregido: cambiado de '../../type' a '../../types'
+import type { DashboardData, Sale } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
@@ -135,7 +135,7 @@ export default function DashboardScreen(): JSX.Element {
   }) => (
     <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.8}>
       <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={24} color={colors.text.inverse} />
+        <Ionicons name={icon} size={28} color={colors.text.inverse} />
       </View>
       <Text style={styles.quickActionText}>{title}</Text>
     </TouchableOpacity>
@@ -249,86 +249,99 @@ export default function DashboardScreen(): JSX.Element {
         </View>
       </View>
 
-      {/* Gráfico de ventas */}
+      {/* Gráfico de ventas mejorado */}
       {dashboardData?.sales_chart && dashboardData.sales_chart.length > 0 && (
         <View style={styles.chartContainer}>
-          <Card padding="lg">
+          <Card padding="lg" style={styles.chartCard}>
             <View style={styles.chartHeader}>
-              <Text style={styles.sectionTitle}>Ventas de los Últimos 7 Días</Text>
+              <Text style={styles.sectionTitle}>Ventas de los Últimos 7 Días</Text>              
               <TouchableOpacity onPress={() => router.push('/reports')}>
                 <Text style={styles.viewMoreText}>Ver más</Text>
               </TouchableOpacity>
             </View>
-            <LineChart
-              data={{
-                labels: dashboardData.sales_chart.map(item => item.day),
-                datasets: [{
-                  data: dashboardData.sales_chart.map(item => item.total),
-                  color: (opacity = 1) => colors.primary[500] + Math.round(opacity * 255).toString(16),
-                  strokeWidth: 3,
-                }],
-              }}
-              width={screenWidth - 64}
-              height={200}
-              chartConfig={{
-                backgroundColor: 'transparent',
-                backgroundGradientFrom: 'transparent',
-                backgroundGradientTo: 'transparent',
-                decimalPlaces: 0,
-                color: (opacity = 1) => colors.primary[500] + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-                labelColor: (opacity = 1) => colors.text.secondary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-                style: { borderRadius: 16 },
-                propsForDots: {
-                  r: "4",
-                  strokeWidth: "2",
-                  stroke: colors.primary[500]
-                },
-                propsForBackgroundLines: {
-                  strokeDasharray: "5,5",
-                  stroke: colors.gray[200],
-                  strokeWidth: 1,
-                },
-              }}
-              bezier
-              style={styles.chart}
-              withHorizontalLabels={true}
-              withVerticalLabels={true}
-              withInnerLines={true}
-              withOuterLines={false}
-            />
+            
+            <View style={styles.chartWrapper}>
+              <LineChart
+                data={{
+                  labels: dashboardData.sales_chart.map(item => item.day),
+                  datasets: [{
+                    data: dashboardData.sales_chart.map(item => item.total),
+                    color: (opacity = 1) => `rgba(14, 165, 233, ${opacity})`, // Azul sólido
+                    strokeWidth: 3,
+                  }],
+                }}
+                width={screenWidth - 80}
+                height={220}
+                chartConfig={{
+                  backgroundColor: '#ffffff',
+                  backgroundGradientFrom: '#ffffff',
+                  backgroundGradientTo: '#ffffff',
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(14, 165, 233, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                  style: { 
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: "6",
+                    strokeWidth: "3",
+                    stroke: "#0ea5e9",
+                    fill: "#ffffff"
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: "",
+                    stroke: "#e5e7eb",
+                    strokeWidth: 1,
+                  },
+                  fillShadowGradient: '#0ea5e9',
+                  fillShadowGradientOpacity: 0.1,
+                }}
+                bezier
+                style={styles.chart}
+                withHorizontalLabels={true}
+                withVerticalLabels={true}
+                withInnerLines={true}
+                withOuterLines={false}
+                withShadow={false}
+                withDots={true}
+              />
+            </View>
           </Card>
         </View>
       )}
 
-      {/* Acciones rápidas */}
+      {/* Acciones rápidas mejoradas */}
       <View style={styles.quickActionsContainer}>
         <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
         <View style={styles.quickActionsGrid}>
           <QuickAction
             title="Nueva Venta"
             icon="add-circle"
-            color={colors.success}
+            color="#10b981"
             onPress={() => router.push('/sales/new')}
           />
           <QuickAction
             title="Producto"
             icon="cube"
-            color={colors.primary[500]}
+            color="#0ea5e9"
             onPress={() => router.push('/products/new')}
-          />
-          <QuickAction
-            title="Cliente"
-            icon="person-add"
-            color={colors.warning}
-            onPress={() => router.push('/customers/new')}
-          />
-          <QuickAction
-            title="Reportes"
-            icon="analytics"
-            color={colors.info}
-            onPress={() => router.push('/reports')}
-          />
+          />          
         </View>
+        <View style={styles.quickActionsGrid}>
+
+          <QuickAction
+              title="Cliente"
+              icon="person-add"
+              color="#f59e0b"
+              onPress={() => router.push('/customers/new')}
+            />
+            <QuickAction
+              title="Reportes"
+              icon="analytics"
+              color="#8b5cf6"
+              onPress={() => router.push('/reports')}
+            />
+          </View>
       </View>
 
       {/* Ventas recientes */}
@@ -522,33 +535,50 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: typography.fontWeight.medium,
   },
+  // Estilos mejorados para el gráfico
   chartContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  chartCard: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   viewMoreText: {
     fontSize: typography.fontSize.sm,
     color: colors.primary[500],
     fontWeight: typography.fontWeight.semibold,
   },
-  chart: {
-    marginVertical: spacing.sm,
+  chartWrapper: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
   },
+  chart: {
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#ffffff',
+  },
+  // Estilos mejorados para acciones rápidas
   quickActionsContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
   quickActionsGrid: {
+    marginTop:10,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   quickAction: {
     flex: 1,
@@ -557,24 +587,32 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderRadius: borderRadius.xl,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    minHeight: 100,
+    justifyContent: 'center',
   },
   quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   quickActionText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semibold,
     textAlign: 'center',
     color: colors.text.primary,
+    lineHeight: 18,
   },
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
