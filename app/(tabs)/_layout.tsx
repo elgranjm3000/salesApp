@@ -23,15 +23,15 @@ export default function TabLayout(): JSX.Element {
         
       case 'manager':
         // Manager ve dashboard, clientes, ventas y reportes
-        return ['index', 'customers', 'sales', 'reports'].includes(tabName);
+        return ['index', 'customers', 'quotes', 'reports'].includes(tabName);
         
       case 'company':
         // Company ve dashboard, productos, clientes, ventas y reportes
-        return ['index', 'products', 'customers', 'sales', 'reports'].includes(tabName);
+        return ['index', 'products', 'customers', 'quotes', 'reports'].includes(tabName);
         
       case 'seller':
         // Seller ve dashboard, productos, clientes y ventas
-        return ['index', 'products', 'customers', 'sales'].includes(tabName);
+        return ['index', 'products', 'customers', 'quotes'].includes(tabName);
         
       default:
         return ['index'].includes(tabName); // Por defecto solo dashboard
@@ -61,7 +61,7 @@ export default function TabLayout(): JSX.Element {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
-          href: shouldShowTab('index') ? '/index' : null,
+          href: shouldShowTab('index') ? '/' : null,
         }}
       />
       
@@ -90,11 +90,11 @@ export default function TabLayout(): JSX.Element {
       <Tabs.Screen
         name="sales"
         options={{
-          title: 'Ventas',
+          title: 'Presupuestos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="receipt" size={size} color={color} />
           ),
-          href: shouldShowTab('sales') ? '/sales' : null,
+          href: shouldShowTab('quotes') ? '/quotes' : null,
         }}
       />
       
