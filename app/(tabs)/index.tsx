@@ -1,3 +1,4 @@
+// app/(tabs)/index.tsx - Dashboard mejorado con roles
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -37,6 +38,7 @@ interface QuickActionProps {
   icon: keyof typeof Ionicons.glyphMap;
   color?: string;
   onPress: () => void;
+  disabled?: boolean;
 }
 
 interface SaleItemProps {
@@ -79,13 +81,82 @@ export default function DashboardScreen(): JSX.Element {
     switch (role) {
       case 'admin':
         return 'Administrador';
+      case 'manager':
+        return 'Manager';
+      case 'company':
+        return 'Compañía';
       case 'seller':
         return 'Vendedor';
-      case 'manager':
-        return 'Gerente';
       default:
         return role;
     }
+  };
+
+  const getRoleColor = (role: string): string => {
+    switch (role) {
+      case 'admin':
+        return colors.error;
+      case 'manager':
+        return colors.primary[500];
+      case 'company':
+        return colors.success;
+      case 'seller':
+        return colors.warning;
+      default:
+        return colors.text.secondary;
+    }
+  };
+
+  const getQuickActionsForRole = () => {
+    const actions = [];
+    
+    switch (user?.role) {
+      case 'admin':
+        actions.push(
+          { title: 'Gestionar Usuarios', icon: 'people', color: '#10b981', onPress: () => router.push('/users') },
+          { title: 'Ver Compañías', icon: 'business', color: '#0ea5e9', onPress: () => router.push('/companies') },
+          { title: 'Vendedores', icon: 'person', color: '#f59e0b', onPress: () => router.push('/sellers') },
+          { title: 'Reportes Globales', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
+        );
+        break;
+        
+      case 'manager':
+        actions.push(
+          { title: 'Crear Compañía', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/companies/new') },
+          { title: 'Ver Compañías', icon: 'business', color: '#0ea5e9', onPress: () => router.push('/companies') },
+          { title: 'Gestionar Vendedores', icon: 'people', color: '#f59e0b', onPress: () => router.push('/sellers') },
+          { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
+        );
+        break;
+        
+      case 'company':
+        actions.push(
+          { title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
+          { title: 'Mis Vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },
+          { title: 'Nueva Venta', icon: 'receipt', color: '#f59e0b', onPress: () => router.push('/sales/new') },
+          { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
+        );
+        break;
+        
+      case 'seller':
+        actions.push(
+          { title: 'Nueva Venta', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/sales/new') },
+          { title: 'Nuevo Cliente', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers/new') },
+          { title: 'Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
+          { title: 'Mis Ventas', icon: 'receipt', color: '#8b5cf6', onPress: () => router.push('/sales') }
+        );
+        break;
+        
+      default:
+        actions.push(
+          { title: 'Nueva Venta', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/sales/new') },
+          { title: 'Productos', icon: 'cube', color: '#0ea5e9', onPress: () => router.push('/products') },
+          { title: 'Clientes', icon: 'person-add', color: '#f59e0b', onPress: () => router.push('/customers') },
+          { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
+        );
+    }
+    
+    return actions;
   };
 
   const MetricCard: React.FC<MetricCardProps> = ({ 
@@ -131,9 +202,15 @@ export default function DashboardScreen(): JSX.Element {
     title, 
     icon, 
     onPress, 
-    color = colors.primary[500] 
+    color = colors.primary[500],
+    disabled = false
   }) => (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity 
+      style={[styles.quickAction, disabled && styles.quickActionDisabled]} 
+      onPress={onPress} 
+      activeOpacity={0.8}
+      disabled={disabled}
+    >
       <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
         <Ionicons name={icon} size={28} color={colors.text.inverse} />
       </View>
@@ -187,6 +264,8 @@ export default function DashboardScreen(): JSX.Element {
     );
   }
 
+  const quickActions = getQuickActionsForRole();
+
   return (
     <ScrollView
       style={styles.container}
@@ -199,7 +278,14 @@ export default function DashboardScreen(): JSX.Element {
           <View style={styles.userInfo}>
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.userRole}>{getRoleText(user?.role || '')}</Text>
+            <View style={styles.roleContainer}>
+              <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user?.role || '') + '20' }]}>
+                <Ionicons name="person" size={16} color={getRoleColor(user?.role || '')} />
+                <Text style={[styles.userRole, { color: getRoleColor(user?.role || '') }]}>
+                  {getRoleText(user?.role || '')}
+                </Text>
+              </View>
+            </View>
           </View>
           <TouchableOpacity 
             style={styles.profileButton}
@@ -266,7 +352,7 @@ export default function DashboardScreen(): JSX.Element {
                   labels: dashboardData.sales_chart.map(item => item.day),
                   datasets: [{
                     data: dashboardData.sales_chart.map(item => item.total),
-                    color: (opacity = 1) => `rgba(14, 165, 233, ${opacity})`, // Azul sólido
+                    color: (opacity = 1) => `rgba(14, 165, 233, ${opacity})`,
                     strokeWidth: 3,
                   }],
                 }}
@@ -279,9 +365,7 @@ export default function DashboardScreen(): JSX.Element {
                   decimalPlaces: 0,
                   color: (opacity = 1) => `rgba(14, 165, 233, ${opacity})`,
                   labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                  style: { 
-                    borderRadius: 16,
-                  },
+                  style: { borderRadius: 16 },
                   propsForDots: {
                     r: "6",
                     strokeWidth: "3",
@@ -298,12 +382,6 @@ export default function DashboardScreen(): JSX.Element {
                 }}
                 bezier
                 style={styles.chart}
-                withHorizontalLabels={true}
-                withVerticalLabels={true}
-                withInnerLines={true}
-                withOuterLines={false}
-                withShadow={false}
-                withDots={true}
               />
             </View>
           </Card>
@@ -314,34 +392,16 @@ export default function DashboardScreen(): JSX.Element {
       <View style={styles.quickActionsContainer}>
         <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
         <View style={styles.quickActionsGrid}>
-          <QuickAction
-            title="Nueva Venta"
-            icon="add-circle"
-            color="#10b981"
-            onPress={() => router.push('/sales/new')}
-          />
-          <QuickAction
-            title="Producto"
-            icon="cube"
-            color="#0ea5e9"
-            onPress={() => router.push('/products/new')}
-          />          
-        </View>
-        <View style={styles.quickActionsGrid}>
-
-          <QuickAction
-              title="Cliente"
-              icon="person-add"
-              color="#f59e0b"
-              onPress={() => router.push('/customers/new')}
-            />
+          {quickActions.map((action, index) => (
             <QuickAction
-              title="Reportes"
-              icon="analytics"
-              color="#8b5cf6"
-              onPress={() => router.push('/reports')}
+              key={index}
+              title={action.title}
+              icon={action.icon as any}
+              color={action.color}
+              onPress={action.onPress}
             />
-          </View>
+          ))}
+        </View>
       </View>
 
       {/* Ventas recientes */}
@@ -458,11 +518,21 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginTop: spacing.xs,
   },
+  roleContainer: {
+    marginTop: spacing.sm,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start',
+  },
   userRole: {
     fontSize: typography.fontSize.sm,
-    color: colors.primary[500],
-    fontWeight: typography.fontWeight.medium,
-    marginTop: spacing.xs,
+    fontWeight: typography.fontWeight.semibold,
+    marginLeft: spacing.xs,
   },
   profileButton: {
     padding: spacing.xs,
@@ -535,7 +605,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: typography.fontWeight.medium,
   },
-  // Estilos mejorados para el gráfico
   chartContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
@@ -569,19 +638,18 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     backgroundColor: '#ffffff',
   },
-  // Estilos mejorados para acciones rápidas
   quickActionsContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
   quickActionsGrid: {
-    marginTop:10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   quickAction: {
     flex: 1,
+    minWidth: '45%',
     alignItems: 'center',
     backgroundColor: colors.surface,
     padding: spacing.lg,
@@ -593,6 +661,9 @@ const styles = StyleSheet.create({
     elevation: 4,
     minHeight: 100,
     justifyContent: 'center',
+  },
+  quickActionDisabled: {
+    opacity: 0.6,
   },
   quickActionIcon: {
     width: 56,

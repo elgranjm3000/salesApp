@@ -10,8 +10,9 @@ import {
   SyncResponse,
   User
 } from '../types';
-
-const BASE_URL = 'https://api.remodelacionestoro.com/public/api'; // Cambiar por tu IP
+//ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
+// npx expo start --tunnel --clear para que ve la app
+const BASE_URL = 'http://192.168.10.105/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -22,6 +23,62 @@ interface LoginResponse {
   user: User;
   token: string;
   token_type: string;
+}
+
+interface CreateUserData {
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'company';
+  password: string;
+  password_confirmation: string;
+  status?: 'active' | 'inactive';
+  rif?: string;
+  companyName?: string;
+  contactPerson?: string;
+  address?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  key_activation: string;
+}
+
+interface Company {
+  id: number;
+  user_id: number;
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  contact?: string;
+  serial_no?: string;
+  status: 'active' | 'inactive';
+  user?: User;
+  sellers?: Seller[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface Seller {
+  id: number;
+  user_id: number;
+  company_id: number;
+  code: string;
+  description?: string;
+  status?: string;
+  percent_sales: number;
+  percent_receivable: number;
+  inkeeper: boolean;
+  user_code?: string;
+  percent_gerencial_debit_note: number;
+  percent_gerencial_credit_note: number;
+  percent_returned_check: number;
+  seller_status: 'active' | 'inactive';
+  user?: User;
+  company?: Company;
+  created_at: string;
+  updated_at: string;
 }
 
 interface CreateSaleData {
@@ -79,6 +136,7 @@ class ApiService {
 
   // Auth methods
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
+    console.log(credentials)
     try {
       const response: AxiosResponse<LoginResponse> = await this.client.post('/auth/login', credentials);
       console.log("Login successful");
@@ -254,6 +312,153 @@ class ApiService {
     const response = await this.client.get('/health');
     return response.data;
   }
+
+  async createUser(data: CreateUserData): Promise<User> {
+    console.log("Creating user with data:", data);
+  const response: AxiosResponse<{ data: User }> = await this.client.post('/users/register', data);
+  return response.data.data;
+}
+
+async getUsers(params?: {
+  role?: string;
+  search?: string;
+  per_page?: number;
+  page?: number;
+}): Promise<PaginatedResponse<User>> {
+  const response: AxiosResponse<PaginatedResponse<User>> = await this.client.get('/users', { params });
+  return response.data;
+}
+
+async getUser(id: number): Promise<User> {
+  const response: AxiosResponse<{ data: User }> = await this.client.get(`/users/${id}`);
+  return response.data.data;
+}
+
+async updateUser(id: number, data: Partial<CreateUserData>): Promise<User> {
+  const response: AxiosResponse<{ data: User }> = await this.client.put(`/users/${id}`, data);
+  return response.data.data;
+}
+
+async deleteUser(id: number): Promise<{ message: string }> {
+  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/users/${id}`);
+  return response.data;
+}
+
+// Companies
+async getCompanies(params?: {
+  search?: string;
+  per_page?: number;
+  page?: number;
+}): Promise<PaginatedResponse<Company>> {
+  const response: AxiosResponse<PaginatedResponse<Company>> = await this.client.get('/companies', { params });
+  return response.data.data;
+}
+
+async getCompany(id: number): Promise<Company> {
+  const response: AxiosResponse<{ data: Company }> = await this.client.get(`/companies/${id}`);
+  return response.data.data;
+}
+
+async createCompany(data: {
+  user_id?: number;
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  contact?: string;
+  serial_no?: string;
+  status?: 'active' | 'inactive';
+}): Promise<Company> {
+  const response: AxiosResponse<{ data: Company }> = await this.client.post('/companies', data);
+  return response.data.data;
+}
+
+async updateCompany(id: number, data: Partial<{
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  contact?: string;
+  serial_no?: string;
+  status?: 'active' | 'inactive';
+}>): Promise<Company> {
+  const response: AxiosResponse<{ data: Company }> = await this.client.put(`/companies/${id}`, data);
+  return response.data.data;
+}
+
+async deleteCompany(id: number): Promise<{ message: string }> {
+  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/companies/${id}`);
+  return response.data;
+}
+
+async getCompanySellers(id: number): Promise<PaginatedResponse<Seller>> {
+  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/companies/${id}/sellers`);
+  return response.data;
+}
+
+// Sellers
+async getSellers(params?: {
+  search?: string;
+  company_id?: number;
+  per_page?: number;
+  page?: number;
+}): Promise<PaginatedResponse<Seller>> {
+  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers', { params });
+  return response.data;
+}
+
+async getSeller(id: number): Promise<Seller> {
+  const response: AxiosResponse<{ data: Seller }> = await this.client.get(`/sellers/${id}`);
+  return response.data.data;
+}
+
+async createSeller(data: {
+  user_id: number;
+  company_id: number;
+  code: string;
+  description?: string;
+  status?: string;
+  percent_sales?: number;
+  percent_receivable?: number;
+  inkeeper?: boolean;
+  user_code?: string;
+  percent_gerencial_debit_note?: number;
+  percent_gerencial_credit_note?: number;
+  percent_returned_check?: number;
+  seller_status?: 'active' | 'inactive';
+}): Promise<Seller> {
+  const response: AxiosResponse<{ data: Seller }> = await this.client.post('/sellers', data);
+  return response.data.data;
+}
+
+async updateSeller(id: number, data: Partial<{
+  code: string;
+  description?: string;
+  status?: string;
+  percent_sales?: number;
+  percent_receivable?: number;
+  inkeeper?: boolean;
+  user_code?: string;
+  percent_gerencial_debit_note?: number;
+  percent_gerencial_credit_note?: number;
+  percent_returned_check?: number;
+  seller_status?: 'active' | 'inactive';
+}>): Promise<Seller> {
+  const response: AxiosResponse<{ data: Seller }> = await this.client.put(`/sellers/${id}`, data);
+  return response.data.data;
+}
+
+async deleteSeller(id: number): Promise<{ message: string }> {
+  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/sellers/${id}`);
+  return response.data;
+}
+
+async getSellersByCompany(companyId: number): Promise<PaginatedResponse<Seller>> {
+  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/sellers/company/${companyId}`);
+  return response.data;
+}
 }
 
 export const api = new ApiService();

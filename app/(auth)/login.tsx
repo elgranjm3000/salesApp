@@ -2,12 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -16,12 +17,12 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../theme/design';
 
 export default function LoginScreen(): JSX.Element {
-  const [email, setEmail] = useState<string>('admin@ventas.com');
-  const [password, setPassword] = useState<string>('password');
-  const [emailError, setEmailError] = useState<string>('');
-  const [passwordError, setPasswordError] = useState<string>('');
-  
   const { login, loading } = useAuth();
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -79,7 +80,8 @@ export default function LoginScreen(): JSX.Element {
             <Ionicons name="storefront" size={48} color={colors.primary[500]} />
           </View>
           <Text style={styles.title}>Sales App</Text>
-          <Text style={styles.subtitle}>Sistema de Ventas Inteligente</Text></View>
+          <Text style={styles.subtitle}>Sistema de Ventas Inteligente</Text>
+        </View>
 
         {/* Formulario */}
         <Card padding="lg">
@@ -114,31 +116,15 @@ export default function LoginScreen(): JSX.Element {
           />
         </Card>
 
-        {/* Usuarios de prueba */}
-        <View style={styles.testUsers}>
-          <Text style={styles.testUsersTitle}>Usuarios de Prueba:</Text>
-          
-          <View style={styles.testUsersList}>
-            <Button
-              title="👨‍💼 Admin"
-              variant="outline"
-              size="sm"
-              onPress={() => selectTestUser('admin@ventas.com')}
-              style={styles.testUserButton}
-            />
-            <Button
-              title="👨‍💻 Vendedor"
-              variant="outline"
-              size="sm"
-              onPress={() => selectTestUser('vendedor1@ventas.com')}
-              style={styles.testUserButton}
-            />
-          </View>
-          
-          <Text style={styles.testUsersNote}>
-            Contraseña para todos: <Text style={styles.passwordText}>password</Text>
-          </Text>
+        {/* Enlace de registro */}
+        <View style={styles.registerContainer}>
+          <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+            <Text style={styles.registerLink}>Crear Cuenta</Text>
+          </TouchableOpacity>
         </View>
+
+        
       </View>
     </KeyboardAvoidingView>
   );
@@ -179,6 +165,21 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
   },
+  registerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+  },
+  registerText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+  },
+  registerLink: {
+    fontSize: typography.fontSize.base,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.semibold,
+  },
   testUsers: {
     marginTop: spacing.xl,
     alignItems: 'center',
@@ -192,19 +193,52 @@ const styles = StyleSheet.create({
   testUsersList: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    justifyContent: 'center',
   },
   testUserButton: {
-    flex: 1,
+    minWidth: 100,
   },
   testUsersNote: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     textAlign: 'center',
+    marginTop: spacing.md,
   },
   passwordText: {
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  infoContainer: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray[200],
+  },
+  roleInfo: {
+    backgroundColor: colors.gray[50],
+    padding: spacing.lg,
+    borderRadius: 12,
+  },
+  roleInfoTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  rolesList: {
+    gap: spacing.sm,
+  },
+  roleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roleText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginLeft: spacing.sm,
+    flex: 1,
   },
 });

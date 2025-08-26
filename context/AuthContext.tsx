@@ -123,11 +123,12 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
   };
 
   const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    
     try {
       dispatch({ type: 'LOADING' });
       
       const response = await api.login({ email, password });
-      const { user, token } = response;
+      const { user, token } = response.data;
 
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));

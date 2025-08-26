@@ -1,7 +1,7 @@
+// app/_layout.tsx - Mantener EXACTAMENTE tu estructura original
 import { Stack } from 'expo-router';
 import React from 'react';
 import { StatusBar, View } from 'react-native';
-import { NetworkBanner } from '../components/ui/NetworkBanner';
 import { AuthProvider } from '../context/AuthContext';
 import { colors } from '../theme/design';
 
@@ -14,7 +14,6 @@ export default function RootLayout(): JSX.Element {
           backgroundColor={colors.surface} 
           translucent={false}
         />
-        <NetworkBanner />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
