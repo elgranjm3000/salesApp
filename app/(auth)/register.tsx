@@ -17,6 +17,8 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
+import { validatePhone } from '../../utils/helpers';
+
 
 const USER_ROLES = [
   { value: 'company', label: 'Compañía', icon: 'storefront', description: 'Administra vendedores y ventas' },
@@ -59,8 +61,8 @@ export default function RegisterScreen(): JSX.Element {
 
     if (!formData.phone.trim()) {
       newErrors.phone = 'El teléfono es requerido';
-    } else if (formData.phone.length < 9) {
-      newErrors.phone = 'El teléfono debe tener al menos 9 dígitos';
+    } else if (!validatePhone(formData.phone)) {
+      newErrors.phone = 'Ingresa un número de teléfono válido';
     }
 
    
@@ -80,6 +82,13 @@ export default function RegisterScreen(): JSX.Element {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  const updateErrors = (field: string, message: string) => {
+  setErrors((prevErrors) => ({
+    ...prevErrors,
+    [field]: message,
+  }));
+};
 
   const handleRegister = async (): Promise<void> => {
     
@@ -105,7 +114,6 @@ export default function RegisterScreen(): JSX.Element {
         key_activation: formData.key_activation.trim(),
       };
 
-          console.log(registrationData);
 
       // Crear el usuario usando tu endpoint de users
       await api.createUser(registrationData);
@@ -151,7 +159,7 @@ export default function RegisterScreen(): JSX.Element {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+      <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
@@ -180,18 +188,6 @@ export default function RegisterScreen(): JSX.Element {
           />
 
           <Input
-              label="Nombre *"
-              placeholder="Ej: Ana Gómez"
-              value={formData.name}
-              onChangeText={(value) => updateFormData('name', value)}
-              error={errors.name}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
-            />
-
-        
-           <Input
               label="RIF *"
               placeholder="J-12345678-9"
               value={formData.rif}
@@ -201,6 +197,18 @@ export default function RegisterScreen(): JSX.Element {
               autoCapitalize="characters"
               leftIcon={<Ionicons name="card" size={20} color={colors.text.tertiary} />}
             />
+
+          <Input
+              label="Nombre *"
+              placeholder="Ej: Ana Gómez"
+              value={formData.name}
+              onChangeText={(value) => updateFormData('name', value)}
+              error={errors.name}
+              keyboardType="default"
+              autoCapitalize="words"
+              leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
+            />       
+           
 
             <Input
               label="Nombre de Empresa *"
@@ -226,9 +234,9 @@ export default function RegisterScreen(): JSX.Element {
 
             <Input
               label="Teléfono *"
-              placeholder="+58 412-1234567"
+              placeholder="04121234567"
               value={formData.phone}
-              onChangeText={(value) => updateFormData('phone', value)}
+              onChangeText={(value) => updateFormData('phone', value)}             
               error={errors.phone}
               keyboardType="phone-pad"
               leftIcon={<Ionicons name="call" size={20} color={colors.text.tertiary} />}
@@ -323,13 +331,12 @@ export default function RegisterScreen(): JSX.Element {
             loading={loading}
             style={styles.registerButton}
           />
-          
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
-            <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
-              <Text style={styles.loginLink}>Iniciar Sesión</Text>
-            </TouchableOpacity>
-          </View>
+          <Button
+            title="Cancelar"
+            onPress={() => router.replace('/(auth)/login')}            
+            style={styles.cancel}
+          />         
+         
         </View>
 
         <View style={styles.bottomSpacer} />
@@ -448,7 +455,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   actions: {
-    marginTop: spacing.xl,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10, // si estás en React Native 0.71+, puedes usar gap
+    marginTop: 20,
+  },
+   cancel: {
+    marginBottom: spacing.lg,
+    backgroundColor:'#dc3545'
   },
   registerButton: {
     marginBottom: spacing.lg,

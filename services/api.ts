@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'http://192.168.10.105/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://d3f100a4856bcbaa65b161fcfb17c710.serveo.net/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -56,6 +56,8 @@ interface Company {
   status: 'active' | 'inactive';
   user?: User;
   sellers?: Seller[];
+  rif: string;
+  key_system_items_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +93,74 @@ interface CreateSaleData {
   }[];
   payment_method: 'cash' | 'card' | 'transfer' | 'credit';
   discount?: number;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+
+interface Quote {
+  id: number;
+  quote_number: string;
+  customer_id: number;
+  customer?: {
+    id: number;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  user_id: number;
+  user?: {
+    id: number;
+    name: string;
+  };
+  company_id?: number;
+  company?: {
+    id: number;
+    name: string;
+  };
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+  valid_until: string;
+  quote_date: string;
+  terms_conditions?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+  items?: QuoteItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface QuoteItem {
+  id: number;
+  quote_id: number;
+  product_id: number;
+  product?: {
+    id: number;
+    name: string;
+    code: string;
+    price: number;
+  };
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  discount: number;
+}
+
+interface CreateQuoteData {
+  customer_id: number;
+  company_id?: number;
+  items: {
+    product_id: number;
+    quantity: number;
+    unit_price: number;
+    discount?: number;
+  }[];
+  discount?: number;
+  valid_until: string;
+  terms_conditions?: string;
   notes?: string;
   metadata?: Record<string, any>;
 }
@@ -369,7 +439,10 @@ async createCompany(data: {
   contact?: string;
   serial_no?: string;
   status?: 'active' | 'inactive';
+  rif: string;
+  key_system_items_id?: string;
 }): Promise<Company> {
+  console.log("Creating company with data:", data);
   const response: AxiosResponse<{ data: Company }> = await this.client.post('/companies', data);
   return response.data.data;
 }
@@ -457,6 +530,79 @@ async deleteSeller(id: number): Promise<{ message: string }> {
 
 async getSellersByCompany(companyId: number): Promise<PaginatedResponse<Seller>> {
   const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/sellers/company/${companyId}`);
+  return response.data;
+}
+
+
+async getQuotes(params?: {
+  status?: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+  date_from?: string;
+  date_to?: string;
+  customer_id?: number;
+  company_id?: number;
+  expired?: boolean;
+  today?: boolean;
+  this_month?: boolean;
+  per_page?: number;
+  page?: number;
+}): Promise<PaginatedResponse<Quote>> {
+  const response: AxiosResponse<PaginatedResponse<Quote>> = await this.client.get('/quotes', { params });
+  return response.data.data;
+}
+
+async getQuote(id: number): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.get(`/quotes/${id}`);
+  return response.data;
+}
+
+async createQuote(data: CreateQuoteData): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.post('/quotes', data);
+  return response.data;
+}
+
+async updateQuote(id: number, data: Partial<CreateQuoteData>): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.put(`/quotes/${id}`, data);
+  return response.data;
+}
+
+async deleteQuote(id: number): Promise<{ message: string }> {
+  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/quotes/${id}`);
+  return response.data;
+}
+
+// Acciones específicas de quotes
+async sendQuote(id: number): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/send`);
+  return response.data;
+}
+
+async approveQuote(id: number): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/approve`);
+  return response.data;
+}
+
+async rejectQuote(id: number): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/reject`);
+  return response.data;
+}
+
+async duplicateQuote(id: number): Promise<Quote> {
+  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/duplicate`);
+  return response.data;
+}
+
+async getQuoteStatistics(): Promise<{
+  total_quotes: number;
+  draft_quotes: number;
+  sent_quotes: number;
+  approved_quotes: number;
+  rejected_quotes: number;
+  expired_quotes: number;
+  this_month_quotes: number;
+  total_amount: number;
+  average_amount: number;
+}> {
+  const response = await this.client.get('/quotes/stats');
   return response.data;
 }
 }

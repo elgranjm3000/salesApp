@@ -3,14 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -43,6 +43,8 @@ export default function NewCompanyScreen(): JSX.Element {
     contact: '',
     serial_no: '',
     status: 'active' as 'active' | 'inactive',
+    rif: '',
+    key_system_items_id: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -110,7 +112,10 @@ export default function NewCompanyScreen(): JSX.Element {
         contact: formData.contact.trim() || undefined,
         serial_no: formData.serial_no.trim() || undefined,
         status: formData.status,
+        rif: formData.rif,
+        key_system_items_id: formData.key_system_items_id.trim() || undefined,
       };
+      console.log(companyData)
 
       const company = await api.createCompany(companyData);
       Alert.alert('Éxito', 'Compañía creada correctamente');
@@ -219,6 +224,15 @@ export default function NewCompanyScreen(): JSX.Element {
         {/* Información de la compañía */}
         <Card style={styles.formCard}>
           <Text style={styles.sectionTitle}>Información de la Compañía</Text>
+
+           <Input
+            label="RIF *"
+            placeholder="Ej: J-12345678-9"
+            value={formData.rif}
+            onChangeText={(value) => updateFormData('rif', value)}
+            error={errors.rif}
+            leftIcon={<Ionicons name="card" size={20} color={colors.text.tertiary} />}
+          />
           
           <Input
             label="Nombre de la Compañía *"
@@ -228,6 +242,17 @@ export default function NewCompanyScreen(): JSX.Element {
             error={errors.name}
             leftIcon={<Ionicons name="business" size={20} color={colors.text.tertiary} />}
           />
+
+          <Input
+            label="KEY *"
+            placeholder="Ej: SYS-00123"
+            value={formData.key_system_items_id}
+            onChangeText={(value) => updateFormData('key_system_items_id', value)}
+            error={errors.key_system_items_id}
+            leftIcon={<Ionicons name="key" size={20} color={colors.text.tertiary} />}
+          />
+
+         
 
           <Input
             label="Descripción"

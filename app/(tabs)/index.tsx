@@ -1,18 +1,22 @@
-// app/(tabs)/index.tsx - Dashboard mejorado con roles
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Dimensions,
+  FlatList,
+  ListRenderItem,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
@@ -21,16 +25,41 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
 
-interface MetricCardProps {
-  title: string;
-  value: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color?: string;
-  trend?: {
-    value: string;
-    type: 'up' | 'down' | 'stable';
+interface Company {
+  id: number;
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status: 'active' | 'inactive';
+  sellers_count?: number;
+}
+
+interface Seller {
+  id: number;
+  user_id: number;
+  company_id: number;
+  code: string;
+  description?: string;
+  percent_sales: number;
+  percent_receivable: number;
+  seller_status: 'active' | 'inactive';
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
   };
-  onPress?: () => void;
+}
+
+interface CompanySelectorProps {
+  visible: boolean;
+  companies: Company[];
+  selectedCompany: Company | null;
+  onSelect: (company: Company) => void;
+  onClose: () => void;
+  loading: boolean;
 }
 
 interface QuickActionProps {
@@ -45,29 +74,221 @@ interface SaleItemProps {
   sale: Sale;
 }
 
+const CompanySelector: React.FC<CompanySelectorProps> = ({
+  visible,
+  companies,
+  selectedCompany,
+  onSelect,
+  onClose,
+  loading,
+}) => {
+  const [search, setSearch] = useState('');
+  
+  const filteredCompanies = companies.filter(company =>
+    company.name.toLowerCase().includes(search.toLowerCase()) ||
+    company.description?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const renderCompany: ListRenderItem<Company> = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.companyItem,
+        selectedCompany?.id === item.id && styles.companyItemSelected
+      ]}
+      onPress={() => onSelect(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.companyInfo}>
+        <View style={styles.companyHeader}>
+          <View style={styles.companyIcon}>
+            <Ionicons name="business" size={20} color={colors.primary[500]} />
+          </View>
+          <View style={styles.companyDetails}>
+            <Text style={styles.companyName}>{item.name}</Text>
+            {item.description && (
+              <Text style={styles.companyDescription} numberOfLines={2}>
+                {item.description}
+              </Text>
+            )}
+          </View>
+        </View>
+        
+        <View style={styles.companyMeta}>
+          <View style={styles.companyMetaItem}>
+            <Ionicons name="people" size={16} color={colors.text.secondary} />
+            <Text style={styles.companyMetaText}>
+              {item.sellers_count || 0} vendedores
+            </Text>
+          </View>
+          <View style={[
+            styles.statusBadge,
+            { backgroundColor: item.status === 'active' ? colors.success + '20' : colors.error + '20' }
+          ]}>
+            <Text style={[
+              styles.statusText,
+              { color: item.status === 'active' ? colors.success : colors.error }
+            ]}>
+              {item.status === 'active' ? 'Activa' : 'Inactiva'}
+            </Text>
+          </View>
+        </View>
+      </View>
+      
+      {selectedCompany?.id === item.id && (
+        <View style={styles.selectedIndicator}>
+          <Ionicons name="checkmark-circle" size={24} color={colors.primary[500]} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <View style={styles.modalHeaderContent}>
+            <Text style={styles.modalTitle}>Seleccionar Empresa</Text>
+            <Text style={styles.modalSubtitle}>
+              {filteredCompanies.length} empresa{filteredCompanies.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+          >
+            <Ionicons name="close" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.searchContainer}>
+          <Input
+            placeholder="Buscar empresas..."
+            value={search}
+            onChangeText={setSearch}
+            leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+            style={{ marginBottom: 0 }}
+          />
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <LoadingSpinner text="Cargando empresas..." />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredCompanies}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderCompany}
+            contentContainerStyle={styles.companiesList}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="business" size={64} color={colors.text.tertiary} />
+                <Text style={styles.emptyText}>No se encontraron empresas</Text>
+              </View>
+            )}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+};
+
 export default function DashboardScreen(): JSX.Element {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [companySellers, setCompanySellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingCompanies, setLoadingCompanies] = useState<boolean>(false);
+  const [loadingSellers, setLoadingSellers] = useState<boolean>(false);
+  const [showCompanySelector, setShowCompanySelector] = useState<boolean>(false);
   const { user, logout } = useAuth();
 
   useEffect(() => {
-    loadDashboardData();
+    loadInitialData();
   }, []);
 
-  const loadDashboardData = async (): Promise<void> => {
+  useEffect(() => {
+    if (selectedCompany) {
+      loadCompanySellers();
+      loadCompanyDashboard();
+    }
+  }, [selectedCompany]);
+
+  const loadInitialData = async (): Promise<void> => {
     try {
       setLoading(true);
-      const data = await api.getDashboard();
-      setDashboardData(data);
+      await Promise.all([
+        loadDashboardData(),
+        loadCompanies(),
+      ]);
     } catch (error) {
-      console.log('Error loading dashboard:', error);
+      console.log('Error loading initial data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = (): void => {
-    loadDashboardData();
+  const loadDashboardData = async (): Promise<void> => {
+    try {
+      const data = await api.getDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.log('Error loading dashboard:', error);
+    }
+  };
+
+  const loadCompanies = async (): Promise<void> => {
+    try {
+      setLoadingCompanies(true);
+      const response = await api.getCompanies({ per_page: 100 });
+      setCompanies(response.data);
+      
+      // Auto-seleccionar la primera empresa si no hay ninguna seleccionada
+      if (response.data.length > 0 && !selectedCompany) {
+        setSelectedCompany(response.data[0]);
+      }
+    } catch (error) {
+      console.log('Error loading companies:', error);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
+  const loadCompanySellers = async (): Promise<void> => {
+    if (!selectedCompany) return;
+    
+    try {
+      setLoadingSellers(true);
+      const response = await api.getCompanySellers(selectedCompany.id);
+      setCompanySellers(response.data);
+    } catch (error) {
+      console.log('Error loading company sellers:', error);
+      setCompanySellers([]);
+    } finally {
+      setLoadingSellers(false);
+    }
+  };
+
+  const loadCompanyDashboard = async (): Promise<void> => {
+    // Aquí podrías cargar datos específicos de la empresa
+    // Por ahora mantenemos los datos generales del dashboard
+    try {
+      const data = await api.getDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.log('Error loading company dashboard:', error);
+    }
+  };
+
+  const handleRefresh = useCallback((): void => {
+    loadInitialData();
+  }, []);
+
+  const handleCompanySelect = (company: Company): void => {
+    setSelectedCompany(company);
+    setShowCompanySelector(false);
   };
 
   const getGreeting = (): string => {
@@ -79,31 +300,21 @@ export default function DashboardScreen(): JSX.Element {
 
   const getRoleText = (role: string): string => {
     switch (role) {
-      case 'admin':
-        return 'Administrador';
-      case 'manager':
-        return 'Manager';
-      case 'company':
-        return 'Compañía';
-      case 'seller':
-        return 'Vendedor';
-      default:
-        return role;
+      case 'admin': return 'Administrador';
+      case 'manager': return 'Manager';
+      case 'company': return 'Compañía';
+      case 'seller': return 'Vendedor';
+      default: return role;
     }
   };
 
   const getRoleColor = (role: string): string => {
     switch (role) {
-      case 'admin':
-        return colors.error;
-      case 'manager':
-        return colors.primary[500];
-      case 'company':
-        return colors.success;
-      case 'seller':
-        return colors.warning;
-      default:
-        return colors.text.secondary;
+      case 'admin': return colors.error;
+      case 'manager': return colors.primary[500];
+      case 'company': return colors.success;
+      case 'seller': return colors.warning;
+      default: return colors.text.secondary;
     }
   };
 
@@ -114,17 +325,17 @@ export default function DashboardScreen(): JSX.Element {
       case 'admin':
         actions.push(
           { title: 'Gestionar Usuarios', icon: 'people', color: '#10b981', onPress: () => router.push('/users') },
-          { title: 'Ver Compañías', icon: 'business', color: '#0ea5e9', onPress: () => router.push('/companies') },
-          { title: 'Vendedores', icon: 'person', color: '#f59e0b', onPress: () => router.push('/sellers') },
+          { title: 'Ver Empresas', icon: 'business', color: '#0ea5e9', onPress: () => setShowCompanySelector(true) },
+          { title: 'Nuevo Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push('/quotes/new') },
           { title: 'Reportes Globales', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;
         
       case 'manager':
         actions.push(
-          { title: 'Crear Compañía', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/companies/new') },
-          { title: 'Ver Compañías', icon: 'business', color: '#0ea5e9', onPress: () => router.push('/companies') },
-          { title: 'Gestionar Vendedores', icon: 'people', color: '#f59e0b', onPress: () => router.push('/sellers') },
+          { title: 'Crear Empresa', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/companies/new') },
+          { title: 'Ver Empresas', icon: 'business', color: '#0ea5e9', onPress: () => setShowCompanySelector(true) },
+          { title: 'Nuevo Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push('/quotes/new') },
           { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;
@@ -132,24 +343,24 @@ export default function DashboardScreen(): JSX.Element {
       case 'company':
         actions.push(
           { title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
-          { title: 'Mis Vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },
-          { title: 'Nueva Venta', icon: 'receipt', color: '#f59e0b', onPress: () => router.push('/sales/new') },
+          { title: 'Mis vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },
+          { title: 'Crear Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push('/quotes/new') },
           { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;
         
       case 'seller':
         actions.push(
-          { title: 'Nueva Venta', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/sales/new') },
+          { title: 'Nuevo Presupuesto', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/quotes/new') },
           { title: 'Nuevo Cliente', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers/new') },
           { title: 'Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
-          { title: 'Mis Ventas', icon: 'receipt', color: '#8b5cf6', onPress: () => router.push('/sales') }
+          { title: 'Mis Presupuestos', icon: 'document-text', color: '#8b5cf6', onPress: () => router.push('/quotes') }
         );
         break;
         
       default:
         actions.push(
-          { title: 'Nueva Venta', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/sales/new') },
+          { title: 'Nuevo Presupuesto', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/quotes/new') },
           { title: 'Productos', icon: 'cube', color: '#0ea5e9', onPress: () => router.push('/products') },
           { title: 'Clientes', icon: 'person-add', color: '#f59e0b', onPress: () => router.push('/customers') },
           { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
@@ -158,45 +369,6 @@ export default function DashboardScreen(): JSX.Element {
     
     return actions;
   };
-
-  const MetricCard: React.FC<MetricCardProps> = ({ 
-    title, 
-    value, 
-    icon, 
-    color = colors.primary[500], 
-    trend,
-    onPress 
-  }) => (
-    <TouchableOpacity 
-      style={[styles.metricCard, { borderLeftColor: color }]}
-      onPress={onPress}
-      disabled={!onPress}
-      activeOpacity={onPress ? 0.8 : 1}
-    >
-      <View style={styles.metricHeader}>
-        <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
-          <Ionicons name={icon} size={20} color={color} />
-        </View>
-        {trend && (
-          <View style={styles.trendContainer}>
-            <Ionicons 
-              name={trend.type === 'up' ? 'trending-up' : trend.type === 'down' ? 'trending-down' : 'remove'} 
-              size={14} 
-              color={trend.type === 'up' ? colors.success : trend.type === 'down' ? colors.error : colors.text.secondary} 
-            />
-            <Text style={[
-              styles.trendText, 
-              { color: trend.type === 'up' ? colors.success : trend.type === 'down' ? colors.error : colors.text.secondary }
-            ]}>
-              {trend.value}
-            </Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricTitle}>{title}</Text>
-    </TouchableOpacity>
-  );
 
   const QuickAction: React.FC<QuickActionProps> = ({ 
     title, 
@@ -221,7 +393,7 @@ export default function DashboardScreen(): JSX.Element {
   const SaleItem: React.FC<SaleItemProps> = ({ sale }) => (
     <TouchableOpacity 
       style={styles.saleItem}
-      onPress={() => router.push(`/sales/${sale.id}`)}
+      onPress={() => router.push(`/quotes/${sale.id}`)}
       activeOpacity={0.8}
     >
       <View style={styles.saleHeader}>
@@ -247,8 +419,8 @@ export default function DashboardScreen(): JSX.Element {
                     sale.status === 'pending' ? colors.warning : 
                     colors.error }
           ]}>
-            {sale.status === 'completed' ? 'Completada' : 
-             sale.status === 'pending' ? 'Pendiente' : 'Cancelada'}
+            {sale.status === 'completed' ? 'Completado' : 
+             sale.status === 'pending' ? 'Pendiente' : 'Cancelado'}
           </Text>
         </View>
       </View>
@@ -298,49 +470,180 @@ export default function DashboardScreen(): JSX.Element {
         </View>
       </View>
 
+      {/* Selector de Empresa */}
+      {companies.length > 0 && (
+        <View style={styles.companySelectorContainer}>
+          <Card padding="lg">
+            <View style={styles.companySelectorHeader}>
+              <Text style={styles.companySelectorTitle}>Empresa Seleccionada</Text>
+              <TouchableOpacity
+                style={styles.changeCompanyButton}
+                onPress={() => setShowCompanySelector(true)}
+              >
+                <Text style={styles.changeCompanyText}>Cambiar</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
+              </TouchableOpacity>
+            </View>
+            
+            {selectedCompany ? (
+              <TouchableOpacity
+                style={styles.selectedCompanyCard}
+                onPress={() => setShowCompanySelector(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.selectedCompanyIcon}>
+                  <Ionicons name="business" size={24} color={colors.primary[500]} />
+                </View>
+                <View style={styles.selectedCompanyInfo}>
+                  <Text style={styles.selectedCompanyName}>{selectedCompany.name}</Text>
+                  {selectedCompany.description && (
+                    <Text style={styles.selectedCompanyDescription} numberOfLines={1}>
+                      {selectedCompany.description}
+                    </Text>
+                  )}
+                  <Text style={styles.selectedCompanyMeta}>
+                    {companySellers.length} vendedor{companySellers.length !== 1 ? 'es' : ''} • {selectedCompany.status === 'active' ? 'Activa' : 'Inactiva'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.noCompanySelected}
+                onPress={() => setShowCompanySelector(true)}
+              >
+                <Ionicons name="business" size={32} color={colors.text.tertiary} />
+                <Text style={styles.noCompanyText}>Seleccionar empresa</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        </View>
+      )}
+
+      {/* Vendedores de la empresa */}
+      {selectedCompany && companySellers.length > 0 && (
+        <View style={styles.sellersContainer}>
+          <Card padding="lg">
+            <View style={styles.sellersHeader}>
+              <Text style={styles.sellersTitle}>
+                Vendedores ({companySellers.length})
+              </Text>
+              <TouchableOpacity
+                style={styles.addSellerButton}
+                onPress={() => router.push(`/sellers/new?company_id=${selectedCompany.id}`)}
+              >
+                <Ionicons name="add" size={16} color={colors.primary[500]} />
+                <Text style={styles.addSellerText}>Agregar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sellersScrollContainer}
+            >
+              {loadingSellers ? (
+                <View style={styles.sellersLoading}>
+                  <LoadingSpinner text="Cargando vendedores..." />
+                </View>
+              ) : (
+                companySellers.map((seller) => (
+                  <TouchableOpacity
+                    key={seller.id}
+                    style={styles.sellerCard}
+                    onPress={() => router.push(`/sellers/${seller.id}`)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.sellerAvatar}>
+                      <Text style={styles.sellerAvatarText}>
+                        {seller.user?.name.charAt(0).toUpperCase() || 'S'}
+                      </Text>
+                    </View>
+                    <Text style={styles.sellerName} numberOfLines={1}>
+                      {seller.user?.name || 'Vendedor'}
+                    </Text>
+                    <Text style={styles.sellerCode} numberOfLines={1}>
+                      #{seller.code}
+                    </Text>
+                    <View style={[
+                      styles.sellerStatusBadge,
+                      { backgroundColor: seller.seller_status === 'active' ? colors.success + '20' : colors.error + '20' }
+                    ]}>
+                      <Text style={[
+                        styles.sellerStatusText,
+                        { color: seller.seller_status === 'active' ? colors.success : colors.error }
+                      ]}>
+                        {seller.seller_status === 'active' ? 'Activo' : 'Inactivo'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </Card>
+        </View>
+      )}
+
       {/* Métricas principales */}
       <View style={styles.metricsContainer}>
         <Text style={styles.sectionTitle}>Resumen de Hoy</Text>
         <View style={styles.metricsGrid}>
-          <MetricCard
-            title="Ventas Hoy"
-            value={formatCurrency(dashboardData?.metrics?.today_sales || 0)}
-            icon="today"
-            color={colors.success}
-            trend={{ value: '+12%', type: 'up' }}
-          />
-          <MetricCard
-            title="Ventas Mes"
-            value={formatCurrency(dashboardData?.metrics?.month_sales || 0)}
-            icon="calendar"
-            color={colors.primary[500]}
-            trend={{ value: '+8%', type: 'up' }}
-          />
-          <MetricCard
-            title="Stock Bajo"
-            value={dashboardData?.metrics?.low_stock_products?.toString() || '0'}
-            icon="warning"
-            color={colors.warning}
-            trend={{ value: '-2', type: 'down' }}
-            onPress={() => router.push('/products?lowStock=true')}
-          />
-          <MetricCard
-            title="Clientes"
-            value={dashboardData?.metrics?.total_customers?.toString() || '0'}
-            icon="people"
-            color={colors.info}
-            trend={{ value: '+5', type: 'up' }}
-            onPress={() => router.push('/customers')}
-          />
+          <Card style={[styles.metricCard, { borderLeftColor: colors.success }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.success + '15' }]}>
+                <Ionicons name="document-text" size={20} color={colors.success} />
+              </View>
+              <View style={styles.trendContainer}>
+                <Ionicons name="trending-up" size={14} color={colors.success} />
+                <Text style={[styles.trendText, { color: colors.success }]}>+12%</Text>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{formatCurrency(dashboardData?.metrics?.today_sales || 0)}</Text>
+            <Text style={styles.metricTitle}>Presupuestos Hoy</Text>
+          </Card>
+
+          <Card style={[styles.metricCard, { borderLeftColor: colors.primary[500] }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.primary[500] + '15' }]}>
+                <Ionicons name="calendar" size={20} color={colors.primary[500]} />
+              </View>
+              <View style={styles.trendContainer}>
+                <Ionicons name="trending-up" size={14} color={colors.success} />
+                <Text style={[styles.trendText, { color: colors.success }]}>+8%</Text>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{formatCurrency(dashboardData?.metrics?.month_sales || 0)}</Text>
+            <Text style={styles.metricTitle}>Presupuestos Mes</Text>
+          </Card>
+
+          <Card style={[styles.metricCard, { borderLeftColor: colors.warning }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.warning + '15' }]}>
+                <Ionicons name="warning" size={20} color={colors.warning} />
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{dashboardData?.metrics?.low_stock_products?.toString() || '0'}</Text>
+            <Text style={styles.metricTitle}>Stock Bajo</Text>
+          </Card>
+
+          <Card style={[styles.metricCard, { borderLeftColor: colors.info }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.info + '15' }]}>
+                <Ionicons name="people" size={20} color={colors.info} />
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{dashboardData?.metrics?.total_customers?.toString() || '0'}</Text>
+            <Text style={styles.metricTitle}>Clientes</Text>
+          </Card>
         </View>
       </View>
 
-      {/* Gráfico de ventas mejorado */}
+      {/* Gráfico de ventas */}
       {dashboardData?.sales_chart && dashboardData.sales_chart.length > 0 && (
         <View style={styles.chartContainer}>
           <Card padding="lg" style={styles.chartCard}>
             <View style={styles.chartHeader}>
-              <Text style={styles.sectionTitle}>Ventas de los Últimos 7 Días</Text>              
+              <Text style={styles.sectionTitle}>Presupuestos de los Últimos 7 Días</Text>              
               <TouchableOpacity onPress={() => router.push('/reports')}>
                 <Text style={styles.viewMoreText}>Ver más</Text>
               </TouchableOpacity>
@@ -404,12 +707,12 @@ export default function DashboardScreen(): JSX.Element {
         </View>
       </View>
 
-      {/* Ventas recientes */}
+      {/* Presupuestos recientes */}
       <View style={styles.recentSalesContainer}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Ventas Recientes</Text>
-          <TouchableOpacity onPress={() => router.push('/sales')}>
-            <Text style={styles.seeAllText}>Ver todas</Text>
+          <Text style={styles.sectionTitle}>Presupuestos Recientes</Text>
+          <TouchableOpacity onPress={() => router.push('/quotes')}>
+            <Text style={styles.seeAllText}>Ver todos</Text>
           </TouchableOpacity>
         </View>
         
@@ -420,53 +723,30 @@ export default function DashboardScreen(): JSX.Element {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="receipt" size={48} color={colors.text.tertiary} />
-              <Text style={styles.emptyStateText}>No hay ventas recientes</Text>
+              <Ionicons name="document-text" size={48} color={colors.text.tertiary} />
+              <Text style={styles.emptyStateText}>No hay presupuestos recientes</Text>
               <TouchableOpacity 
                 style={styles.emptyActionButton}
-                onPress={() => router.push('/sales/new')}
+                onPress={() => router.push('/quotes/new')}
               >
-                <Text style={styles.emptyActionText}>Crear primera venta</Text>
+                <Text style={styles.emptyActionText}>Crear primer presupuesto</Text>
               </TouchableOpacity>
             </View>
           )}
         </Card>
       </View>
 
-      {/* Productos con stock bajo */}
-      {dashboardData?.low_stock_products && dashboardData.low_stock_products.length > 0 && (
-        <View style={styles.lowStockContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Productos con Stock Bajo</Text>
-            <TouchableOpacity onPress={() => router.push('/products?lowStock=true')}>
-              <Text style={styles.seeAllText}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <Card padding="sm">
-            {dashboardData.low_stock_products.slice(0, 3).map((product) => (
-              <TouchableOpacity 
-                key={product.id}
-                style={styles.lowStockItem}
-                onPress={() => router.push(`/products/${product.id}`)}
-              >
-                <View style={styles.lowStockInfo}>
-                  <Ionicons name="warning" size={20} color={colors.warning} />
-                  <View style={styles.lowStockText}>
-                    <Text style={styles.lowStockProductName}>{product.name}</Text>
-                    <Text style={styles.lowStockProductCode}>#{product.code}</Text>
-                  </View>
-                </View>
-                <View style={styles.lowStockBadge}>
-                  <Text style={styles.lowStockCount}>{product.stock}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </Card>
-        </View>
-      )}
-
       <View style={styles.bottomSpacer} />
+
+      {/* Modal Selector de Empresas */}
+      <CompanySelector
+        visible={showCompanySelector}
+        companies={companies}
+        selectedCompany={selectedCompany}
+        onSelect={handleCompanySelect}
+        onClose={() => setShowCompanySelector(false)}
+        loading={loadingCompanies}
+      />
     </ScrollView>
   );
 }
@@ -545,6 +825,281 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
+  // Company Selector Styles
+  companySelectorContainer: {
+    padding: spacing.lg,
+  },
+  companySelectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  companySelectorTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  changeCompanyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.md,
+  },
+  changeCompanyText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.medium,
+    marginRight: spacing.xs,
+  },
+  selectedCompanyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  selectedCompanyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  selectedCompanyInfo: {
+    flex: 1,
+  },
+  selectedCompanyName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  selectedCompanyDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  selectedCompanyMeta: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.tertiary,
+  },
+  noCompanySelected: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  noCompanyText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+  },
+  
+  // Sellers Styles
+  sellersContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  sellersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  sellersTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  addSellerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.md,
+  },
+  addSellerText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.medium,
+    marginLeft: spacing.xs,
+  },
+  sellersScrollContainer: {
+    paddingHorizontal: spacing.sm,
+  },
+  sellersLoading: {
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: screenWidth - 80,
+  },
+  sellerCard: {
+    width: 100,
+    alignItems: 'center',
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.sm,
+  },
+  sellerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  sellerAvatarText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
+  },
+  sellerName: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  sellerCode: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  sellerStatusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  sellerStatusText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+  },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  modalHeaderContent: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  modalSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+  closeButton: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.gray[100],
+  },
+  searchContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  companiesList: {
+    padding: spacing.lg,
+  },
+  companyItem: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  companyItemSelected: {
+    borderColor: colors.primary[300],
+    backgroundColor: colors.primary[25],
+  },
+  companyInfo: {
+    flex: 1,
+  },
+  companyHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  companyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  companyDetails: {
+    flex: 1,
+  },
+  companyName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  companyDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  companyMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  companyMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  companyMetaText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginLeft: spacing.sm,
+  },
+  selectedIndicator: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing['2xl'],
+  },
+  emptyText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+  },
+
+  // Existing styles with updated references
   metricsContainer: {
     padding: spacing.lg,
   },
@@ -652,7 +1207,7 @@ const styles = StyleSheet.create({
     minWidth: '45%',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    padding: spacing.lg,
+    padding: spacing.sm,
     borderRadius: borderRadius.xl,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -688,6 +1243,7 @@ const styles = StyleSheet.create({
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
+    marginTop: 150,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -771,51 +1327,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.inverse,
     fontWeight: typography.fontWeight.semibold,
-  },
-  lowStockContainer: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  lowStockItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  lowStockInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  lowStockText: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  lowStockProductName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
-  },
-  lowStockProductCode: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  lowStockBadge: {
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    minWidth: 32,
-    alignItems: 'center',
-  },
-  lowStockCount: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.warning,
   },
   bottomSpacer: {
     height: spacing.lg,

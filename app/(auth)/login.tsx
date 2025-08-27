@@ -106,6 +106,7 @@ export default function LoginScreen(): JSX.Element {
             secureTextEntry
             leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
             autoComplete="password"
+            autoCapitalize="none"
           />
 
           <Button

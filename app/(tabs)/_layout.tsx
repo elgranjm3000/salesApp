@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx - Mejorado para roles
+// app/(tabs)/_layout.tsx - Layout actualizado con Presupuestos
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
@@ -22,15 +22,15 @@ export default function TabLayout(): JSX.Element {
         return true; // Admin ve todos los tabs
         
       case 'manager':
-        // Manager ve dashboard, clientes, ventas y reportes
+        // Manager ve dashboard, clientes, presupuestos y reportes
         return ['index', 'customers', 'quotes', 'reports'].includes(tabName);
         
       case 'company':
-        // Company ve dashboard, productos, clientes, ventas y reportes
+        // Company ve dashboard, productos, clientes, presupuestos y reportes
         return ['index', 'products', 'customers', 'quotes', 'reports'].includes(tabName);
         
       case 'seller':
-        // Seller ve dashboard, productos, clientes y ventas
+        // Seller ve dashboard, productos, clientes y presupuestos
         return ['index', 'products', 'customers', 'quotes'].includes(tabName);
         
       default:
@@ -51,6 +51,13 @@ export default function TabLayout(): JSX.Element {
           paddingBottom: 8,
           paddingTop: 8,
           height: 64,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
+        tabBarIconStyle: {
+          marginBottom: 2,
         },
       }}
     >
@@ -88,11 +95,11 @@ export default function TabLayout(): JSX.Element {
       />
       
       <Tabs.Screen
-        name="sales"
+        name="quotes"
         options={{
           title: 'Presupuestos',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt" size={size} color={color} />
+            <Ionicons name="document-text" size={size} color={color} />
           ),
           href: shouldShowTab('quotes') ? '/quotes' : null,
         }}
@@ -106,6 +113,14 @@ export default function TabLayout(): JSX.Element {
             <Ionicons name="analytics" size={size} color={color} />
           ),
           href: shouldShowTab('reports') ? '/reports' : null,
+        }}
+      />
+
+      {/* Mantener sales oculto para compatibilidad pero redirigir a quotes */}
+      <Tabs.Screen
+        name="sales"
+        options={{
+          href: null, // Ocultar del tab bar
         }}
       />
     </Tabs>

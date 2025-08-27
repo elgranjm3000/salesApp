@@ -423,7 +423,7 @@ export default function ProfileScreen(): JSX.Element {
 
         {/* Compañías del usuario (solo si es company) */}
         {user.role === 'company' && (
-          <Card>
+          <Card style={{ marginTop: spacing.lg }}>
             <View style={styles.companiesHeader}>
               <Text style={styles.sectionTitle}>Mis Compañías</Text>
               <TouchableOpacity
@@ -460,7 +460,7 @@ export default function ProfileScreen(): JSX.Element {
         )}
 
         {/* Información de la cuenta */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Información de la Cuenta</Text>
           
           <View style={styles.infoRow}>
@@ -495,7 +495,7 @@ export default function ProfileScreen(): JSX.Element {
 
         {/* Información de almacenamiento */}
         {storageInfo && (
-          <Card>
+          <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Datos Locales</Text>
             
             <View style={styles.storageInfo}>
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.md,    
   },
   addCompanyButton: {
     padding: spacing.sm,
