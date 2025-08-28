@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -62,7 +63,9 @@ export default function SellersScreen(): JSX.Element {
     console.log('Loading sellers...');
     try {
       setLoading(true);
-      const response = await api.getSellers();
+       const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const company = storedCompany ? JSON.parse(storedCompany) : null;
+      const response = await api.getSellers({ company_id: company.id });
       // Corregir la estructura de respuesta - a veces viene en data.data, a veces solo en data
       const sellersData = response.data?.data || response.data || [];
       setSellers(sellersData);

@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    ListRenderItem,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  ListRenderItem,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -150,29 +150,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({
     </TouchableOpacity>
   );
 
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Seleccionar Usuario</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-        </View>
-        
-        {loading ? (
-          <LoadingSpinner text="Cargando usuarios..." />
-        ) : (
-          <FlatList
-            data={users.filter(u => u.status === 'active' && u.role === 'seller')}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderUser}
-            style={styles.selectorList}
-          />
-        )}
-      </View>
-    </Modal>
-  );
+ 
 };
 
 export default function NewSellerScreen(): JSX.Element {
@@ -190,6 +168,11 @@ export default function NewSellerScreen(): JSX.Element {
   const [showUserSelector, setShowUserSelector] = useState(false);
 
   const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    password_confirmation: '',
     code: '',
     description: '',
     percent_sales: '5.0',
@@ -238,16 +221,29 @@ export default function NewSellerScreen(): JSX.Element {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!selectedUser) {
-      newErrors.user = 'Debes seleccionar un usuario';
-    }
-
     if (!selectedCompany) {
       newErrors.company = 'Debes seleccionar una empresa';
     }
 
     if (!formData.code.trim()) {
       newErrors.code = 'El código del vendedor es requerido';
+    }
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'El nombre es requerido';
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'El email es requerido';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'El email no es válido';
+    }
+    if (!formData.password) {
+      newErrors.password = 'La contraseña es requerida';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'La contraseña debe tener al menos 6 caracteres';
+    }
+    if (formData.password !== formData.password_confirmation) {
+      newErrors.password_confirmation = 'Las contraseñas no coinciden';
     }
 
     const percentSales = Number(formData.percent_sales);
@@ -271,7 +267,11 @@ export default function NewSellerScreen(): JSX.Element {
       setSaving(true);
       
       const sellerData = {
-        user_id: selectedUser!.id,
+        name: formData.name.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        password: formData.password || undefined,
+        password_confirmation: formData.password_confirmation || undefined,
         company_id: selectedCompany!.id,
         code: formData.code.trim(),
         description: formData.description.trim() || undefined,
@@ -334,31 +334,8 @@ export default function NewSellerScreen(): JSX.Element {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Selección de usuario */}
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Usuario Responsable</Text>
-          
-          <TouchableOpacity
-            style={styles.selectorButton}
-            onPress={() => setShowUserSelector(true)}
-          >
-            <View style={styles.selectorButtonContent}>
-              <Ionicons name="person" size={20} color={colors.primary[500]} />
-              <View style={styles.selectorButtonText}>
-                <Text style={styles.selectorButtonLabel}>Usuario</Text>
-                <Text style={styles.selectorButtonValue}>
-                  {selectedUser ? selectedUser.name : 'Seleccionar usuario'}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
-          </TouchableOpacity>
-          
-          {errors.user && (
-            <Text style={styles.errorText}>{errors.user}</Text>
-          )}
-        </Card>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>        
+        
 
         {/* Selección de empresa */}
         <Card style={styles.formCard}>
@@ -388,6 +365,59 @@ export default function NewSellerScreen(): JSX.Element {
         {/* Información básica */}
         <Card style={styles.formCard}>
           <Text style={styles.sectionTitle}>Información Básica</Text>
+
+          <Input
+              label="Nombre *"
+              placeholder="Nombre del vendedor"
+              value={formData.name}
+              onChangeText={(value) => updateFormData('name', value)}
+              error={errors.name}
+              autoCapitalize="words"
+              leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
+            />
+
+            <Input
+              label="Email *"
+              placeholder="correo@ejemplo.com"
+              value={formData.email}
+              onChangeText={(value) => updateFormData('email', value)}
+              error={errors.email}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
+            />
+
+            <Input
+              label="Teléfono"
+              placeholder="0414-1234567"
+              value={formData.phone}
+              onChangeText={(value) => updateFormData('phone', value)}
+              error={errors.phone}
+              keyboardType="phone-pad"
+              leftIcon={<Ionicons name="call" size={20} color={colors.text.tertiary} />}
+            />
+
+            <Input
+              label="Contraseña *"
+              placeholder="Contraseña"
+              value={formData.password}
+              onChangeText={(value) => updateFormData('password', value)}
+              error={errors.password}
+              secureTextEntry
+              leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
+            />
+
+          <Input
+              label="Confirmar Contraseña *"
+              placeholder="Repite tu contraseña"
+              value={formData.password_confirmation}
+              onChangeText={(value) => updateFormData('password_confirmation', value)}
+              error={errors.password_confirmation}
+              secureTextEntry
+              leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
+            />
+            
+
           
           <Input
             label="Código del Vendedor *"

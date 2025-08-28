@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://c9a0af9d42712fed34a0b6ec0a45a8f5.serveo.net/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://8b4c2d9fcb609f41e7911a6b59afebdb.serveo.net/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -479,7 +479,7 @@ async getSellers(params?: {
   per_page?: number;
   page?: number;
 }): Promise<PaginatedResponse<Seller>> {
-  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers');
+  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers',{ params });
   return response.data;
 }
 
@@ -489,7 +489,11 @@ async getSeller(id: number): Promise<Seller> {
 }
 
 async createSeller(data: {
-  user_id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  password_confirmation: string;
   company_id: number;
   code: string;
   description?: string;

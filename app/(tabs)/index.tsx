@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -208,9 +209,19 @@ export default function DashboardScreen(): JSX.Element {
   useEffect(() => {
     loadInitialData();
   }, []);
+  useEffect(() => {
+  const loadSelectedCompany = async () => {
+  const storedCompany = await AsyncStorage.getItem('selectedCompany');
+    if (storedCompany) {
+      setSelectedCompany(JSON.parse(storedCompany));
+    }
+  };  
+  loadSelectedCompany();
+  },[]);
 
   useEffect(() => {
     if (selectedCompany) {
+      console.log('Selected Company changed:', selectedCompany.id);
       loadCompanySellers();
       loadCompanyDashboard();
     }
@@ -286,9 +297,11 @@ export default function DashboardScreen(): JSX.Element {
     loadInitialData();
   }, []);
 
-  const handleCompanySelect = (company: Company): void => {
+  const handleCompanySelect = async (company: Company): Promise<void> => {
     setSelectedCompany(company);
     setShowCompanySelector(false);
+    await AsyncStorage.setItem('selectedCompany', JSON.stringify(company));
+
   };
 
   const getGreeting = (): string => {

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -41,7 +42,12 @@ export default function ProductsScreen(): JSX.Element {
   const loadProducts = async (): Promise<void> => {
     try {
       setLoading(true);
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const company = storedCompany ? JSON.parse(storedCompany) : null;
+      console.log('Selected Company:', company.id);
       const response = await api.getProducts();
+        //response = await api.getProducts({ company_id: company.id });
+
       setProducts(response.data);
     } catch (error) {
       console.log('Error loading products:', error);
