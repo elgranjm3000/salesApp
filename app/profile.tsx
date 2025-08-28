@@ -1,4 +1,4 @@
-// app/profile.tsx - Perfil mejorado con compañías
+// app/profile.tsx - Perfil mejorado con compañías y biometría
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { BiometricSettings } from '../components/BiometricSettings';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -386,6 +387,12 @@ export default function ProfileScreen(): JSX.Element {
           </View>
         </Card>
 
+        {/* Configuración de Seguridad */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Seguridad</Text>
+          <BiometricSettings />
+        </View>
+
         {/* Información personal */}
         <Card>
           <Text style={styles.sectionTitle}>Información Personal</Text>
@@ -610,6 +617,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: spacing.lg,
+  },
+  section: {
+    marginBottom: spacing.lg,
   },
   avatarCard: {
     marginBottom: spacing.lg,

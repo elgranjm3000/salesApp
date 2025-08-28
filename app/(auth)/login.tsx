@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -17,12 +18,31 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../theme/design';
 
 export default function LoginScreen(): JSX.Element {
-  const { login, loading } = useAuth();
+  const { 
+    login, 
+    loginWithBiometric, 
+    loading, 
+    isBiometricSupported, 
+    isBiometricEnabled 
+  } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Auto-login con biometría si está habilitada
+  useEffect(() => {
+    const tryBiometricLogin = async () => {
+      if (isBiometricEnabled && isBiometricSupported && !loading) {
+        // Esperar un poco para que la UI se renderice
+        setTimeout(handleBiometricLogin, 800);
+      }
+    };
+
+    tryBiometricLogin();
+  }, [isBiometricEnabled, isBiometricSupported]);
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -61,11 +81,27 @@ export default function LoginScreen(): JSX.Element {
     }
   };
 
-  const selectTestUser = (userEmail: string): void => {
-    setEmail(userEmail);
-    setPassword('password');
-    setEmailError('');
-    setPasswordError('');
+  const handleBiometricLogin = async (): Promise<void> => {
+    if (biometricLoading) return;
+    
+    setBiometricLoading(true);
+    
+    const result = await loginWithBiometric();
+    
+    if (result.success) {
+      router.replace('/(tabs)');
+    } else {
+      // Solo mostrar error si no es que el usuario canceló
+      if (result.message && !result.message.includes('cancelada') && !result.message.includes('fallida')) {
+        Alert.alert(
+          'Error de acceso biométrico', 
+          result.message,
+          [{ text: 'OK' }]
+        );
+      }
+    }
+    
+    setBiometricLoading(false);
   };
 
   return (
@@ -73,6 +109,7 @@ export default function LoginScreen(): JSX.Element {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <ScrollView>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -83,8 +120,45 @@ export default function LoginScreen(): JSX.Element {
           <Text style={styles.subtitle}>Sistema de Ventas Inteligente</Text>
         </View>
 
+        {/* Biometric Login Button */}
+        {isBiometricSupported && isBiometricEnabled && (
+          <Card style={styles.biometricCard}>
+            <TouchableOpacity
+              style={styles.biometricButton}
+              onPress={handleBiometricLogin}
+              disabled={biometricLoading || loading}
+            >
+              <View style={styles.biometricIconContainer}>
+                <Ionicons 
+                  name="finger-print" 
+                  size={32} 
+                  color={biometricLoading ? colors.gray[400] : colors.primary[500]} 
+                />
+              </View>
+              <Text style={[
+                styles.biometricText,
+                (biometricLoading || loading) && { color: colors.gray[400] }
+              ]}>
+                {biometricLoading ? 'Autenticando...' : 'Usar Huella Dactilar'}
+              </Text>
+              <Text style={styles.biometricSubtext}>
+                Toca para iniciar sesión rápidamente
+              </Text>
+            </TouchableOpacity>
+          </Card>
+        )}
+
+        {/* Divider */}
+        {isBiometricSupported && isBiometricEnabled && (
+          <View style={styles.dividerContainer}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.divider} />
+          </View>
+        )}
+
         {/* Formulario */}
-        <Card padding="lg">
+        <Card padding="lg" >
           <Input
             label="Email"
             placeholder="tu@email.com"
@@ -125,11 +199,21 @@ export default function LoginScreen(): JSX.Element {
           </TouchableOpacity>
         </View>
 
-        
+        {/* Info sobre biometría */}
+        {isBiometricSupported && !isBiometricEnabled && (
+          <View style={[styles.biometricInfo, {marginBottom: (isBiometricEnabled) ? 200 : 0 }] }>
+            <Ionicons name="information-circle" size={16} color={colors.text.secondary} />
+            <Text style={styles.biometricInfoText}>
+              Puedes activar la huella dactilar después de iniciar sesión
+            </Text>
+          </View>
+        )}
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -166,6 +250,48 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
   },
+  biometricCard: {
+    marginBottom: spacing.lg,
+  },
+  biometricButton: {
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  biometricIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  biometricText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  biometricSubtext: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.gray[200],
+  },
+  dividerText: {
+    marginHorizontal: spacing.md,
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -181,65 +307,18 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
     fontWeight: typography.fontWeight.semibold,
   },
-  testUsers: {
-    marginTop: spacing.xl,
-    alignItems: 'center',
-  },
-  testUsersTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  testUsersList: {
+  biometricInfo: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
-  testUserButton: {
-    minWidth: 100,
-  },
-  testUsersNote: {
+  biometricInfoText: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    marginLeft: spacing.xs,
     textAlign: 'center',
-    marginTop: spacing.md,
-  },
-  passwordText: {
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  infoContainer: {
-    marginTop: spacing.xl,
-    paddingTop: spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
-  },
-  roleInfo: {
-    backgroundColor: colors.gray[50],
-    padding: spacing.lg,
-    borderRadius: 12,
-  },
-  roleInfoTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-  },
-  rolesList: {
-    gap: spacing.sm,
-  },
-  roleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  roleText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
     flex: 1,
   },
 });

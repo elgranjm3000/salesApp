@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    ListRenderItem,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  ListRenderItem,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -59,10 +59,11 @@ export default function SellersScreen(): JSX.Element {
   }, [searchText, sellers]);
 
   const loadSellers = async (): Promise<void> => {
+    console.log('Loading sellers...');
     try {
       setLoading(true);
-      const response = await api.getSellers({ per_page: 100 });
-      setSellers(response.data);
+      const response = await api.getSellers();
+      setSellers(response.data.data);
     } catch (error) {
       console.log('Error loading sellers:', error);
     } finally {

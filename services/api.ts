@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://d3f100a4856bcbaa65b161fcfb17c710.serveo.net/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://c9a0af9d42712fed34a0b6ec0a45a8f5.serveo.net/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -478,7 +478,7 @@ async getSellers(params?: {
   per_page?: number;
   page?: number;
 }): Promise<PaginatedResponse<Seller>> {
-  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers', { params });
+  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers');
   return response.data;
 }
 

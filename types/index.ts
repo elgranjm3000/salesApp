@@ -3,7 +3,7 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
-  role: 'admin' | 'seller' | 'manager';
+  role: 'admin' | 'seller' | 'manager' | 'company'; // Agregado 'company'
   status: 'active' | 'inactive';
   avatar?: string;
   email_verified_at?: string;
