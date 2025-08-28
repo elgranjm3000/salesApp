@@ -157,6 +157,7 @@ interface CreateQuoteData {
     quantity: number;
     unit_price: number;
     discount?: number;
+    name?: string;
   }[];
   discount?: number;
   valid_until: string;

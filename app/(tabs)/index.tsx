@@ -344,7 +344,7 @@ export default function DashboardScreen(): JSX.Element {
         actions.push(
           { title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
           { title: 'Mis vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },
-          { title: 'Crear Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push('/quotes/new') },
+          { title: 'Nuevo Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push({ pathname: '/quotes/new', params: { company_id: selectedCompany?.id?.toString() } }) },
           { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;

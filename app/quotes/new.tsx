@@ -669,6 +669,7 @@ export default function NewQuoteScreen(): JSX.Element {
     customer_id?: string; 
     company_id?: string; 
   }>();
+  console.log('customer_id:', customer_id, 'company_id:', company_id);
   const { user } = useAuth();
  const [selectedProductForItem, setSelectedProductForItem] = useState<Product | null>(null);
 
@@ -722,7 +723,10 @@ export default function NewQuoteScreen(): JSX.Element {
 
   useEffect(() => {
     if (company_id && companies.length > 0) {
+      console.log('Pre-selected company:', company_id);
+
       const preSelectedCompany = companies.find(c => c.id === Number(company_id));
+      console.log('Pre-selected company:', preSelectedCompany);
       if (preSelectedCompany) {
         setSelectedCompany(preSelectedCompany);
       }
@@ -901,13 +905,13 @@ export default function NewQuoteScreen(): JSX.Element {
           quantity: item.quantity,
           unit_price: item.unit_price,
           discount: item.discount,
+          name: item.product?.name,
         })),
         valid_until: formData.valid_until,
         terms_conditions: formData.terms_conditions.trim() || undefined,
         notes: formData.notes.trim() || undefined,
         discount: Number(formData.discount),
       };
-
       const quote = await api.createQuote(quoteData);
       Alert.alert('Éxito', 'Presupuesto creado correctamente');
       router.replace(`/quotes/${quote.id}`);
