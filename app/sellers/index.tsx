@@ -63,9 +63,12 @@ export default function SellersScreen(): JSX.Element {
     try {
       setLoading(true);
       const response = await api.getSellers();
-      setSellers(response.data.data);
+      // Corregir la estructura de respuesta - a veces viene en data.data, a veces solo en data
+      const sellersData = response.data?.data || response.data || [];
+      setSellers(sellersData);
     } catch (error) {
       console.log('Error loading sellers:', error);
+      Alert.alert('Error', 'No se pudieron cargar los vendedores');
     } finally {
       setLoading(false);
     }
@@ -182,13 +185,28 @@ export default function SellersScreen(): JSX.Element {
           <View style={styles.sellerActions}>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push(`/sellers/${seller.id}?mode=edit`)}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/sellers/${seller.id}/edit`);
+              }}
             >
               <Ionicons name="create" size={18} color={colors.primary[500]} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => deleteSeller(seller.id)}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/sellers/${seller.id}`);
+              }}
+            >
+              <Ionicons name="eye" size={18} color={colors.info} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                deleteSeller(seller.id);
+              }}
             >
               <Ionicons name="trash" size={18} color={colors.error} />
             </TouchableOpacity>
@@ -206,8 +224,11 @@ export default function SellersScreen(): JSX.Element {
     <View style={styles.emptyContainer}>
       <Ionicons name="people" size={64} color={colors.text.tertiary} />
       <Text style={styles.emptyText}>No hay vendedores registrados</Text>
+      <Text style={styles.emptySubtext}>
+        Comienza creando tu primer vendedor para gestionar las ventas
+      </Text>
       <Button
-        title="Agregar Vendedor"
+        title="Crear Vendedor"
         variant="outline"
         onPress={() => router.push('/sellers/new')}
         style={{ marginTop: spacing.lg }}
@@ -222,13 +243,33 @@ export default function SellersScreen(): JSX.Element {
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.title}>Vendedores</Text>
-            <Text style={styles.subtitle}>{filteredSellers.length} vendedores</Text>
+            <Text style={styles.subtitle}>
+              {filteredSellers.length} vendedor{filteredSellers.length !== 1 ? 'es' : ''}
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => router.push('/sellers/new')}
           >
             <Ionicons name="add" size={24} color={colors.text.inverse} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Filtros rápidos */}
+      <View style={styles.filtersContainer}>
+        <View style={styles.filtersContent}>
+          <TouchableOpacity style={styles.filterChip}>
+            <Ionicons name="people" size={16} color={colors.text.secondary} />
+            <Text style={styles.filterChipText}>Todos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterChip}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.filterChipText}>Activos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterChip}>
+            <Ionicons name="key" size={16} color={colors.warning} />
+            <Text style={styles.filterChipText}>Encargados</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -298,6 +339,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  filtersContainer: {
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  filtersContent: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.full,
+    gap: spacing.xs,
+  },
+  filterChipText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
   },
   searchContainer: {
     paddingHorizontal: spacing.lg,
@@ -421,17 +487,29 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: borderRadius.md,
     backgroundColor: colors.gray[50],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: spacing['2xl'],
+    paddingHorizontal: spacing.lg,
   },
   emptyText: {
     fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text.secondary,
     marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.base * 1.5,
     marginBottom: spacing.lg,
   },
 });
