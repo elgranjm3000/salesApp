@@ -209,15 +209,7 @@ export default function DashboardScreen(): JSX.Element {
   useEffect(() => {
     loadInitialData();
   }, []);
-  useEffect(() => {
-  const loadSelectedCompany = async () => {
-  const storedCompany = await AsyncStorage.getItem('selectedCompany');
-    if (storedCompany) {
-      setSelectedCompany(JSON.parse(storedCompany));
-    }
-  };  
-  loadSelectedCompany();
-  },[]);
+  
 
   useEffect(() => {
     if (selectedCompany) {
@@ -226,6 +218,18 @@ export default function DashboardScreen(): JSX.Element {
       loadCompanyDashboard();
     }
   }, [selectedCompany]);
+
+  useEffect(() => {
+  const loadSelectedCompany = async () => {
+  const storedCompany = await AsyncStorage.getItem('selectedCompany');
+    if (storedCompany) {
+      setSelectedCompany(JSON.parse(storedCompany));
+    } else {
+      setSelectedCompany(null);
+    }
+  };  
+  loadSelectedCompany();
+  },[user]);
 
   const loadInitialData = async (): Promise<void> => {
     try {
@@ -259,6 +263,8 @@ export default function DashboardScreen(): JSX.Element {
       // Auto-seleccionar la primera empresa si no hay ninguna seleccionada
       if (response.data.length > 0 && !selectedCompany) {
         setSelectedCompany(response.data[0]);
+        await AsyncStorage.setItem('selectedCompany', JSON.stringify(response.data[0])); // <-- Guarda en AsyncStorage
+        console.log('Auto-selected first company:', response.data[0]);        
       }
     } catch (error) {
       console.log('Error loading companies:', error);
@@ -297,7 +303,7 @@ export default function DashboardScreen(): JSX.Element {
     loadInitialData();
   }, []);
 
-  const handleCompanySelect = async (company: Company): Promise<void> => {
+  const handleCompanySelect = async (company: Company): Promise<void> => {    
     setSelectedCompany(company);
     setShowCompanySelector(false);
     await AsyncStorage.setItem('selectedCompany', JSON.stringify(company));

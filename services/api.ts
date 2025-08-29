@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://8b4c2d9fcb609f41e7911a6b59afebdb.serveo.net/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://c66198fa3b9757b1e73dbc166cedcfe9.serveo.net/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -23,6 +23,88 @@ interface LoginResponse {
   user: User;
   token: string;
   token_type: string;
+}
+
+// Interfaces para el nuevo flujo de registro de empresa
+interface CheckCompanyInfoRequest {
+  email: string;
+  rif: string;
+}
+
+interface CheckCompanyInfoResponse {
+  success: boolean;
+  message: string;
+  data: {
+    company_id: number;
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    contact: string;
+    license: string;
+    rif: string;
+  };
+  question: string;
+}
+
+interface ConfirmCompanyRegistrationRequest {
+  company_id: number;
+  confirm: boolean;
+}
+
+interface ConfirmCompanyRegistrationResponse {
+  success: boolean;
+  message: string;
+  data: {
+    email: string;
+    expires_in_minutes: number;
+  };
+}
+
+interface ValidateCompanyCodeRequest {
+  company_id: number;
+  email: string;
+  validation_code: string;
+}
+
+interface ValidateCompanyCodeResponse {
+  success: boolean;
+  message: string;
+  data: {
+    validation_token: string;
+    company_id: number;
+    expires_in_minutes: number;
+  };
+}
+
+interface CompleteCompanyRegistrationRequest {
+  validation_token: string;
+  company_id: number;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
+interface CompleteCompanyRegistrationResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      role: string;
+      status: string;
+    };
+    company: {
+      id: number;
+      name: string;
+      rif: string;
+      email: string;
+      status: string;
+    };
+    token: string;
+  };
 }
 
 interface CreateUserData {
@@ -96,7 +178,6 @@ interface CreateSaleData {
   notes?: string;
   metadata?: Record<string, any>;
 }
-
 
 interface Quote {
   id: number;
@@ -205,7 +286,62 @@ class ApiService {
     );
   }
 
-  // Auth methods
+  // =================== NUEVO FLUJO DE REGISTRO DE EMPRESA ===================
+  
+  // Paso 1: Verificar información de empresa
+  async checkCompanyInfo(data: CheckCompanyInfoRequest): Promise<CheckCompanyInfoResponse> {
+    console.log("Checking company info:", data);
+    try {
+      const response: AxiosResponse<CheckCompanyInfoResponse> = await this.client.post('/users/check', data);
+      console.log("Company check successful:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error checking company info:", error);
+      throw error;
+    }
+  }
+
+  // Paso 2: Confirmar registro de empresa
+  async confirmCompanyRegistration(data: ConfirmCompanyRegistrationRequest): Promise<ConfirmCompanyRegistrationResponse> {
+    console.log("Confirming company registration:", data);
+    try {
+      const response: AxiosResponse<ConfirmCompanyRegistrationResponse> = await this.client.post('/users/stepConfirm', data);
+      console.log("Company registration confirmation successful:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error confirming company registration:", error);
+      throw error;
+    }
+  }
+
+  // Paso 3: Validar código de empresa
+  async validateCompanyCode(data: ValidateCompanyCodeRequest): Promise<ValidateCompanyCodeResponse> {
+    console.log("Validating company code:", data);
+    try {
+      const response: AxiosResponse<ValidateCompanyCodeResponse> = await this.client.post('/users/validateCompanyCode', data);
+      console.log("Company code validation successful:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error validating company code:", error);
+      throw error;
+    }
+  }
+
+  // Paso 4: Completar registro de empresa
+  async completeCompanyRegistration(data: CompleteCompanyRegistrationRequest): Promise<CompleteCompanyRegistrationResponse> {
+    console.log("Completing company registration:", data);
+    try {
+      const response: AxiosResponse<CompleteCompanyRegistrationResponse> = await this.client.post('/users/completeCompanyRegistration', data);
+      console.log("Company registration completion successful:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error completing company registration:", error);
+      throw error;
+    }
+  }
+
+  // =================== MÉTODOS DE AUTENTICACIÓN EXISTENTES ===================
+
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     console.log(credentials)
     try {
@@ -293,6 +429,7 @@ class ApiService {
     search?: string;
     per_page?: number;
     page?: number;
+    company_id?: number;
   }): Promise<PaginatedResponse<Customer>> {
     const response: AxiosResponse<PaginatedResponse<Customer>> = await this.client.get('/customers', { params });
     return response.data;
@@ -300,7 +437,7 @@ class ApiService {
 
   async getCustomer(id: number): Promise<Customer> {
     const response: AxiosResponse<Customer> = await this.client.get(`/customers/${id}`);
-    return response.data;
+    return response.data.data;
   }
 
   async createCustomer(data: Partial<Customer>): Promise<Customer> {
@@ -384,232 +521,232 @@ class ApiService {
     return response.data;
   }
 
+  // Método antiguo de registro (mantenemos para compatibilidad)
   async createUser(data: CreateUserData): Promise<User> {
     console.log("Creating user with data:", data);
-  const response: AxiosResponse<{ data: User }> = await this.client.post('/users/register', data);
-  return response.data.data;
-}
+    const response: AxiosResponse<{ data: User }> = await this.client.post('/users/register', data);
+    return response.data.data;
+  }
 
-async getUsers(params?: {
-  role?: string;
-  search?: string;
-  per_page?: number;
-  page?: number;
-}): Promise<PaginatedResponse<User>> {
-  const response: AxiosResponse<PaginatedResponse<User>> = await this.client.get('/users', { params });
-  return response.data;
-}
+  async getUsers(params?: {
+    role?: string;
+    search?: string;
+    per_page?: number;
+    page?: number;
+  }): Promise<PaginatedResponse<User>> {
+    const response: AxiosResponse<PaginatedResponse<User>> = await this.client.get('/users', { params });
+    return response.data;
+  }
 
-async getUser(id: number): Promise<User> {
-  const response: AxiosResponse<{ data: User }> = await this.client.get(`/users/${id}`);
-  return response.data.data;
-}
+  async getUser(id: number): Promise<User> {
+    const response: AxiosResponse<{ data: User }> = await this.client.get(`/users/${id}`);
+    return response.data.data;
+  }
 
-async updateUser(id: number, data: Partial<CreateUserData>): Promise<User> {
-  const response: AxiosResponse<{ data: User }> = await this.client.put(`/users/${id}`, data);
-  return response.data.data;
-}
+  async updateUser(id: number, data: Partial<CreateUserData>): Promise<User> {
+    const response: AxiosResponse<{ data: User }> = await this.client.put(`/users/${id}`, data);
+    return response.data.data;
+  }
 
-async deleteUser(id: number): Promise<{ message: string }> {
-  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/users/${id}`);
-  return response.data;
-}
+  async deleteUser(id: number): Promise<{ message: string }> {
+    const response: AxiosResponse<{ message: string }> = await this.client.delete(`/users/${id}`);
+    return response.data;
+  }
 
-// Companies
-async getCompanies(params?: {
-  search?: string;
-  per_page?: number;
-  page?: number;
-}): Promise<PaginatedResponse<Company>> {
-  const response: AxiosResponse<PaginatedResponse<Company>> = await this.client.get('/companies', { params });
-  return response.data.data;
-}
+  // Companies
+  async getCompanies(params?: {
+    search?: string;
+    per_page?: number;
+    page?: number;
+  }): Promise<PaginatedResponse<Company>> {
+    const response: AxiosResponse<PaginatedResponse<Company>> = await this.client.get('/companies', { params });
+    return response.data.data;
+  }
 
-async getCompany(id: number): Promise<Company> {
-  const response: AxiosResponse<{ data: Company }> = await this.client.get(`/companies/${id}`);
-  return response.data.data;
-}
+  async getCompany(id: number): Promise<Company> {
+    const response: AxiosResponse<{ data: Company }> = await this.client.get(`/companies/${id}`);
+    return response.data.data;
+  }
 
-async createCompany(data: {
-  user_id?: number;
-  name: string;
-  description?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  contact?: string;
-  serial_no?: string;
-  status?: 'active' | 'inactive';
-  rif: string;
-  key_system_items_id?: string;
-}): Promise<Company> {
-  console.log("Creating company with data:", data);
-  const response: AxiosResponse<{ data: Company }> = await this.client.post('/companies', data);
-  return response.data.data;
-}
+  async createCompany(data: {
+    user_id?: number;
+    name: string;
+    description?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    contact?: string;
+    serial_no?: string;
+    status?: 'active' | 'inactive';
+    rif: string;
+    key_system_items_id?: string;
+  }): Promise<Company> {
+    console.log("Creating company with data:", data);
+    const response: AxiosResponse<{ data: Company }> = await this.client.post('/companies', data);
+    return response.data.data;
+  }
 
-async updateCompany(id: number, data: Partial<{
-  name: string;
-  description?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  contact?: string;
-  serial_no?: string;
-  status?: 'active' | 'inactive';
-}>): Promise<Company> {
-  const response: AxiosResponse<{ data: Company }> = await this.client.put(`/companies/${id}`, data);
-  return response.data.data;
-}
+  async updateCompany(id: number, data: Partial<{
+    name: string;
+    description?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    contact?: string;
+    serial_no?: string;
+    status?: 'active' | 'inactive';
+  }>): Promise<Company> {
+    const response: AxiosResponse<{ data: Company }> = await this.client.put(`/companies/${id}`, data);
+    return response.data.data;
+  }
 
-async deleteCompany(id: number): Promise<{ message: string }> {
-  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/companies/${id}`);
-  return response.data;
-}
+  async deleteCompany(id: number): Promise<{ message: string }> {
+    const response: AxiosResponse<{ message: string }> = await this.client.delete(`/companies/${id}`);
+    return response.data;
+  }
 
-async getCompanySellers(id: number): Promise<PaginatedResponse<Seller>> {
-  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/companies/${id}/sellers`);
-  return response.data;
-}
+  async getCompanySellers(id: number): Promise<PaginatedResponse<Seller>> {
+    const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/companies/${id}/sellers`);
+    return response.data;
+  }
 
-// Sellers
-async getSellers(params?: {
-  search?: string;
-  company_id?: number;
-  per_page?: number;
-  page?: number;
-}): Promise<PaginatedResponse<Seller>> {
-  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers',{ params });
-  return response.data;
-}
+  // Sellers
+  async getSellers(params?: {
+    search?: string;
+    company_id?: number;
+    per_page?: number;
+    page?: number;
+  }): Promise<PaginatedResponse<Seller>> {
+    const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get('/sellers',{ params });
+    return response.data;
+  }
 
-async getSeller(id: number): Promise<Seller> {
-  const response: AxiosResponse<{ data: Seller }> = await this.client.get(`/sellers/${id}`);
-  return response.data.data;
-}
+  async getSeller(id: number): Promise<Seller> {
+    const response: AxiosResponse<{ data: Seller }> = await this.client.get(`/sellers/${id}`);
+    return response.data.data;
+  }
 
-async createSeller(data: {
-  name: string;
-  email: string;
-  phone?: string;
-  password: string;
-  password_confirmation: string;
-  company_id: number;
-  code: string;
-  description?: string;
-  status?: string;
-  percent_sales?: number;
-  percent_receivable?: number;
-  inkeeper?: boolean;
-  user_code?: string;
-  percent_gerencial_debit_note?: number;
-  percent_gerencial_credit_note?: number;
-  percent_returned_check?: number;
-  seller_status?: 'active' | 'inactive';
-}): Promise<Seller> {
-  const response: AxiosResponse<{ data: Seller }> = await this.client.post('/sellers', data);
-  return response.data.data;
-}
+  async createSeller(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+    password_confirmation: string;
+    company_id: number;
+    code: string;
+    description?: string;
+    status?: string;
+    percent_sales?: number;
+    percent_receivable?: number;
+    inkeeper?: boolean;
+    user_code?: string;
+    percent_gerencial_debit_note?: number;
+    percent_gerencial_credit_note?: number;
+    percent_returned_check?: number;
+    seller_status?: 'active' | 'inactive';
+  }): Promise<Seller> {
+    const response: AxiosResponse<{ data: Seller }> = await this.client.post('/sellers', data);
+    return response.data.data;
+  }
 
-async updateSeller(id: number, data: Partial<{
-  code: string;
-  description?: string;
-  status?: string;
-  percent_sales?: number;
-  percent_receivable?: number;
-  inkeeper?: boolean;
-  user_code?: string;
-  percent_gerencial_debit_note?: number;
-  percent_gerencial_credit_note?: number;
-  percent_returned_check?: number;
-  seller_status?: 'active' | 'inactive';
-}>): Promise<Seller> {
-  const response: AxiosResponse<{ data: Seller }> = await this.client.put(`/sellers/${id}`, data);
-  return response.data.data;
-}
+  async updateSeller(id: number, data: Partial<{
+    code: string;
+    description?: string;
+    status?: string;
+    percent_sales?: number;
+    percent_receivable?: number;
+    inkeeper?: boolean;
+    user_code?: string;
+    percent_gerencial_debit_note?: number;
+    percent_gerencial_credit_note?: number;
+    percent_returned_check?: number;
+    seller_status?: 'active' | 'inactive';
+  }>): Promise<Seller> {
+    const response: AxiosResponse<{ data: Seller }> = await this.client.put(`/sellers/${id}`, data);
+    return response.data.data;
+  }
 
-async deleteSeller(id: number): Promise<{ message: string }> {
-  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/sellers/${id}`);
-  return response.data;
-}
+  async deleteSeller(id: number): Promise<{ message: string }> {
+    const response: AxiosResponse<{ message: string }> = await this.client.delete(`/sellers/${id}`);
+    return response.data;
+  }
 
-async getSellersByCompany(companyId: number): Promise<PaginatedResponse<Seller>> {
-  const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/sellers/company/${companyId}`);
-  return response.data;
-}
+  async getSellersByCompany(companyId: number): Promise<PaginatedResponse<Seller>> {
+    const response: AxiosResponse<PaginatedResponse<Seller>> = await this.client.get(`/sellers/company/${companyId}`);
+    return response.data;
+  }
 
+  async getQuotes(params?: {
+    status?: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+    date_from?: string;
+    date_to?: string;
+    customer_id?: number;
+    company_id?: number;
+    expired?: boolean;
+    today?: boolean;
+    this_month?: boolean;
+    per_page?: number;
+    page?: number;
+  }): Promise<PaginatedResponse<Quote>> {
+    const response: AxiosResponse<PaginatedResponse<Quote>> = await this.client.get('/quotes', { params });
+    return response.data.data;
+  }
 
-async getQuotes(params?: {
-  status?: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
-  date_from?: string;
-  date_to?: string;
-  customer_id?: number;
-  company_id?: number;
-  expired?: boolean;
-  today?: boolean;
-  this_month?: boolean;
-  per_page?: number;
-  page?: number;
-}): Promise<PaginatedResponse<Quote>> {
-  const response: AxiosResponse<PaginatedResponse<Quote>> = await this.client.get('/quotes', { params });
-  return response.data.data;
-}
+  async getQuote(id: number): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.get(`/quotes/${id}`);
+    return response.data;
+  }
 
-async getQuote(id: number): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.get(`/quotes/${id}`);
-  return response.data;
-}
+  async createQuote(data: CreateQuoteData): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.post('/quotes', data);
+    return response.data;
+  }
 
-async createQuote(data: CreateQuoteData): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.post('/quotes', data);
-  return response.data;
-}
+  async updateQuote(id: number, data: Partial<CreateQuoteData>): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.put(`/quotes/${id}`, data);
+    return response.data;
+  }
 
-async updateQuote(id: number, data: Partial<CreateQuoteData>): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.put(`/quotes/${id}`, data);
-  return response.data;
-}
+  async deleteQuote(id: number): Promise<{ message: string }> {
+    const response: AxiosResponse<{ message: string }> = await this.client.delete(`/quotes/${id}`);
+    return response.data;
+  }
 
-async deleteQuote(id: number): Promise<{ message: string }> {
-  const response: AxiosResponse<{ message: string }> = await this.client.delete(`/quotes/${id}`);
-  return response.data;
-}
+  // Acciones específicas de quotes
+  async sendQuote(id: number): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/send`);
+    return response.data;
+  }
 
-// Acciones específicas de quotes
-async sendQuote(id: number): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/send`);
-  return response.data;
-}
+  async approveQuote(id: number): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/approve`);
+    return response.data;
+  }
 
-async approveQuote(id: number): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/approve`);
-  return response.data;
-}
+  async rejectQuote(id: number): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/reject`);
+    return response.data;
+  }
 
-async rejectQuote(id: number): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/reject`);
-  return response.data;
-}
+  async duplicateQuote(id: number): Promise<Quote> {
+    const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/duplicate`);
+    return response.data;
+  }
 
-async duplicateQuote(id: number): Promise<Quote> {
-  const response: AxiosResponse<Quote> = await this.client.post(`/quotes/${id}/duplicate`);
-  return response.data;
-}
-
-async getQuoteStatistics(): Promise<{
-  total_quotes: number;
-  draft_quotes: number;
-  sent_quotes: number;
-  approved_quotes: number;
-  rejected_quotes: number;
-  expired_quotes: number;
-  this_month_quotes: number;
-  total_amount: number;
-  average_amount: number;
-}> {
-  const response = await this.client.get('/quotes/stats');
-  return response.data;
-}
+  async getQuoteStatistics(): Promise<{
+    total_quotes: number;
+    draft_quotes: number;
+    sent_quotes: number;
+    approved_quotes: number;
+    rejected_quotes: number;
+    expired_quotes: number;
+    this_month_quotes: number;
+    total_amount: number;
+    average_amount: number;
+  }> {
+    const response = await this.client.get('/quotes/stats');
+    return response.data;
+  }
 }
 
 export const api = new ApiService();

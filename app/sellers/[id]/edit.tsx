@@ -2,17 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    ListRenderItem,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -55,156 +52,12 @@ interface Seller {
   company?: Company;
 }
 
-interface CompanySelectorProps {
-  visible: boolean;
-  companies: Company[];
-  selectedCompany: Company | null;
-  onSelect: (company: Company) => void;
-  onClose: () => void;
-  loading: boolean;
-}
-
-interface UserSelectorProps {
-  visible: boolean;
-  users: User[];
-  selectedUser: User | null;
-  onSelect: (user: User) => void;
-  onClose: () => void;
-  loading: boolean;
-}
-
-const CompanySelector: React.FC<CompanySelectorProps> = ({
-  visible,
-  companies,
-  selectedCompany,
-  onSelect,
-  onClose,
-  loading,
-}) => {
-  const renderCompany: ListRenderItem<Company> = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.selectorItem,
-        selectedCompany?.id === item.id && styles.selectorItemSelected
-      ]}
-      onPress={() => onSelect(item)}
-    >
-      <View style={styles.selectorItemContent}>
-        <Ionicons name="business" size={20} color={colors.primary[500]} />
-        <View style={styles.selectorItemInfo}>
-          <Text style={styles.selectorItemName}>{item.name}</Text>
-          {item.description && (
-            <Text style={styles.selectorItemDescription} numberOfLines={1}>
-              {item.description}
-            </Text>
-          )}
-        </View>
-      </View>
-      {selectedCompany?.id === item.id && (
-        <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
-      )}
-    </TouchableOpacity>
-  );
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Seleccionar Empresa</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-        </View>
-        
-        {loading ? (
-          <LoadingSpinner text="Cargando empresas..." />
-        ) : (
-          <FlatList
-            data={companies.filter(c => c.status === 'active')}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderCompany}
-            style={styles.selectorList}
-          />
-        )}
-      </View>
-    </Modal>
-  );
-};
-
-const UserSelector: React.FC<UserSelectorProps> = ({
-  visible,
-  users,
-  selectedUser,
-  onSelect,
-  onClose,
-  loading,
-}) => {
-  const renderUser: ListRenderItem<User> = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.selectorItem,
-        selectedUser?.id === item.id && styles.selectorItemSelected
-      ]}
-      onPress={() => onSelect(item)}
-    >
-      <View style={styles.selectorItemContent}>
-        <View style={styles.userAvatar}>
-          <Text style={styles.userAvatarText}>
-            {item.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.selectorItemInfo}>
-          <Text style={styles.selectorItemName}>{item.name}</Text>
-          <Text style={styles.selectorItemDescription}>{item.email}</Text>
-          {item.phone && (
-            <Text style={styles.selectorItemPhone}>{item.phone}</Text>
-          )}
-        </View>
-      </View>
-      {selectedUser?.id === item.id && (
-        <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
-      )}
-    </TouchableOpacity>
-  );
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Seleccionar Usuario</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-        </View>
-        
-        {loading ? (
-          <LoadingSpinner text="Cargando usuarios..." />
-        ) : (
-          <FlatList
-            data={users.filter(u => u.status === 'active' && u.role === 'seller')}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderUser}
-            style={styles.selectorList}
-          />
-        )}
-      </View>
-    </Modal>
-  );
-};
-
 export default function EditSellerScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
   const [seller, setSeller] = useState<Seller | null>(null);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  
-  const [showCompanySelector, setShowCompanySelector] = useState(false);
-  const [showUserSelector, setShowUserSelector] = useState(false);
 
   const [formData, setFormData] = useState({
     code: '',
@@ -230,16 +83,9 @@ export default function EditSellerScreen(): JSX.Element {
     
     try {
       setLoading(true);
-      const [sellerResponse, companiesResponse, usersResponse] = await Promise.all([
-        api.getSeller(Number(id)),
-        api.getCompanies({ per_page: 100 }),
-        api.getUsers({ role: 'seller', per_page: 100 }),
-      ]);
+      const sellerData = await api.getSeller(Number(id));
       
-      const sellerData = sellerResponse;
       setSeller(sellerData);
-      setCompanies(companiesResponse.data);
-      setUsers(usersResponse.data);
 
       // Setear los datos del formulario
       setFormData({
@@ -254,13 +100,6 @@ export default function EditSellerScreen(): JSX.Element {
         percent_returned_check: sellerData.percent_returned_check.toString(),
         seller_status: sellerData.seller_status,
       });
-
-      // Buscar y setear el usuario y empresa seleccionados
-      const selectedUserData = usersResponse.data.find(u => u.id === sellerData.user_id);
-      const selectedCompanyData = companiesResponse.data.find(c => c.id === sellerData.company_id);
-      
-      if (selectedUserData) setSelectedUser(selectedUserData);
-      if (selectedCompanyData) setSelectedCompany(selectedCompanyData);
       
     } catch (error) {
       console.error('Error loading data:', error);
@@ -274,14 +113,6 @@ export default function EditSellerScreen(): JSX.Element {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!selectedUser) {
-      newErrors.user = 'Debes seleccionar un usuario';
-    }
-
-    if (!selectedCompany) {
-      newErrors.company = 'Debes seleccionar una empresa';
-    }
-
     if (!formData.code.trim()) {
       newErrors.code = 'El código del vendedor es requerido';
     }
@@ -294,6 +125,21 @@ export default function EditSellerScreen(): JSX.Element {
     const percentReceivable = Number(formData.percent_receivable);
     if (isNaN(percentReceivable) || percentReceivable < 0 || percentReceivable > 100) {
       newErrors.percent_receivable = 'El porcentaje de cobranza debe estar entre 0 y 100';
+    }
+
+    const percentDebitNote = Number(formData.percent_gerencial_debit_note);
+    if (isNaN(percentDebitNote) || percentDebitNote < 0 || percentDebitNote > 100) {
+      newErrors.percent_gerencial_debit_note = 'El porcentaje debe estar entre 0 y 100';
+    }
+
+    const percentCreditNote = Number(formData.percent_gerencial_credit_note);
+    if (isNaN(percentCreditNote) || percentCreditNote < 0 || percentCreditNote > 100) {
+      newErrors.percent_gerencial_credit_note = 'El porcentaje debe estar entre 0 y 100';
+    }
+
+    const percentReturnedCheck = Number(formData.percent_returned_check);
+    if (isNaN(percentReturnedCheck) || percentReturnedCheck < 0 || percentReturnedCheck > 100) {
+      newErrors.percent_returned_check = 'El porcentaje debe estar entre 0 y 100';
     }
 
     setErrors(newErrors);
@@ -320,8 +166,9 @@ export default function EditSellerScreen(): JSX.Element {
       };
 
       await api.updateSeller(seller.id, sellerData);
-      Alert.alert('Éxito', 'Vendedor actualizado correctamente');
-      router.back();
+      Alert.alert('Éxito', 'Vendedor actualizado correctamente', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (error: any) {
       console.error('Error updating seller:', error);
       const message = error.response?.data?.message || 'Error al actualizar el vendedor';
@@ -349,9 +196,18 @@ export default function EditSellerScreen(): JSX.Element {
   if (!seller) {
     return (
       <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle" size={64} color={colors.error} />
+        <View style={styles.errorIcon}>
+          <Ionicons name="alert-circle" size={64} color={colors.error} />
+        </View>
         <Text style={styles.errorText}>No se pudo cargar el vendedor</Text>
-        <Button title="Volver" onPress={() => router.back()} />
+        <Text style={styles.errorSubtext}>
+          Por favor, verifica la conexión e intenta nuevamente
+        </Text>
+        <Button 
+          title="Volver" 
+          onPress={() => router.back()} 
+          style={styles.errorButton}
+        />
       </View>
     );
   }
@@ -370,18 +226,33 @@ export default function EditSellerScreen(): JSX.Element {
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="person" size={32} color={colors.primary[500]} />
+          <View style={styles.sellerAvatar}>
+            <Text style={styles.sellerAvatarText}>
+              {seller.user?.name.charAt(0).toUpperCase() || 'S'}
+            </Text>
           </View>
           <Text style={styles.title}>Editar Vendedor</Text>
           <Text style={styles.subtitle}>{seller.user?.name}</Text>
+          <View style={styles.sellerInfo}>
+            <View style={styles.sellerInfoItem}>
+              <Ionicons name="business" size={16} color={colors.text.secondary} />
+              <Text style={styles.sellerInfoText}>{seller.company?.name}</Text>
+            </View>
+            <View style={styles.sellerInfoItem}>
+              <Ionicons name="qr-code" size={16} color={colors.text.secondary} />
+              <Text style={styles.sellerInfoText}>#{seller.code}</Text>
+            </View>
+          </View>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Información básica */}
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Información Básica</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="information-circle" size={24} color={colors.primary[500]} />
+            <Text style={styles.sectionTitle}>Información Básica</Text>
+          </View>
           
           <Input
             label="Código del Vendedor *"
@@ -414,14 +285,17 @@ export default function EditSellerScreen(): JSX.Element {
           />
         </Card>
 
-        {/* Comisiones */}
+        {/* Comisiones principales */}
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Comisiones (%)</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trending-up" size={24} color={colors.success} />
+            <Text style={styles.sectionTitle}>Comisiones Principales</Text>
+          </View>
           
           <View style={styles.row}>
             <View style={styles.halfWidth}>
               <Input
-                label="Ventas *"
+                label="Comisión Ventas *"
                 placeholder="5.0"
                 value={formData.percent_sales}
                 onChangeText={(value) => updateFormData('percent_sales', value)}
@@ -432,7 +306,7 @@ export default function EditSellerScreen(): JSX.Element {
             </View>
             <View style={styles.halfWidth}>
               <Input
-                label="Cobranza *"
+                label="Comisión Cobranza *"
                 placeholder="3.0"
                 value={formData.percent_receivable}
                 onChangeText={(value) => updateFormData('percent_receivable', value)}
@@ -442,7 +316,15 @@ export default function EditSellerScreen(): JSX.Element {
               />
             </View>
           </View>
+        </Card>
 
+        {/* Comisiones gerenciales */}
+        <Card style={styles.formCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="document" size={24} color={colors.warning} />
+            <Text style={styles.sectionTitle}>Comisiones Gerenciales</Text>
+          </View>
+          
           <View style={styles.row}>
             <View style={styles.halfWidth}>
               <Input
@@ -450,6 +332,7 @@ export default function EditSellerScreen(): JSX.Element {
                 placeholder="2.5"
                 value={formData.percent_gerencial_debit_note}
                 onChangeText={(value) => updateFormData('percent_gerencial_debit_note', value)}
+                error={errors.percent_gerencial_debit_note}
                 keyboardType="decimal-pad"
                 leftIcon={<Text style={styles.percentSymbol}>%</Text>}
               />
@@ -460,6 +343,7 @@ export default function EditSellerScreen(): JSX.Element {
                 placeholder="2.0"
                 value={formData.percent_gerencial_credit_note}
                 onChangeText={(value) => updateFormData('percent_gerencial_credit_note', value)}
+                error={errors.percent_gerencial_credit_note}
                 keyboardType="decimal-pad"
                 leftIcon={<Text style={styles.percentSymbol}>%</Text>}
               />
@@ -471,6 +355,7 @@ export default function EditSellerScreen(): JSX.Element {
             placeholder="1.5"
             value={formData.percent_returned_check}
             onChangeText={(value) => updateFormData('percent_returned_check', value)}
+            error={errors.percent_returned_check}
             keyboardType="decimal-pad"
             leftIcon={<Text style={styles.percentSymbol}>%</Text>}
           />
@@ -478,7 +363,10 @@ export default function EditSellerScreen(): JSX.Element {
 
         {/* Configuración */}
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Configuración</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="settings" size={24} color={colors.info} />
+            <Text style={styles.sectionTitle}>Configuración</Text>
+          </View>
           
           {/* Switch para encargado */}
           <View style={styles.switchContainer}>
@@ -489,15 +377,17 @@ export default function EditSellerScreen(): JSX.Element {
               ]}
               onPress={() => updateFormData('inkeeper', !formData.inkeeper)}
             >
-              <Ionicons 
-                name={formData.inkeeper ? 'checkmark-circle' : 'ellipse-outline'} 
-                size={24} 
-                color={formData.inkeeper ? colors.primary[500] : colors.text.secondary} 
-              />
+              <View style={styles.switchIcon}>
+                <Ionicons 
+                  name={formData.inkeeper ? 'checkmark-circle' : 'ellipse-outline'} 
+                  size={24} 
+                  color={formData.inkeeper ? colors.primary[500] : colors.text.secondary} 
+                />
+              </View>
               <View style={styles.switchContent}>
-                <Text style={styles.switchTitle}>Encargado</Text>
+                <Text style={styles.switchTitle}>Permisos de Encargado</Text>
                 <Text style={styles.switchDescription}>
-                  Este vendedor tendrá permisos de encargado
+                  Este vendedor tendrá permisos adicionales de administración
                 </Text>
               </View>
             </TouchableOpacity>
@@ -510,7 +400,7 @@ export default function EditSellerScreen(): JSX.Element {
               <TouchableOpacity
                 style={[
                   styles.statusOption,
-                  formData.seller_status === 'active' && styles.statusOptionSelected
+                  formData.seller_status === 'active' && styles.statusOptionActive
                 ]}
                 onPress={() => updateFormData('seller_status', 'active')}
               >
@@ -521,7 +411,7 @@ export default function EditSellerScreen(): JSX.Element {
                 />
                 <Text style={[
                   styles.statusText,
-                  formData.seller_status === 'active' && styles.statusTextSelected
+                  formData.seller_status === 'active' && { color: colors.success }
                 ]}>
                   Activo
                 </Text>
@@ -530,7 +420,7 @@ export default function EditSellerScreen(): JSX.Element {
               <TouchableOpacity
                 style={[
                   styles.statusOption,
-                  formData.seller_status === 'inactive' && styles.statusOptionSelected
+                  formData.seller_status === 'inactive' && styles.statusOptionInactive
                 ]}
                 onPress={() => updateFormData('seller_status', 'inactive')}
               >
@@ -541,11 +431,52 @@ export default function EditSellerScreen(): JSX.Element {
                 />
                 <Text style={[
                   styles.statusText,
-                  formData.seller_status === 'inactive' && styles.statusTextSelected
+                  formData.seller_status === 'inactive' && { color: colors.error }
                 ]}>
                   Inactivo
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Card>
+
+        {/* Información del usuario (solo lectura) */}
+        <Card style={styles.formCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="person" size={24} color={colors.primary[500]} />
+            <Text style={styles.sectionTitle}>Información del Usuario</Text>
+          </View>
+          
+          <View style={styles.readOnlyField}>
+            <Text style={styles.readOnlyLabel}>Nombre</Text>
+            <Text style={styles.readOnlyValue}>{seller.user?.name}</Text>
+          </View>
+
+          <View style={styles.readOnlyField}>
+            <Text style={styles.readOnlyLabel}>Email</Text>
+            <Text style={styles.readOnlyValue}>{seller.user?.email}</Text>
+          </View>
+
+          {seller.user?.phone && (
+            <View style={styles.readOnlyField}>
+              <Text style={styles.readOnlyLabel}>Teléfono</Text>
+              <Text style={styles.readOnlyValue}>{seller.user.phone}</Text>
+            </View>
+          )}
+
+          <View style={styles.readOnlyField}>
+            <Text style={styles.readOnlyLabel}>Estado del Usuario</Text>
+            <View style={styles.statusBadge}>
+              <View style={[
+                styles.statusDot,
+                { backgroundColor: seller.user?.status === 'active' ? colors.success : colors.error }
+              ]} />
+              <Text style={[
+                styles.statusBadgeText,
+                { color: seller.user?.status === 'active' ? colors.success : colors.error }
+              ]}>
+                {seller.user?.status === 'active' ? 'Activo' : 'Inactivo'}
+              </Text>
             </View>
           </View>
         </Card>
@@ -559,10 +490,11 @@ export default function EditSellerScreen(): JSX.Element {
             style={styles.cancelButton}
           />
           <Button
-            title="Actualizar Vendedor"
+            title="Actualizar"
             onPress={handleSave}
             loading={saving}
             style={styles.saveButton}
+            leftIcon={<Ionicons name="save" size={20} color="white" />}
           />
         </View>
 
@@ -581,18 +513,34 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  errorIcon: {
+    marginBottom: spacing.lg,
   },
   errorText: {
-    fontSize: typography.fontSize.lg,
-    color: colors.error,
-    marginVertical: spacing.lg,
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
     textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: typography.fontSize.base * 1.5,
+  },
+  errorButton: {
+    minWidth: 120,
   },
   header: {
     backgroundColor: colors.surface,
@@ -615,14 +563,19 @@ const styles = StyleSheet.create({
   headerContent: {
     alignItems: 'center',
   },
-  iconContainer: {
+  sellerAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary[50],
+    backgroundColor: colors.primary[100],
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  sellerAvatarText: {
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
   },
   title: {
     fontSize: typography.fontSize['2xl'],
@@ -631,7 +584,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.lg,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
+  },
+  sellerInfo: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+  },
+  sellerInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  sellerInfoText: {
+    fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },
   content: {
@@ -641,11 +608,16 @@ const styles = StyleSheet.create({
   formCard: {
     marginBottom: spacing.lg,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.md,
   },
   row: {
     flexDirection: 'row',
@@ -675,8 +647,10 @@ const styles = StyleSheet.create({
     borderColor: colors.primary[500],
     backgroundColor: colors.primary[50],
   },
+  switchIcon: {
+    marginRight: spacing.md,
+  },
   switchContent: {
-    marginLeft: spacing.md,
     flex: 1,
   },
   switchTitle: {
@@ -688,9 +662,10 @@ const styles = StyleSheet.create({
   switchDescription: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    lineHeight: typography.fontSize.sm * 1.4,
   },
   statusContainer: {
-    marginBottom: spacing.md,
+    marginTop: spacing.md,
   },
   statusTitle: {
     fontSize: typography.fontSize.base,
@@ -712,21 +687,61 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.gray[200],
     backgroundColor: colors.gray[50],
+    gap: spacing.sm,
   },
-  statusOptionSelected: {
-    borderColor: colors.primary[500],
-    backgroundColor: colors.primary[50],
+  statusOptionActive: {
+    borderColor: colors.success,
+    backgroundColor: colors.success + '10',
+  },
+  statusOptionInactive: {
+    borderColor: colors.error,
+    backgroundColor: colors.error + '10',
   },
   statusText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.text.secondary,
-    marginLeft: spacing.sm,
   },
-  statusTextSelected: {
-    color: colors.primary[600],
+  readOnlyField: {
+    marginBottom: spacing.lg,
   },
-
+  readOnlyLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  readOnlyValue: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
+  },
+  statusBadgeText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+  },
   actions: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -740,78 +755,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: spacing.xl,
-  },
-
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  modalTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  selectorList: {
-    flex: 1,
-  },
-  selectorItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  selectorItemSelected: {
-    backgroundColor: colors.primary[50],
-  },
-  selectorItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  selectorItemInfo: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  selectorItemName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
-  },
-  selectorItemDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  selectorItemPhone: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary[100],
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userAvatarText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary[500],
   },
 });

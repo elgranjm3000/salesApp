@@ -65,6 +65,7 @@ export default function SellersScreen(): JSX.Element {
       setLoading(true);
        const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
+      console.log('Selected Company:', company.id);
       const response = await api.getSellers({ company_id: company.id });
       // Corregir la estructura de respuesta - a veces viene en data.data, a veces solo en data
       const sellersData = response.data?.data || response.data || [];

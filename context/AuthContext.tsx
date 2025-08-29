@@ -168,7 +168,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
           await AsyncStorage.setItem('user', JSON.stringify(currentUser));
         } catch (error) {
           // Token expirado o inválido
-          await AsyncStorage.multiRemove(['token', 'user']);
+          await AsyncStorage.multiRemove(['token', 'user','selectedCompany']);
           dispatch({ type: 'LOGOUT' });
         }
       } else {
@@ -309,7 +309,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       console.log('Server logout error (ignored):', error);
     } finally {
       // Limpiar solo token y user, NO las credenciales biométricas ni configuración
-      await AsyncStorage.multiRemove(['token', 'user']);
+      await AsyncStorage.multiRemove(['token', 'user','selectedCompany']);
       // Mantener 'user_credentials' y 'biometric_enabled' para próximos logins
       dispatch({ type: 'LOGOUT' });
     }

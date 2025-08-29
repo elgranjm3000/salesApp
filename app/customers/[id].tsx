@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -33,7 +34,6 @@ export default function CustomerDetailScreen(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(mode === 'edit' || id === 'new');
-
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -114,8 +114,12 @@ export default function CustomerDetailScreen(): JSX.Element {
 
     try {
       setSaving(true);
+
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const company = storedCompany ? JSON.parse(storedCompany) : null;      
       
       const customerData = {
+        company_id: company.id,
         name: formData.name.trim(),
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
@@ -131,8 +135,9 @@ export default function CustomerDetailScreen(): JSX.Element {
       
       if (id === 'new') {
         savedCustomer = await api.createCustomer(customerData);
+        
         Alert.alert('Éxito', 'Cliente creado correctamente');
-        router.replace(`/customers/${savedCustomer.id}`);
+        router.replace(`/customers/${savedCustomer.data.id}`);
       } else {
         savedCustomer = await api.updateCustomer(Number(id), customerData);
         setCustomer(savedCustomer);

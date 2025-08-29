@@ -17,135 +17,443 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
-import { validatePhone } from '../../utils/helpers';
 
+type Step = 1 | 2 | 3 | 4;
 
-const USER_ROLES = [
-  { value: 'company', label: 'Compañía', icon: 'storefront', description: 'Administra vendedores y ventas' },
-  { value: 'seller', label: 'Vendedor', icon: 'person', description: 'Realiza ventas y gestiona clientes' },
-];
+interface CompanyData {
+  company_id?: number;
+  name?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  contact?: string;
+  license?: string;
+  rif?: string;
+}
 
 export default function RegisterScreen(): JSX.Element {
-  const [formData, setFormData] = useState({
+  const [currentStep, setCurrentStep] = useState<Step>(1);
+  const [loading, setLoading] = useState(false);
+  
+  // Step 1: Email y RIF
+  const [email, setEmail] = useState('');
+  const [rif, setRif] = useState('');
+  
+  // Step 2: Datos de la empresa encontrada
+  const [companyData, setCompanyData] = useState<CompanyData>({});
+  
+  // Step 3: Código de validación
+  const [validationCode, setValidationCode] = useState('');
+  
+  // Step 4: Datos del usuario
+  const [userData, setUserData] = useState({
     name: '',
-    email: '',
-    phone: '',
     password: '',
     password_confirmation: '',
-    role: '',
-    rif: '',
-    companyName: '',
-    contactPerson: '',
-    address: '',
-    country: '',
-    province: '',
-    city: '',
-    key_activation: '',
+    validation_token: '',
   });
-
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  const clearErrors = () => setErrors({});
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Ingresa un email válido';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El teléfono es requerido';
-    } else if (!validatePhone(formData.phone)) {
-      newErrors.phone = 'Ingresa un número de teléfono válido';
-    }
-
-   
-
-    if (!formData.password) {
-      newErrors.password = 'La contraseña es requerida';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
-    }
-
-    if (!formData.password_confirmation) {
-      newErrors.password_confirmation = 'Confirma tu contraseña';
-    } else if (formData.password !== formData.password_confirmation) {
-      newErrors.password_confirmation = 'Las contraseñas no coinciden';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const updateErrors = (field: string, message: string) => {
-  setErrors((prevErrors) => ({
-    ...prevErrors,
-    [field]: message,
-  }));
-};
-
-  const handleRegister = async (): Promise<void> => {
+  // PASO 1: Verificar información de la empresa
+  const handleCheckCompanyInfo = async (): Promise<void> => {
+    clearErrors();
     
-    if (!validateForm()) return;
+    if (!email.trim()) {
+      setErrors({ email: 'El email es requerido' });
+      return;
+    }
+    
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setErrors({ email: 'Ingresa un email válido' });
+      return;
+    }
+    
+    if (!rif.trim()) {
+      setErrors({ rif: 'El RIF es requerido' });
+      return;
+    }
 
     try {
       setLoading(true);
+      const response = await api.checkCompanyInfo({ email: email.trim(), rif: rif.trim() });
       
-      const registrationData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        role: 'company',  // Registro solo para comapñías
-        password: formData.password,
-        password_confirmation: formData.password_confirmation,
-        rif: formData.rif.trim(),
-        companyName: formData.companyName.trim(),
-        contactPerson: formData.contactPerson.trim(),
-        address: formData.address.trim(),
-        country: formData.country.trim(),
-        province: formData.province.trim(),
-        city: formData.city.trim(),
-        key_activation: formData.key_activation.trim(),
-      };
-
-
-      // Crear el usuario usando tu endpoint de users
-      await api.createUser(registrationData);
-      
-      Alert.alert(
-        'Registro Exitoso',
-        'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.',
-        [
-          {
-            text: 'Iniciar Sesión',
-            onPress: () => router.replace('/(auth)/login'),
-          },
-        ]
-      );
+      if (response.success) {
+        setCompanyData(response.data);
+        setCurrentStep(2);
+      }
     } catch (error: any) {
-      console.error('Error en registro:', error);
-      const message = error.response?.data?.message || 'Error al crear la cuenta';
-      Alert.alert('Error de Registro', message);
+      const errorMessage = error.response?.data?.message || 'Error al verificar la información';
+      const errorCode = error.response?.data?.code;
+      
+      if (errorCode === 'COMPANY_NOT_FOUND') {
+        Alert.alert('Empresa no encontrada', 'Contacte con su administrador de Chrystal');
+      } else if (errorCode === 'COMPANY_ALREADY_HAS_USER') {
+        Alert.alert('Empresa ya registrada', 'Esta empresa ya tiene un usuario registrado en el sistema');
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+  // PASO 2: Confirmar registro de empresa
+  const handleConfirmRegistration = async (confirm: boolean): Promise<void> => {
+    if (!confirm) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.confirmCompanyRegistration({
+        company_id: companyData.company_id!,
+        confirm: true
+      });
+      
+      if (response.success) {
+        Alert.alert(
+          'Código enviado',
+          `Se ha enviado un código de validación a ${response.data.email}`,
+          [{ text: 'OK', onPress: () => setCurrentStep(3) }]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Error al enviar el código';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const selectRole = (role: string) => {
-    updateFormData('role', role);
+  // PASO 3: Validar código
+  const handleValidateCode = async (): Promise<void> => {
+    clearErrors();
+    
+    if (!validationCode.trim()) {
+      setErrors({ validationCode: 'El código de validación es requerido' });
+      return;
+    }
+    
+    if (validationCode.length !== 6) {
+      setErrors({ validationCode: 'El código debe tener exactamente 6 caracteres' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.validateCompanyCode({
+        company_id: companyData.company_id!,
+        email: email,
+        validation_code: validationCode
+      });
+      
+      if (response.success) {
+        setUserData(prev => ({ ...prev, validation_token: response.data.validation_token }));
+        Alert.alert(
+          'Código validado',
+          'Ahora puede crear su clave de acceso',
+          [{ text: 'Continuar', onPress: () => setCurrentStep(4) }]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Error al validar el código';
+      const errorCode = error.response?.data?.code;
+      
+      if (errorCode === 'EMAIL_MISMATCH') {
+        Alert.alert('Error', 'El correo no coincide con el de la empresa');
+      } else if (errorCode === 'INVALID_CODE') {
+        Alert.alert('Código inválido', 'El código de validación es inválido o ha expirado');
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // PASO 4: Completar registro
+  const handleCompleteRegistration = async (): Promise<void> => {
+    clearErrors();
+    const newErrors: Record<string, string> = {};
+
+    
+
+    if (!userData.password) {
+      newErrors.password = 'La contraseña es requerida';
+    } else if (userData.password.length < 8) {
+      newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
+    }
+
+    if (!userData.password_confirmation) {
+      newErrors.password_confirmation = 'Confirma tu contraseña';
+    } else if (userData.password !== userData.password_confirmation) {
+      newErrors.password_confirmation = 'Las contraseñas no coinciden';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.completeCompanyRegistration({
+        validation_token: userData.validation_token,
+        company_id: companyData.company_id!,
+        email: email,
+        password: userData.password,
+        password_confirmation: userData.password_confirmation,
+      });
+      
+      if (response.success) {
+        Alert.alert(
+          'Registro Exitoso',
+          'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.',
+          [
+            {
+              text: 'Iniciar Sesión',
+              onPress: () => router.replace('/(auth)/login'),
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Error al completar el registro';
+      const errorCode = error.response?.data?.code;
+      
+      if (errorCode === 'INVALID_TOKEN') {
+        Alert.alert('Sesión expirada', 'El token de validación ha expirado. Inicie el proceso nuevamente.');
+        setCurrentStep(1);
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderStep1 = () => (
+    <Card style={styles.formCard}>
+      <Text style={styles.sectionTitle}>Verificación de Empresa</Text>
+      <Text style={styles.sectionSubtitle}>
+        Ingrese su email y RIF para verificar que su empresa esté registrada en el sistema
+      </Text>
+      
+      <Input
+        label="Email *"
+        placeholder="tu@empresa.com"
+        value={email}
+        onChangeText={setEmail}
+        error={errors.email}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
+      />
+
+      <Input
+        label="RIF *"
+        placeholder="J-12345678-9"
+        value={rif}
+        onChangeText={setRif}
+        error={errors.rif}
+        keyboardType="default"
+        autoCapitalize="characters"
+        leftIcon={<Ionicons name="card" size={20} color={colors.text.tertiary} />}
+      />
+
+      <Button
+        title="Verificar Empresa"
+        onPress={handleCheckCompanyInfo}
+        loading={loading}
+        style={styles.actionButton}
+      />
+    </Card>
+  );
+
+  const renderStep2 = () => (
+    <Card style={styles.formCard}>
+      <Text style={styles.sectionTitle}>Confirmar Empresa</Text>
+      <Text style={styles.sectionSubtitle}>
+        Se encontró la siguiente información de su empresa:
+      </Text>
+      
+      <View style={styles.companyInfo}>
+        <View style={styles.infoRow}>
+          <Ionicons name="business" size={20} color={colors.text.secondary} />
+          <Text style={styles.infoLabel}>Nombre:</Text>
+          <Text style={styles.infoValue}>{companyData.name}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="mail" size={20} color={colors.text.secondary} />
+          <Text style={styles.infoLabel}>Email:</Text>
+          <Text style={styles.infoValue}>{companyData.email}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="call" size={20} color={colors.text.secondary} />
+          <Text style={styles.infoLabel}>Teléfono:</Text>
+          <Text style={styles.infoValue}>{companyData.phone}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="location" size={20} color={colors.text.secondary} />
+          <Text style={styles.infoLabel}>Dirección:</Text>
+          <Text style={styles.infoValue}>{companyData.address}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="card" size={20} color={colors.text.secondary} />
+          <Text style={styles.infoLabel}>RIF:</Text>
+          <Text style={styles.infoValue}>{companyData.rif}</Text>
+        </View>
+        
+        {companyData.license && (
+          <View style={styles.infoRow}>
+            <Ionicons name="key" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>Licencia:</Text>
+            <Text style={styles.infoValue}>{companyData.license}</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.confirmQuestion}>¿Desea registrar esta compañía?</Text>
+      
+      <View style={styles.buttonRow}>
+        <Button
+          title="Sí, Continuar"
+          onPress={() => handleConfirmRegistration(true)}
+          loading={loading}
+          style={[styles.actionButton, { flex: 1, marginRight: spacing.sm }]}
+        />
+        <Button
+          title="No, Cancelar"
+          onPress={() => handleConfirmRegistration(false)}
+          variant="outline"
+          style={[styles.actionButton, { flex: 1, marginLeft: spacing.sm }]}
+        />
+      </View>
+    </Card>
+  );
+
+  const renderStep3 = () => (
+    <Card style={styles.formCard}>
+      <Text style={styles.sectionTitle}>Código de Validación</Text>
+      <Text style={styles.sectionSubtitle}>
+        Hemos enviado un código de 6 dígitos a su correo electrónico. Ingrese el código para continuar.
+      </Text>
+      
+      <Input
+        label="Código de Validación *"
+        placeholder="123456"
+        value={validationCode}
+        onChangeText={setValidationCode}
+        error={errors.validationCode}
+        keyboardType="number-pad"
+        maxLength={6}
+        textAlign="center"
+        leftIcon={<Ionicons name="shield-checkmark" size={20} color={colors.text.tertiary} />}
+      />
+
+      <Text style={styles.codeInfo}>
+        <Ionicons name="time" size={16} color={colors.text.secondary} />
+        {' '}El código expira en 15 minutos
+      </Text>
+
+      <Button
+        title="Validar Código"
+        onPress={handleValidateCode}
+        loading={loading}
+        style={styles.actionButton}
+      />
+      
+      <TouchableOpacity 
+        onPress={() => setCurrentStep(1)}
+        style={styles.backLink}
+      >
+        <Text style={styles.backLinkText}>Volver al inicio</Text>
+      </TouchableOpacity>
+    </Card>
+  );
+
+  const renderStep4 = () => (
+    <Card style={styles.formCard}>
+      <Text style={styles.sectionTitle}>Crear Usuario</Text>
+      <Text style={styles.sectionSubtitle}>
+        Complete la información para crear su usuario y finalizar el registro
+      </Text>      
+      
+
+      <Input
+        label="Contraseña *"
+        placeholder="Mínimo 8 caracteres"
+        value={userData.password}
+        onChangeText={(value) => setUserData(prev => ({ ...prev, password: value }))}
+        error={errors.password}
+        secureTextEntry
+        leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
+      />
+
+      <Input
+        label="Confirmar Contraseña *"
+        placeholder="Repite tu contraseña"
+        value={userData.password_confirmation}
+        onChangeText={(value) => setUserData(prev => ({ ...prev, password_confirmation: value }))}
+        error={errors.password_confirmation}
+        secureTextEntry
+        leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
+      />
+
+      <Button
+        title="Completar Registro"
+        onPress={handleCompleteRegistration}
+        loading={loading}
+        style={styles.actionButton}
+      />
+    </Card>
+  );
+
+  const renderStepIndicator = () => (
+    <View style={styles.stepIndicator}>
+      {[1, 2, 3, 4].map((step) => (
+        <View key={step} style={styles.stepContainer}>
+          <View style={[
+            styles.stepCircle,
+            step <= currentStep && styles.stepCircleActive,
+            step < currentStep && styles.stepCircleCompleted
+          ]}>
+            {step < currentStep ? (
+              <Ionicons name="checkmark" size={16} color="white" />
+            ) : (
+              <Text style={[
+                styles.stepNumber,
+                step <= currentStep && styles.stepNumberActive
+              ]}>{step}</Text>
+            )}
+          </View>
+          {step < 4 && (
+            <View style={[
+              styles.stepLine,
+              step < currentStep && styles.stepLineCompleted
+            ]} />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+
+  const getStepTitle = () => {
+    switch (currentStep) {
+      case 1: return 'Verificar Empresa';
+      case 2: return 'Confirmar Datos';
+      case 3: return 'Código de Validación';
+      case 4: return 'Crear Usuario';
+      default: return 'Registro';
+    }
   };
 
   return (
@@ -159,185 +467,24 @@ export default function RegisterScreen(): JSX.Element {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-      <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
-            <Ionicons name="person-add" size={32} color={colors.primary[500]} />
+            <Ionicons name="business" size={32} color={colors.primary[500]} />
           </View>
-          <Text style={styles.title}>Crear Cuenta</Text>
-          <Text style={styles.subtitle}>Únete a Sales App</Text>
+          <Text style={styles.title}>{getStepTitle()}</Text>
+          <Text style={styles.subtitle}>Registro de Empresa</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Información Personal */}
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Información Personal</Text>
-          
-         
-          <Input
-            label="Email *"
-            placeholder="tu@email.com"
-            value={formData.email}
-            onChangeText={(value) => updateFormData('email', value)}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
-          />
-
-          <Input
-              label="RIF *"
-              placeholder="J-12345678-9"
-              value={formData.rif}
-              onChangeText={(value) => updateFormData('rif', value)}
-              error={errors.rif}
-              keyboardType="default"
-              autoCapitalize="characters"
-              leftIcon={<Ionicons name="card" size={20} color={colors.text.tertiary} />}
-            />
-
-          <Input
-              label="Nombre *"
-              placeholder="Ej: Ana Gómez"
-              value={formData.name}
-              onChangeText={(value) => updateFormData('name', value)}
-              error={errors.name}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
-            />       
-           
-
-            <Input
-              label="Nombre de Empresa *"
-              placeholder="Ej: Café Andino"
-              value={formData.companyName}
-              onChangeText={(value) => updateFormData('companyName', value)}
-              error={errors.companyName}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="business" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="Persona de Contacto *"
-              placeholder="Ej: Luis Ramírez"
-              value={formData.contactPerson}
-              onChangeText={(value) => updateFormData('contactPerson', value)}
-              error={errors.contactPerson}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="Teléfono *"
-              placeholder="04121234567"
-              value={formData.phone}
-              onChangeText={(value) => updateFormData('phone', value)}             
-              error={errors.phone}
-              keyboardType="phone-pad"
-              leftIcon={<Ionicons name="call" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="Dirección *"
-              placeholder="Av. Principal, El Junko"
-              value={formData.address}
-              onChangeText={(value) => updateFormData('address', value)}
-              error={errors.address}
-              keyboardType="default"
-              autoCapitalize="sentences"
-              leftIcon={<Ionicons name="location" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="País *"
-              placeholder="Venezuela"
-              value={formData.country}
-              onChangeText={(value) => updateFormData('country', value)}
-              error={errors.country}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="flag" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="Provincia *"
-              placeholder="Distrito Capital"
-              value={formData.province}
-              onChangeText={(value) => updateFormData('province', value)}
-              error={errors.province}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="map" size={20} color={colors.text.tertiary} />}
-            />
-
-            <Input
-              label="Ciudad *"
-              placeholder="Caracas"
-              value={formData.city}
-              onChangeText={(value) => updateFormData('city', value)}
-              error={errors.city}
-              keyboardType="default"
-              autoCapitalize="words"
-              leftIcon={<Ionicons name="home" size={20} color={colors.text.tertiary} />}
-            />
-        </Card>       
-
-        {/* Contraseña */}
-        <Card style={styles.passwordCard}>
-          <Text style={styles.sectionTitle}>Seguridad</Text>
-
-          <Input
-              label="Clave de Activación *"
-              placeholder="Ej: ABC123-XYZ789"
-              value={formData.key_activation}
-              onChangeText={(value) => updateFormData('key_activation', value)}
-              error={errors.key_activation}
-              keyboardType="default"
-              autoCapitalize="characters"
-              leftIcon={<Ionicons name="key" size={20} color={colors.text.tertiary} />}
-            />
-          
-          <Input
-            label="Contraseña *"
-            placeholder="Mínimo 8 caracteres"
-            value={formData.password}
-            onChangeText={(value) => updateFormData('password', value)}
-            error={errors.password}
-            secureTextEntry
-            leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
-          />
-
-          <Input
-            label="Confirmar Contraseña *"
-            placeholder="Repite tu contraseña"
-            value={formData.password_confirmation}
-            onChangeText={(value) => updateFormData('password_confirmation', value)}
-            error={errors.password_confirmation}
-            secureTextEntry
-            leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
-          />
-        </Card>
-
-        {/* Botones */}
-        <View style={styles.actions}>
-          <Button
-            title="Crear Cuenta"
-            onPress={handleRegister}
-            loading={loading}
-            style={styles.registerButton}
-          />
-          <Button
-            title="Cancelar"
-            onPress={() => router.replace('/(auth)/login')}            
-            style={styles.cancel}
-          />         
-         
-        </View>
+        {renderStepIndicator()}
+        
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+        {currentStep === 4 && renderStep4()}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -394,13 +541,52 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.lg,
   },
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  stepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.gray[200],
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.gray[300],
+  },
+  stepCircleActive: {
+    backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  stepCircleCompleted: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  stepNumber: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.secondary,
+  },
+  stepNumberActive: {
+    color: 'white',
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: colors.gray[200],
+    marginHorizontal: spacing.xs,
+  },
+  stepLineCompleted: {
+    backgroundColor: colors.success,
+  },
   formCard: {
-    marginBottom: spacing.lg,
-  },
-  roleCard: {
-    marginBottom: spacing.lg,
-  },
-  passwordCard: {
     marginBottom: spacing.lg,
   },
   sectionTitle: {
@@ -413,73 +599,60 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: spacing.lg,
+    lineHeight: 20,
   },
-  rolesContainer: {
-    gap: spacing.md,
+  companyInfo: {
+    backgroundColor: colors.gray[50],
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
   },
-  roleOption: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.gray[200],
-    backgroundColor: colors.gray[50],
+    marginBottom: spacing.md,
   },
-  roleOptionSelected: {
-    borderColor: colors.primary[500],
-    backgroundColor: colors.primary[50],
+  infoLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginLeft: spacing.sm,
+    minWidth: 80,
   },
-  roleIconContainer: {
-    marginRight: spacing.md,
-  },
-  roleContent: {
+  infoValue: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.primary,
     flex: 1,
+    marginLeft: spacing.sm,
   },
-  roleLabel: {
+  confirmQuestion: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
   },
-  roleLabelSelected: {
-    color: colors.primary[600],
-  },
-  roleDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-  },
-  errorText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.error,
-    marginTop: spacing.sm,
-  },
-  actions: {
+  buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10, // si estás en React Native 0.71+, puedes usar gap
-    marginTop: 20,
   },
-   cancel: {
-    marginBottom: spacing.lg,
-    backgroundColor:'#dc3545'
-  },
-  registerButton: {
+  actionButton: {
     marginBottom: spacing.lg,
   },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loginText: {
-    fontSize: typography.fontSize.base,
+  codeInfo: {
+    fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
   },
-  loginLink: {
-    fontSize: typography.fontSize.base,
+  backLink: {
+    alignSelf: 'center',
+    padding: spacing.sm,
+  },
+  backLinkText: {
+    fontSize: typography.fontSize.sm,
     color: colors.primary[500],
-    fontWeight: typography.fontWeight.semibold,
+    textAlign: 'center',
   },
   bottomSpacer: {
     height: spacing.xl,

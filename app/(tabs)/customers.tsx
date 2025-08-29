@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    ListRenderItem,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  ListRenderItem,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -40,8 +41,15 @@ export default function CustomersScreen(): JSX.Element {
   const loadCustomers = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await api.getCustomers();
-      setCustomers(response.data);
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const company = storedCompany ? JSON.parse(storedCompany) : null;
+      let response
+      if (company) {
+        response = await api.getCustomers({ company_id: company.id });
+      } else {
+        response = await api.getCustomers();
+      }
+      setCustomers(response.data.data);
     } catch (error) {
       console.log('Error loading customers:', error);
     } finally {
