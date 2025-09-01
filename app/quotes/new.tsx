@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    ListRenderItem,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  ListRenderItem,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -669,8 +669,20 @@ export default function NewQuoteScreen(): JSX.Element {
     customer_id?: string; 
     company_id?: string; 
   }>();
-  console.log('customer_id:', customer_id, 'company_id:', company_id);
+
   const { user } = useAuth();
+
+
+  useEffect(() => {
+    const loadSelectedCompany = async () => {
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const company = storedCompany ? JSON.parse(storedCompany) : null;
+      setSelectedCompany(company);
+      
+    };
+    loadSelectedCompany();
+  }, [customer_id, company_id]);
+
  const [selectedProductForItem, setSelectedProductForItem] = useState<Product | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -723,10 +735,10 @@ export default function NewQuoteScreen(): JSX.Element {
 
   useEffect(() => {
     if (company_id && companies.length > 0) {
-      console.log('Pre-selected company:', company_id);
+      
 
       const preSelectedCompany = companies.find(c => c.id === Number(company_id));
-      console.log('Pre-selected company:', preSelectedCompany);
+      
       if (preSelectedCompany) {
         setSelectedCompany(preSelectedCompany);
       }
@@ -737,15 +749,17 @@ export default function NewQuoteScreen(): JSX.Element {
     try {
       setLoading(true);
       const [customersResponse, companiesResponse, productsResponse] = await Promise.all([
-        api.getCustomers({ per_page: 100 }),
+        api.getCustomers({ per_page: 100,  }),
         api.getCompanies({ per_page: 100 }),
         api.getProducts({ per_page: 100 }),
       ]);
+       
       
-      setCustomers(customersResponse.data);
+      //setCustomers(customersResponse.data);
+      setCustomers(Array.isArray(customersResponse.data) ? customersResponse.data : []);
       setCompanies(companiesResponse.data);
-      setProducts(productsResponse.data);
-
+      //setProducts(productsResponse.data);
+      setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : []);
       // Configurar fecha de validez por defecto (30 días)
       const validUntil = new Date();
       validUntil.setDate(validUntil.getDate() + 30);
@@ -783,6 +797,7 @@ export default function NewQuoteScreen(): JSX.Element {
   };
 
   const addOrUpdateItem = (product: Product) => {
+    console.log(product);
     setEditingItem(null);
     setSelectedProductForItem(product); // Guardar producto seleccionado
     setItemFormData({
@@ -798,7 +813,7 @@ export default function NewQuoteScreen(): JSX.Element {
     const quantity = Number(itemFormData.quantity);
     const unitPrice = Number(itemFormData.unit_price);
     const discount = Number(itemFormData.discount);
-    console.log('Saving item with data:', { quantity, unitPrice, discount, editingItem, selectedProductForItem });
+    
 
     if (quantity <= 0 || unitPrice < 0 || discount < 0 || discount > 100) {
       Alert.alert('Error', 'Verifique los valores ingresados');

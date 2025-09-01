@@ -1,3 +1,4 @@
+// app/products/catalog.tsx
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -8,6 +9,7 @@ import {
   Image,
   ListRenderItem,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,54 +20,126 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
-import type { Product } from '../../types';
+import type { Category, Product } from '../../types';
 import { debounce, formatCurrency } from '../../utils/helpers';
 
 interface ProductItemProps {
   product: Product;
+  isSelected: boolean;
+  onToggleSelect: (product: Product) => void;
+  selectionMode: boolean;
 }
 
-export default function ProductsScreen(): JSX.Element {
+interface CategoryFilterProps {
+  categories: Category[];
+  selectedCategory: Category | null;
+  onSelectCategory: (category: Category | null) => void;
+}
+
+const CategoryFilter: React.FC<CategoryFilterProps> = ({
+  categories,
+  selectedCategory,
+  onSelectCategory,
+}) => (
+  <ScrollView 
+    horizontal 
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={styles.categoriesScrollContainer}
+  >
+    <TouchableOpacity
+      style={[
+        styles.categoryChip,
+        !selectedCategory && styles.categoryChipActive
+      ]}
+      onPress={() => onSelectCategory(null)}
+    >
+      <Text style={[
+        styles.categoryChipText,
+        !selectedCategory && styles.categoryChipActiveText
+      ]}>
+        Todos
+      </Text>
+    </TouchableOpacity>
+    
+    {categories.map((category) => (
+      <TouchableOpacity
+        key={category.id}
+        style={[
+          styles.categoryChip,
+          selectedCategory?.id === category.id && styles.categoryChipActive
+        ]}
+        onPress={() => onSelectCategory(category)}
+      >
+        <Text style={[
+          styles.categoryChipText,
+          selectedCategory?.id === category.id && styles.categoryChipActiveText
+        ]}>
+          {category.name}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </ScrollView>
+);
+
+export default function ProductCatalogScreen(): JSX.Element {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchText, setSearchText] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  
+  // Estados para selección múltiple
+  const [selectionMode, setSelectionMode] = useState<boolean>(false);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    loadProducts();
+    loadData();
   }, []);
 
   useEffect(() => {
     filterProducts();
-  }, [searchText, products]);
+  }, [searchText, products, selectedCategory]);
 
-  const loadProducts = async (): Promise<void> => {
+  const loadData = async (): Promise<void> => {
     try {
       setLoading(true);
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
-      console.log('Selected Company:', company.id);
-      //const response = await api.getProducts();
-      response = await api.getProducts({ company_id: company.id });
+      
+      const [productsResponse, categoriesResponse] = await Promise.all([
+        api.getProducts({ company_id: company?.id }),
+        api.getCategories()
+      ]);
 
-      setProducts(response.data.data);
+      setProducts(productsResponse.data.data);
+      setCategories(categoriesResponse.data);
     } catch (error) {
-      console.log('Error loading products:', error);
+      console.log('Error loading data:', error);
+      Alert.alert('Error', 'No se pudo cargar la información');
     } finally {
       setLoading(false);
     }
   };
 
   const filterProducts = (): void => {
-    if (!searchText) {
-      setFilteredProducts(products);
-      return;
+    let filtered = products;
+
+    // Filtrar por categoría
+    if (selectedCategory) {
+      filtered = filtered.filter(product => 
+        product.category_id === selectedCategory.id
+      );
     }
 
-    const filtered = products.filter(product =>
-      product.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      product.code.toLowerCase().includes(searchText.toLowerCase())
-    );
+    // Filtrar por texto de búsqueda
+    if (searchText) {
+      filtered = filtered.filter(product =>
+        product.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        product.code.toLowerCase().includes(searchText.toLowerCase()) ||
+        product.category?.name.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
     
     setFilteredProducts(filtered);
   };
@@ -74,38 +148,71 @@ export default function ProductsScreen(): JSX.Element {
     setSearchText(text);
   }, 300);
 
-  const deleteProduct = async (productId: number): Promise<void> => {
-    Alert.alert(
-      'Eliminar Producto',
-      '¿Estás seguro de que quieres eliminar este producto?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.deleteProduct(productId);
-              loadProducts();
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo eliminar el producto');
-            }
-          },
-        },
-      ]
-    );
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (selectionMode) {
+      setSelectedProducts([]);
+    }
   };
 
-  const ProductItem: React.FC<ProductItemProps> = ({ product }) => {
-    const isLowStock = product.stock <= product.min_stock;
+  const toggleProductSelection = (product: Product) => {
+    setSelectedProducts(prev => {
+      const isSelected = prev.find(p => p.id === product.id);
+      if (isSelected) {
+        return prev.filter(p => p.id !== product.id);
+      } else {
+        return [...prev, product];
+      }
+    });
+  };
+
+  const generateQuote = () => {
+    if (selectedProducts.length === 0) {
+      Alert.alert('Error', 'Selecciona al menos un producto para generar el presupuesto');
+      return;
+    }
+
+    // Navegar a la pantalla de nuevo presupuesto con productos preseleccionados
+    const selectedProductIds = selectedProducts.map(p => p.id).join(',');
+    router.push(`/quotes/new?preselected_products=${selectedProductIds}`);
+  };
+
+  const ProductItem: React.FC<ProductItemProps> = ({ 
+    product, 
+    isSelected, 
+    onToggleSelect, 
+    selectionMode 
+  }) => {
+    const isLowStock = product.stock <= (product.min_stock || 0);
+    
+    const handlePress = () => {
+      if (selectionMode) {
+        onToggleSelect(product);
+      } else {
+        router.push(`/products/${product.id}`);
+      }
+    };
 
     return (
-      <Card style={styles.productCard}>
+      <Card style={[
+        styles.productCard,
+        isSelected && styles.productCardSelected
+      ]}>
         <TouchableOpacity
           style={styles.productContent}
-          onPress={() => router.push(`/products/${product.id}`)}
+          onPress={handlePress}
           activeOpacity={0.8}
         >
+          {selectionMode && (
+            <View style={styles.selectionIndicator}>
+              <Ionicons 
+                name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+                size={24} 
+                color={isSelected ? colors.primary[500] : colors.gray[400]} 
+              />
+            </View>
+          )}
+
           <View style={styles.productImageContainer}>
             {product.image ? (
               <Image source={{ uri: product.image }} style={styles.productImage} />
@@ -122,12 +229,32 @@ export default function ProductsScreen(): JSX.Element {
           </View>
           
           <View style={styles.productInfo}>
-            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+            <Text style={styles.productName} numberOfLines={2}>
+              {product.name}
+            </Text>
             <Text style={styles.productCode}>#{product.code}</Text>
-            <Text style={styles.productCategory}>{product.category?.name}</Text>
+            <Text style={styles.productCategory}>
+              {product.category?.name || 'Sin categoría'}
+            </Text>
             
+            <View style={styles.priceContainer}>
+              {product.wholesale_price && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Mayor:</Text>
+                  <Text style={styles.wholesalePrice}>
+                    {formatCurrency(product.wholesale_price)}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Oferta:</Text>
+                <Text style={styles.retailPrice}>
+                  {formatCurrency(product.price)}
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.productFooter}>
-              <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
               <View style={[
                 styles.stockContainer,
                 isLowStock && styles.lowStockContainer
@@ -141,7 +268,7 @@ export default function ProductsScreen(): JSX.Element {
                   styles.stockText,
                   isLowStock && styles.lowStockText
                 ]}>
-                  {product.stock}
+                  Stock: {product.stock}
                 </Text>
               </View>
             </View>
@@ -152,19 +279,31 @@ export default function ProductsScreen(): JSX.Element {
   };
 
   const renderItem: ListRenderItem<Product> = ({ item }) => (
-    <ProductItem product={item} />
+    <ProductItem 
+      product={item} 
+      isSelected={selectedProducts.some(p => p.id === item.id)}
+      onToggleSelect={toggleProductSelection}
+      selectionMode={selectionMode}
+    />
   );
 
   const renderEmpty = (): JSX.Element => (
     <View style={styles.emptyContainer}>
       <Ionicons name="cube" size={64} color={colors.text.tertiary} />
-      <Text style={styles.emptyText}>No hay productos</Text>
-      <Button
-        title="Agregar Producto"
-        variant="outline"
-        onPress={() => router.push('/products/new')}
-        style={{ marginTop: spacing.lg }}
-      />
+      <Text style={styles.emptyText}>
+        {searchText || selectedCategory 
+          ? 'No se encontraron productos con los filtros aplicados' 
+          : 'No hay productos'
+        }
+      </Text>
+      {!searchText && !selectedCategory && (
+        <Button
+          title="Agregar Producto"
+          variant="outline"
+          onPress={() => router.push('/products/new')}
+          style={{ marginTop: spacing.lg }}
+        />
+      )}
     </View>
   );
 
@@ -172,20 +311,64 @@ export default function ProductsScreen(): JSX.Element {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>Productos</Text>
-            <Text style={styles.subtitle}>{filteredProducts.length} productos</Text>
-          </View>          
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Catálogo</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                selectionMode && styles.actionButtonActive
+              ]}
+              onPress={toggleSelectionMode}
+            >
+              <Ionicons 
+                name={selectionMode ? "close" : "checkmark-circle-outline"} 
+                size={20} 
+                color={selectionMode ? colors.text.inverse : colors.primary[500]} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
+        
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Productos</Text>
+            <Text style={styles.subtitle}>
+              {filteredProducts.length} productos
+              {selectedProducts.length > 0 && ` • ${selectedProducts.length} seleccionados`}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Filtros de categoría */}
+      <View style={styles.filtersContainer}>
+        <CategoryFilter
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
       </View>
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
         <Input
-          placeholder="Buscar productos..."
+          placeholder="Buscar por nombre, código o categoría..."
           onChangeText={debouncedSearch}
           leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+          rightIcon={
+            selectedCategory ? (
+              <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+                <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            ) : undefined
+          }
           style={{ marginBottom: 0 }}
         />
       </View>
@@ -196,12 +379,29 @@ export default function ProductsScreen(): JSX.Element {
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadProducts} />
+          <RefreshControl refreshing={loading} onRefresh={loadData} />
         }
         contentContainerStyle={styles.productsList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
       />
+
+      {/* Botón flotante para generar presupuesto */}
+      {selectionMode && selectedProducts.length > 0 && (
+        <View style={styles.floatingButtonContainer}>
+          <TouchableOpacity
+            style={styles.generateQuoteButton}
+            onPress={generateQuote}
+          >
+            <Ionicons name="document-text" size={24} color={colors.text.inverse} />
+            <Text style={styles.generateQuoteButtonText}>
+              Generar Presupuesto ({selectedProducts.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -211,43 +411,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  loadingText: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text.secondary,
-    marginTop: spacing.md,
-  },
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  headerMain: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  backButton: {
+    padding: spacing.xs,
+  },
+  headerTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: spacing.md,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  greeting: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text.secondary,
-  },
-  userName: {
-    fontSize: typography.fontSize['2xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginTop: 2,
+  headerLeft: {
+    flex: 1,
   },
   title: {
     fontSize: typography.fontSize['2xl'],
@@ -259,14 +458,11 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-  profileButton: {
-    padding: spacing.xs,
-  },
-  addButton: {
-    backgroundColor: colors.primary[500],
-    borderRadius: 24,
-    width: 48,
-    height: 48,
+  actionButton: {
+    backgroundColor: colors.gray[100],
+    borderRadius: 20,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -275,167 +471,86 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  actionButtonActive: {
+    backgroundColor: colors.primary[500],
+  },
+  filtersContainer: {
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  categoriesScrollContainer: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  categoryChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  categoryChipText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+  },
+  categoryChipActiveText: {
+    color: colors.text.inverse,
+  },
   searchContainer: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
   },
-  metricsContainer: {
-    padding: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  metricCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  metricHeader: {
-    marginBottom: spacing.sm,
-  },
-  metricValue: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  metricTitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  chartContainer: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  chart: {
-    marginVertical: spacing.md,
-    borderRadius: 16,
-  },
-  quickActionsContainer: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: spacing.xs,
-  },
-  quickActionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  quickActionText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
-    color: colors.text.primary,
-  },
-  recentSalesContainer: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  seeAllText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.primary[500],
-    fontWeight: typography.fontWeight.semibold,
-  },
-  saleItem: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  saleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  saleNumber: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  saleCustomer: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  saleRight: {
-    alignItems: 'flex-end',
-  },
-  saleAmount: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.success,
-  },
-  saleDate: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing['2xl'],
-  },
-  emptyStateText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-    marginTop: spacing.md,
-  },
   productsList: {
     padding: spacing.lg,
   },
+  row: {
+    justifyContent: 'space-between',
+  },
   productCard: {
+    flex: 1,
     marginBottom: spacing.md,
+    marginHorizontal: spacing.xs,
+    maxWidth: '48%',
+  },
+  productCardSelected: {
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
   },
   productContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: spacing.md,
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    zIndex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 2,
   },
   productImageContainer: {
     position: 'relative',
-    marginRight: spacing.md,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
   },
   productImage: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     borderRadius: borderRadius.lg,
   },
   productImagePlaceholder: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.gray[100],
     justifyContent: 'center',
@@ -452,4 +567,112 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-})
+  productInfo: {
+    alignItems: 'center',
+  },
+  productName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  productCode: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  productCategory: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.medium,
+    marginBottom: spacing.md,
+  },
+  priceContainer: {
+    width: '100%',
+    marginBottom: spacing.md,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  priceLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  wholesalePrice: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.info,
+  },
+  retailPrice: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.success,
+  },
+  productFooter: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  stockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.sm,
+  },
+  lowStockContainer: {
+    backgroundColor: colors.warning + '20',
+  },
+  stockText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginLeft: spacing.xs,
+  },
+  lowStockText: {
+    color: colors.warning,
+    fontWeight: typography.fontWeight.medium,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing['2xl'],
+    paddingHorizontal: spacing.lg,
+  },
+  emptyText: {
+    fontSize: typography.fontSize.lg,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+  },
+  generateQuoteButton: {
+    backgroundColor: colors.primary[500],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  generateQuoteButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.inverse,
+    marginLeft: spacing.sm,
+  },
+});
