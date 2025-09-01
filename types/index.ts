@@ -12,6 +12,7 @@ export interface User {
 }
 
 export interface Category {
+  company_id: number,
   id: number;
   name: string;
   description?: string;

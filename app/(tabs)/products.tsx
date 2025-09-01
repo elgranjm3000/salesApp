@@ -45,10 +45,10 @@ export default function ProductsScreen(): JSX.Element {
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
       console.log('Selected Company:', company.id);
-      const response = await api.getProducts();
-        //response = await api.getProducts({ company_id: company.id });
+      //const response = await api.getProducts();
+      response = await api.getProducts({ company_id: company.id });
 
-      setProducts(response.data);
+      setProducts(response.data.data);
     } catch (error) {
       console.log('Error loading products:', error);
     } finally {
@@ -145,22 +145,7 @@ export default function ProductsScreen(): JSX.Element {
                 </Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.productActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push(`/products/${product.id}?mode=edit`)}
-            >
-              <Ionicons name="create" size={18} color={colors.primary[500]} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => deleteProduct(product.id)}
-            >
-              <Ionicons name="trash" size={18} color={colors.error} />
-            </TouchableOpacity>
-          </View>
+          </View>          
         </TouchableOpacity>
       </Card>
     );
@@ -191,13 +176,7 @@ export default function ProductsScreen(): JSX.Element {
           <View>
             <Text style={styles.title}>Productos</Text>
             <Text style={styles.subtitle}>{filteredProducts.length} productos</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/products/new')}
-          >
-            <Ionicons name="add" size={24} color={colors.text.inverse} />
-          </TouchableOpacity>
+          </View>          
         </View>
       </View>
 

@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://c66198fa3b9757b1e73dbc166cedcfe9.serveo.net/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://rides-mlb-invoice-while.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -386,6 +386,7 @@ class ApiService {
     low_stock?: boolean;
     per_page?: number;
     page?: number;
+    company_id?:number;
   }): Promise<PaginatedResponse<Product>> {
     const response: AxiosResponse<PaginatedResponse<Product>> = await this.client.get('/products', { params });
     return response.data;
@@ -393,7 +394,7 @@ class ApiService {
 
   async getProduct(id: number): Promise<Product> {
     const response: AxiosResponse<Product> = await this.client.get(`/products/${id}`);
-    return response.data;
+    return response.data.data;
   }
 
   async createProduct(data: FormData | Partial<Product>): Promise<Product> {
@@ -416,7 +417,7 @@ class ApiService {
   // Categories
   async getCategories(): Promise<Category[]> {
     const response: AxiosResponse<Category[]> = await this.client.get('/categories');
-    return response.data;
+    return response.data.data;
   }
 
   async createCategory(data: Partial<Category>): Promise<Category> {

@@ -1,3 +1,4 @@
+
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -54,11 +55,12 @@ export default function ProductDetailScreen(): JSX.Element {
       
       // Cargar categorías
       const categoriesData = await api.getCategories();
-      setCategories(categoriesData);
+      setCategories(categoriesData.data);
 
       if (id !== 'new') {
         // Cargar producto existente
-        const productData = await api.getProduct(Number(id));
+        const productData = await api.getProduct(Number(id));          
+
         setProduct(productData);
         setFormData({
           name: productData.name,
@@ -296,7 +298,7 @@ export default function ProductDetailScreen(): JSX.Element {
             <Text style={styles.inputLabel}>Categoría *</Text>
             {editing ? (
               <View style={styles.categorySelector}>
-                {categories.map((category) => (
+                {Array.isArray(categories) &&  categories.map((category) => (
                   <TouchableOpacity
                     key={category.id}
                     style={[
