@@ -138,16 +138,11 @@ export default function CustomersScreen(): JSX.Element {
           <View style={styles.customerActions}>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push(`/customers/${customer.id}?mode=edit`)}
+              onPress={() => router.push(`/quotes/new?customer_id=${customer.id}`)}
             >
-              <Ionicons name="create" size={18} color={colors.primary[500]} />
+              <Ionicons name="document-text" size={18} color={colors.primary[500]} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => deleteCustomer(customer.id)}
-            >
-              <Ionicons name="trash" size={18} color={colors.error} />
-            </TouchableOpacity>
+            
           </View>
         </TouchableOpacity>
       </Card>
@@ -180,12 +175,7 @@ export default function CustomersScreen(): JSX.Element {
             <Text style={styles.title}>Clientes</Text>
             <Text style={styles.subtitle}>{filteredCustomers.length} clientes</Text>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/customers/new')}
-          >
-            <Ionicons name="add" size={24} color={colors.text.inverse} />
-          </TouchableOpacity>
+         
         </View>
       </View>
 

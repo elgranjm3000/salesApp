@@ -1,4 +1,3 @@
-// app/products/catalog.tsx
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -28,6 +27,7 @@ interface ProductItemProps {
   isSelected: boolean;
   onToggleSelect: (product: Product) => void;
   selectionMode: boolean;
+  onCreateQuote: (product: Product) => void;
 }
 
 interface CategoryFilterProps {
@@ -81,7 +81,7 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   </ScrollView>
 );
 
-export default function ProductCatalogScreen(): JSX.Element {
+export default function ProductsScreen(): JSX.Element {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -112,8 +112,8 @@ export default function ProductCatalogScreen(): JSX.Element {
         api.getCategories()
       ]);
 
-      setProducts(productsResponse.data.data);
-      setCategories(categoriesResponse.data);
+      setProducts(productsResponse.data.data || []);
+      setCategories(categoriesResponse.data || []);
     } catch (error) {
       console.log('Error loading data:', error);
       Alert.alert('Error', 'No se pudo cargar la información');
@@ -172,18 +172,23 @@ export default function ProductCatalogScreen(): JSX.Element {
       return;
     }
 
-    // Navegar a la pantalla de nuevo presupuesto con productos preseleccionados
     const selectedProductIds = selectedProducts.map(p => p.id).join(',');
     router.push(`/quotes/new?preselected_products=${selectedProductIds}`);
+  };
+
+  const createQuoteFromProduct = (product: Product) => {
+    router.push(`/quotes/new?preselected_products=${product.id}`);
   };
 
   const ProductItem: React.FC<ProductItemProps> = ({ 
     product, 
     isSelected, 
     onToggleSelect, 
-    selectionMode 
+    selectionMode,
+    onCreateQuote 
   }) => {
     const isLowStock = product.stock <= (product.min_stock || 0);
+    const hasWholesalePrice = product.cost && product.cost > 0;
     
     const handlePress = () => {
       if (selectionMode) {
@@ -196,7 +201,8 @@ export default function ProductCatalogScreen(): JSX.Element {
     return (
       <Card style={[
         styles.productCard,
-        isSelected && styles.productCardSelected
+        isSelected && styles.productCardSelected,
+        isLowStock && styles.productCardLowStock
       ]}>
         <TouchableOpacity
           style={styles.productContent}
@@ -238,11 +244,11 @@ export default function ProductCatalogScreen(): JSX.Element {
             </Text>
             
             <View style={styles.priceContainer}>
-              {product.wholesale_price && (
+              {hasWholesalePrice && (
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>Mayor:</Text>
                   <Text style={styles.wholesalePrice}>
-                    {formatCurrency(product.wholesale_price)}
+                    {formatCurrency(product.cost)}
                   </Text>
                 </View>
               )}
@@ -271,6 +277,19 @@ export default function ProductCatalogScreen(): JSX.Element {
                   Stock: {product.stock}
                 </Text>
               </View>
+
+              {!selectionMode && (
+                <TouchableOpacity
+                  style={styles.quoteButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onCreateQuote(product);
+                  }}
+                >
+                  <Ionicons name="document-text" size={16} color={colors.primary[500]} />
+                  <Text style={styles.quoteButtonText}>Cotizar</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>          
         </TouchableOpacity>
@@ -284,6 +303,7 @@ export default function ProductCatalogScreen(): JSX.Element {
       isSelected={selectedProducts.some(p => p.id === item.id)}
       onToggleSelect={toggleProductSelection}
       selectionMode={selectionMode}
+      onCreateQuote={createQuoteFromProduct}
     />
   );
 
@@ -293,17 +313,20 @@ export default function ProductCatalogScreen(): JSX.Element {
       <Text style={styles.emptyText}>
         {searchText || selectedCategory 
           ? 'No se encontraron productos con los filtros aplicados' 
-          : 'No hay productos'
+          : 'No hay productos disponibles'
         }
       </Text>
-      {!searchText && !selectedCategory && (
+      {searchText || selectedCategory ? (
         <Button
-          title="Agregar Producto"
+          title="Limpiar Filtros"
           variant="outline"
-          onPress={() => router.push('/products/new')}
+          onPress={() => {
+            setSearchText('');
+            setSelectedCategory(null);
+          }}
           style={{ marginTop: spacing.lg }}
         />
-      )}
+      ) : null}
     </View>
   );
 
@@ -311,39 +334,33 @@ export default function ProductCatalogScreen(): JSX.Element {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Catálogo</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                selectionMode && styles.actionButtonActive
-              ]}
-              onPress={toggleSelectionMode}
-            >
-              <Ionicons 
-                name={selectionMode ? "close" : "checkmark-circle-outline"} 
-                size={20} 
-                color={selectionMode ? colors.text.inverse : colors.primary[500]} 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-        
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>Productos</Text>
+            <Text style={styles.title}>Catálogo de Productos</Text>
             <Text style={styles.subtitle}>
               {filteredProducts.length} productos
               {selectedProducts.length > 0 && ` • ${selectedProducts.length} seleccionados`}
             </Text>
           </View>
+          <TouchableOpacity
+            style={[
+              styles.selectionButton,
+              selectionMode && styles.selectionButtonActive
+            ]}
+            onPress={toggleSelectionMode}
+          >
+            <Ionicons 
+              name={selectionMode ? "close" : "checkmark-circle-outline"} 
+              size={20} 
+              color={selectionMode ? colors.text.inverse : colors.primary[500]} 
+            />
+            <Text style={[
+              styles.selectionButtonText,
+              selectionMode && styles.selectionButtonTextActive
+            ]}>
+              {selectionMode ? 'Cancelar' : 'Seleccionar'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -363,8 +380,11 @@ export default function ProductCatalogScreen(): JSX.Element {
           onChangeText={debouncedSearch}
           leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
           rightIcon={
-            selectedCategory ? (
-              <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+            (selectedCategory || searchText) ? (
+              <TouchableOpacity onPress={() => {
+                setSearchText('');
+                setSelectedCategory(null);
+              }}>
                 <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
               </TouchableOpacity>
             ) : undefined
@@ -419,27 +439,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  backButton: {
-    padding: spacing.xs,
-  },
-  headerTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: spacing.md,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -458,21 +457,28 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-  actionButton: {
-    backgroundColor: colors.gray[100],
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  selectionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.primary[50],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
   },
-  actionButtonActive: {
+  selectionButtonActive: {
     backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  selectionButtonText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.primary[500],
+    marginLeft: spacing.xs,
+  },
+  selectionButtonTextActive: {
+    color: colors.text.inverse,
   },
   filtersContainer: {
     backgroundColor: colors.surface,
@@ -522,9 +528,13 @@ const styles = StyleSheet.create({
     maxWidth: '48%',
   },
   productCardSelected: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.primary[500],
     backgroundColor: colors.primary[50],
+  },
+  productCardLowStock: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
   },
   productContent: {
     padding: spacing.md,
@@ -537,6 +547,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   productImageContainer: {
     position: 'relative',
@@ -547,6 +562,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: borderRadius.lg,
+    resizeMode: 'cover',
   },
   productImagePlaceholder: {
     width: 80,
@@ -576,17 +592,20 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlign: 'center',
     marginBottom: spacing.xs,
+    minHeight: 40,
   },
   productCode: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
+    fontFamily: 'monospace',
   },
   productCategory: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.primary[500],
     fontWeight: typography.fontWeight.medium,
     marginBottom: spacing.md,
+    textAlign: 'center',
   },
   priceContainer: {
     width: '100%',
@@ -599,7 +618,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   priceLabel: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
   },
   wholesalePrice: {
@@ -614,11 +633,12 @@ const styles = StyleSheet.create({
   },
   productFooter: {
     width: '100%',
-    alignItems: 'center',
+    gap: spacing.sm,
   },
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     backgroundColor: colors.gray[50],
@@ -628,13 +648,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.warning + '20',
   },
   stockText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     marginLeft: spacing.xs,
+    fontWeight: typography.fontWeight.medium,
   },
   lowStockText: {
     color: colors.warning,
+    fontWeight: typography.fontWeight.bold,
+  },
+  quoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  quoteButtonText: {
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
+    color: colors.primary[500],
+    marginLeft: spacing.xs,
   },
   emptyContainer: {
     flex: 1,
@@ -648,6 +686,7 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: spacing.md,
     textAlign: 'center',
+    marginBottom: spacing.lg,
   },
   floatingButtonContainer: {
     position: 'absolute',

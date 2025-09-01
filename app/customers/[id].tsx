@@ -222,7 +222,7 @@ export default function CustomerDetailScreen(): JSX.Element {
           </View>
         </View>
         
-        {customer && !editing && (
+       {/*  {customer && !editing && (
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.headerButton}
@@ -237,7 +237,7 @@ export default function CustomerDetailScreen(): JSX.Element {
               <Ionicons name="trash" size={20} color={colors.error} />
             </TouchableOpacity>
           </View>
-        )}
+        )} */}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

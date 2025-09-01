@@ -361,8 +361,8 @@ export default function DashboardScreen(): JSX.Element {
         
       case 'company':
         actions.push(
-          { title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
-          { title: 'Mis vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },
+          /*{ title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
+          { title: 'Mis vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },*/
           { title: 'Nuevo Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push({ pathname: '/quotes/new', params: { company_id: selectedCompany?.id?.toString() } }) },
           { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
@@ -417,12 +417,12 @@ export default function DashboardScreen(): JSX.Element {
     >
       <View style={styles.saleHeader}>
         <View style={styles.saleLeft}>
-          <Text style={styles.saleNumber}>{sale.sale_number}</Text>
-          <Text style={styles.saleCustomer}>{sale.customer?.name || 'Cliente no especificado'}</Text>
+          <Text style={styles.saleNumber}>{sale?.number}</Text>
+          <Text style={styles.saleCustomer}>{sale?.customer || 'Cliente no especificado'}</Text>
         </View>
         <View style={styles.saleRight}>
           <Text style={styles.saleAmount}>{formatCurrency(sale.total)}</Text>
-          <Text style={styles.saleDate}>{formatDate(sale.sale_date)}</Text>
+          <Text style={styles.saleDate}>{formatDate(sale.date)}</Text>
         </View>
       </View>
       <View style={styles.saleStatus}>
@@ -470,12 +470,12 @@ export default function DashboardScreen(): JSX.Element {
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
             <View style={styles.roleContainer}>
-              <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user?.role || '') + '20' }]}>
+              {/*<View style={[styles.roleBadge, { backgroundColor: getRoleColor(user?.role || '') + '20' }]}>
                 <Ionicons name="person" size={16} color={getRoleColor(user?.role || '')} />
                 <Text style={[styles.userRole, { color: getRoleColor(user?.role || '') }]}>
                   {getRoleText(user?.role || '')}
                 </Text>
-              </View>
+              </View>*/}
             </View>
           </View>
           <TouchableOpacity 
@@ -617,7 +617,7 @@ export default function DashboardScreen(): JSX.Element {
                 <Text style={[styles.trendText, { color: colors.success }]}>+12%</Text>
               </View>
             </View>
-            <Text style={styles.metricValue}>{formatCurrency(dashboardData?.metrics?.today_sales || 0)}</Text>
+            <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_today || 0}</Text>
             <Text style={styles.metricTitle}>Presupuestos Hoy</Text>
           </Card>
 
@@ -631,11 +631,11 @@ export default function DashboardScreen(): JSX.Element {
                 <Text style={[styles.trendText, { color: colors.success }]}>+8%</Text>
               </View>
             </View>
-            <Text style={styles.metricValue}>{formatCurrency(dashboardData?.metrics?.month_sales || 0)}</Text>
+            <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_this_month || 0}</Text>
             <Text style={styles.metricTitle}>Presupuestos Mes</Text>
           </Card>
 
-          <Card style={[styles.metricCard, { borderLeftColor: colors.warning }]}>
+          {/*<Card style={[styles.metricCard, { borderLeftColor: colors.warning }]}>
             <View style={styles.metricHeader}>
               <View style={[styles.iconContainer, { backgroundColor: colors.warning + '15' }]}>
                 <Ionicons name="warning" size={20} color={colors.warning} />
@@ -643,7 +643,7 @@ export default function DashboardScreen(): JSX.Element {
             </View>
             <Text style={styles.metricValue}>{dashboardData?.metrics?.low_stock_products?.toString() || '0'}</Text>
             <Text style={styles.metricTitle}>Stock Bajo</Text>
-          </Card>
+          </Card>*/}
 
           <Card style={[styles.metricCard, { borderLeftColor: colors.info }]}>
             <View style={styles.metricHeader}>
@@ -651,7 +651,7 @@ export default function DashboardScreen(): JSX.Element {
                 <Ionicons name="people" size={20} color={colors.info} />
               </View>
             </View>
-            <Text style={styles.metricValue}>{dashboardData?.metrics?.total_customers?.toString() || '0'}</Text>
+            <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.total_customers || '0'}</Text>
             <Text style={styles.metricTitle}>Clientes</Text>
           </Card>
         </View>
@@ -736,8 +736,8 @@ export default function DashboardScreen(): JSX.Element {
         </View>
         
         <Card padding="sm">
-          {dashboardData?.recent_sales && dashboardData.recent_sales.length > 0 ? (
-            dashboardData.recent_sales.slice(0, 5).map((sale) => (
+          {dashboardData?.data?.recent_quotes && dashboardData.data?.recent_quotes.length > 0 ? (
+            dashboardData.data?.recent_quotes.slice(0, 5).map((sale) => (
               <SaleItem key={sale.id} sale={sale} />
             ))
           ) : (
@@ -1262,7 +1262,7 @@ const styles = StyleSheet.create({
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    marginTop: 150,
+    marginTop: 10,
   },
   sectionHeader: {
     flexDirection: 'row',

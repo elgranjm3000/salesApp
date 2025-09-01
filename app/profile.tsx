@@ -317,7 +317,7 @@ export default function ProfileScreen(): JSX.Element {
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>Mi Perfil</Text>
-            <Text style={styles.headerSubtitle}>{getRoleText(user.role)}</Text>
+            {/* <Text style={styles.headerSubtitle}>{getRoleText(user.role)}</Text>*/}
           </View>
         </View>
         
@@ -367,12 +367,12 @@ export default function ProfileScreen(): JSX.Element {
             <View style={styles.avatarInfo}>
               <Text style={styles.userName}>{user.name}</Text>
               <View style={styles.roleContainer}>
-                <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + '20' }]}>
+                {/*<View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + '20' }]}>
                   <Ionicons name={getRoleIcon(user.role)} size={16} color={getRoleColor(user.role)} />
-                  <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
+                   <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
                     {getRoleText(user.role)}
                   </Text>
-                </View>
+                </View>*/}
               </View>
               <View style={styles.statusBadge}>
                 <View style={[
@@ -433,12 +433,12 @@ export default function ProfileScreen(): JSX.Element {
           <Card style={{ marginTop: spacing.lg }}>
             <View style={styles.companiesHeader}>
               <Text style={styles.sectionTitle}>Mis Compañías</Text>
-              <TouchableOpacity
+             {/* <TouchableOpacity
                 style={styles.addCompanyButton}
                 onPress={() => router.push('/companies/new')}
               >
                 <Ionicons name="add" size={20} color={colors.primary[500]} />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
             
             {loadingCompanies ? (
@@ -467,7 +467,7 @@ export default function ProfileScreen(): JSX.Element {
         )}
 
         {/* Información de la cuenta */}
-        <Card style={{ marginTop: spacing.lg }}>
+        {/* <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Información de la Cuenta</Text>
           
           <View style={styles.infoRow}>
@@ -498,10 +498,10 @@ export default function ProfileScreen(): JSX.Element {
               </View>
             </View>
           )}
-        </Card>
+        </Card>*/}
 
         {/* Información de almacenamiento */}
-        {storageInfo && (
+       {/* {storageInfo && (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Datos Locales</Text>
             
@@ -532,7 +532,7 @@ export default function ProfileScreen(): JSX.Element {
               style={styles.clearButton}
             />
           </Card>
-        )}
+        )}*/}
 
         {/* Acciones */}
         {editing ? (

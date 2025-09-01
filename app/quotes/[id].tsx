@@ -12,12 +12,13 @@ export default function QuoteDetailScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<any>(null);
+        console.log("id generado: ",id);
 
   useEffect(() => {
     const fetchQuote = async () => {
       try {
         const response = await api.getQuote(Number(id));
-        setQuote(response);
+        setQuote(response.data);
       } catch (error) {
         Alert.alert('Error', 'No se pudo cargar el presupuesto');
       } finally {
@@ -78,7 +79,7 @@ export default function QuoteDetailScreen(): JSX.Element {
                   <Text style={styles.itemDetail}>Descuento: {item.discount}%</Text>
                 )}
                 <Text style={styles.itemTotal}>
-                  Total: {formatCurrency(item.total_price)}
+                  Total: {formatCurrency(item.total)}
                 </Text>
               </View>
             ))}
