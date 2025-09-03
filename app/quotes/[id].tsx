@@ -75,8 +75,8 @@ export default function QuoteDetailScreen(): JSX.Element {
                 <Text style={styles.itemName}>{item.product?.name || item.name}</Text>
                 <Text style={styles.itemDetail}>Cantidad: {item.quantity}</Text>
                 <Text style={styles.itemDetail}>Precio: {formatCurrency(item.unit_price)}</Text>
-                {item.discount > 0 && (
-                  <Text style={styles.itemDetail}>Descuento: {item.discount}%</Text>
+                {item.discount_percentage > 0 && (
+                  <Text style={styles.itemDetail}>Descuento: {item.discount_percentage}%</Text>
                 )}
                 <Text style={styles.itemTotal}>
                   Total: {formatCurrency(item.total)}

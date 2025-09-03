@@ -1,4 +1,4 @@
-// app/quotes/new.tsx - Versión simplificada y funcional
+// app/quotes/new.tsx - Versión completa con validaciones de stock y suma de productos
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -61,6 +61,7 @@ export default function NewQuoteScreen(): JSX.Element {
   });
   
   const [errors, setErrors] = useState({});
+  const [editingItemId, setEditingItemId] = useState(null);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function NewQuoteScreen(): JSX.Element {
       
       // Cargar datos
       const [customersRes, productsRes] = await Promise.all([
-        api.getCustomers({ per_page: 100 }),
+        api.getCustomers({ per_page: 100, company_id: company?.id }),
         api.getProducts({ per_page: 100, company_id: company?.id }),
       ]);
       
@@ -140,6 +141,14 @@ export default function NewQuoteScreen(): JSX.Element {
     p.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
+  // Función auxiliar para obtener stock disponible
+  const getAvailableStock = (product) => {
+    const existingItem = quoteItems.find(item => 
+      item.product_id === product.id && item.id !== editingItemId
+    );
+    return product.stock - (existingItem ? existingItem.quantity : 0);
+  };
+
   // Cálculos
   const calculateItemTotal = (quantity, unitPrice, discount) => {
     const subtotal = quantity * unitPrice;
@@ -157,6 +166,16 @@ export default function NewQuoteScreen(): JSX.Element {
 
   // Agregar producto
   const selectProduct = (product) => {
+    const availableStock = getAvailableStock(product);
+    
+    if (availableStock <= 0) {
+      Alert.alert(
+        'Sin stock disponible',
+        'Ya has agregado todo el stock disponible de este producto al presupuesto.'
+      );
+      return;
+    }
+
     setSelectedProduct(product);
     setItemData({
       quantity: '1',
@@ -164,6 +183,18 @@ export default function NewQuoteScreen(): JSX.Element {
       discount: '0',
     });
     setShowProductSelector(false);
+    setShowItemModal(true);
+  };
+
+  // Editar item existente
+  const editItem = (item) => {
+    setSelectedProduct(item.product);
+    setEditingItemId(item.id);
+    setItemData({
+      quantity: item.quantity.toString(),
+      unit_price: item.unit_price.toString(),
+      discount: item.discount.toString(),
+    });
     setShowItemModal(true);
   };
 
@@ -178,21 +209,77 @@ export default function NewQuoteScreen(): JSX.Element {
       return;
     }
 
+    // Validar stock disponible
+    const availableStock = getAvailableStock(selectedProduct);
+    
+    if (quantity > availableStock) {
+      Alert.alert(
+        'Stock insuficiente', 
+        `Solo hay ${availableStock} unidades disponibles para este producto.`
+      );
+      return;
+    }
+
     const totalPrice = calculateItemTotal(quantity, unitPrice, discount);
 
-    const newItem = {
-      id: Date.now().toString(),
-      product_id: selectedProduct.id,
-      product: selectedProduct,
-      quantity,
-      unit_price: unitPrice,
-      discount,
-      total_price: totalPrice,
-    };
+    if (editingItemId) {
+      // Editando un item existente
+      setQuoteItems(prev => prev.map(item => {
+        if (item.id === editingItemId) {
+          return {
+            ...item,
+            quantity,
+            unit_price: unitPrice,
+            discount,
+            total_price: totalPrice,
+          };
+        }
+        return item;
+      }));
+    } else {
+      // Verificar si el producto ya existe
+      const existingItemIndex = quoteItems.findIndex(item => item.product_id === selectedProduct.id);
+      
+      if (existingItemIndex >= 0) {
+        // Si el producto ya existe, sumar cantidades
+        setQuoteItems(prev => prev.map((item, index) => {
+          if (index === existingItemIndex) {
+            const newQuantity = item.quantity + quantity;
+            const newTotalPrice = calculateItemTotal(newQuantity, unitPrice, discount);
+            return {
+              ...item,
+              quantity: newQuantity,
+              unit_price: unitPrice,
+              discount,
+              total_price: newTotalPrice,
+            };
+          }
+          return item;
+        }));
+      } else {
+        // Si es un producto nuevo, agregarlo
+        const newItem = {
+          id: Date.now().toString(),
+          product_id: selectedProduct.id,
+          product: selectedProduct,
+          quantity,
+          unit_price: unitPrice,
+          discount,
+          total_price: totalPrice,
+        };
+        setQuoteItems(prev => [...prev, newItem]);
+      }
+    }
 
-    setQuoteItems(prev => [...prev, newItem]);
+    // Resetear estados
     setShowItemModal(false);
     setSelectedProduct(null);
+    setEditingItemId(null);
+    setItemData({
+      quantity: '1',
+      unit_price: '0',
+      discount: '0',
+    });
   };
 
   // Eliminar item
@@ -255,6 +342,18 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
+  // Cancelar edición de modal
+  const cancelItemModal = () => {
+    setShowItemModal(false);
+    setSelectedProduct(null);
+    setEditingItemId(null);
+    setItemData({
+      quantity: '1',
+      unit_price: '0',
+      discount: '0',
+    });
+  };
+
   const totals = calculateTotals();
 
   if (loading) {
@@ -309,15 +408,24 @@ export default function NewQuoteScreen(): JSX.Element {
           ) : (
             quoteItems.map((item) => (
               <View key={item.id} style={styles.item}>
-                <View style={styles.itemInfo}>
+                <TouchableOpacity 
+                  style={styles.itemInfo}
+                  onPress={() => editItem(item)}
+                >
                   <Text style={styles.itemName}>{item.product?.name}</Text>
                   <Text style={styles.itemDetails}>
                     Cant: {item.quantity} • Precio: {formatCurrency(item.unit_price)}
                     {item.discount > 0 && ` • Desc: ${item.discount}%`}
                   </Text>
-                </View>
+                  <Text style={styles.itemStock}>
+                    Stock disponible: {getAvailableStock(item.product) + item.quantity}
+                  </Text>
+                </TouchableOpacity>
                 <View style={styles.itemActions}>
                   <Text style={styles.itemTotal}>{formatCurrency(item.total_price)}</Text>
+                  <TouchableOpacity onPress={() => editItem(item)}>
+                    <Ionicons name="create-outline" size={16} color={colors.primary[500]} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => removeItem(item.id)}>
                     <Ionicons name="trash" size={16} color={colors.error} />
                   </TouchableOpacity>
@@ -462,17 +570,35 @@ export default function NewQuoteScreen(): JSX.Element {
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => selectProduct(item)}
-              >
-                <Text style={styles.modalItemText}>{item.name}</Text>
-                <Text style={styles.modalItemSubtext}>
-                  {formatCurrency(item.price)} • Stock: {item.stock}
-                </Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const availableStock = getAvailableStock(item);
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    availableStock <= 0 && styles.modalItemDisabled
+                  ]}
+                  onPress={() => selectProduct(item)}
+                  disabled={availableStock <= 0}
+                >
+                  <Text style={[
+                    styles.modalItemText,
+                    availableStock <= 0 && styles.modalItemTextDisabled
+                  ]}>
+                    {item.name}
+                  </Text>
+                  <Text style={[
+                    styles.modalItemSubtext,
+                    availableStock <= 0 && styles.modalItemTextDisabled
+                  ]}>
+                    {formatCurrency(item.price)} • Stock total: {item.stock} • Disponible: {availableStock}
+                  </Text>
+                  {availableStock <= 0 && (
+                    <Text style={styles.noStockText}>Sin stock disponible</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       </Modal>
@@ -481,8 +607,10 @@ export default function NewQuoteScreen(): JSX.Element {
       <Modal visible={showItemModal} animationType="slide">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Configurar Producto</Text>
-            <TouchableOpacity onPress={() => setShowItemModal(false)}>
+            <Text style={styles.modalTitle}>
+              {editingItemId ? 'Editar Producto' : 'Configurar Producto'}
+            </Text>
+            <TouchableOpacity onPress={cancelItemModal}>
               <Ionicons name="close" size={24} color={colors.text.primary} />
             </TouchableOpacity>
           </View>
@@ -492,16 +620,26 @@ export default function NewQuoteScreen(): JSX.Element {
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{selectedProduct.name}</Text>
                 <Text style={styles.productDetails}>
-                  Precio: {formatCurrency(selectedProduct.price)} • Stock: {selectedProduct.stock}
+                  Precio: {formatCurrency(selectedProduct.price)} • Stock total: {selectedProduct.stock}
+                </Text>
+                <Text style={styles.productDetails}>
+                  Stock disponible: {getAvailableStock(selectedProduct)}
                 </Text>
               </View>
             )}
 
             <Input
-              label="Cantidad"
+              label={`Cantidad (Máx: ${selectedProduct ? getAvailableStock(selectedProduct) : 0})`}
               value={itemData.quantity}
-              onChangeText={(value) => setItemData(prev => ({ ...prev, quantity: value }))}
+              onChangeText={(value) => {
+                setItemData(prev => ({ ...prev, quantity: value }));
+              }}
               keyboardType="numeric"
+              error={
+                selectedProduct && Number(itemData.quantity) > getAvailableStock(selectedProduct)
+                  ? `Máximo disponible: ${getAvailableStock(selectedProduct)}`
+                  : undefined
+              }
             />
 
             <Input
@@ -532,13 +670,16 @@ export default function NewQuoteScreen(): JSX.Element {
               <Button
                 title="Cancelar"
                 variant="outline"
-                onPress={() => setShowItemModal(false)}
+                onPress={cancelItemModal}
                 style={styles.button}
               />
               <Button
-                title="Agregar"
+                title={editingItemId ? 'Actualizar' : 'Agregar'}
                 onPress={saveItem}
                 style={styles.button}
+                disabled={
+                  selectedProduct && Number(itemData.quantity) > getAvailableStock(selectedProduct)
+                }
               />
             </View>
           </View>
@@ -640,9 +781,15 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: spacing.xs,
   },
+  itemStock: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
   itemActions: {
     alignItems: 'flex-end',
     gap: spacing.sm,
+    flexDirection: 'row',
   },
   itemTotal: {
     fontSize: typography.fontSize.base,
@@ -708,13 +855,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
+  modalItemDisabled: {
+    opacity: 0.5,
+  },
   modalItemText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
   },
+  modalItemTextDisabled: {
+    color: colors.text.secondary,
+  },
   modalItemSubtext: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+  noStockText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.error,
     marginTop: spacing.xs,
   },
   modalContent: {

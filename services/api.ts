@@ -12,7 +12,7 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://rides-mlb-invoice-while.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://reward-sailing-locator-recommended.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -699,6 +699,7 @@ class ApiService {
   }
 
   async createQuote(data: CreateQuoteData): Promise<Quote> {
+    console.log("quote data", data);
     const response: AxiosResponse<Quote> = await this.client.post('/quotes', data);
     return response.data;
   }

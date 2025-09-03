@@ -5,14 +5,13 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Image,
   ListRenderItem,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -220,13 +219,13 @@ export default function ProductsScreen(): JSX.Element {
           )}
 
           <View style={styles.productImageContainer}>
-            {product.image ? (
+            {/* {product.image ? (
               <Image source={{ uri: product.image }} style={styles.productImage} />
             ) : (
               <View style={styles.productImagePlaceholder}>
                 <Ionicons name="cube" size={32} color={colors.text.tertiary} />
               </View>
-            )}
+            )}*/}
             {isLowStock && (
               <View style={styles.lowStockBadge}>
                 <Ionicons name="warning" size={12} color={colors.text.inverse} />
@@ -358,7 +357,7 @@ export default function ProductsScreen(): JSX.Element {
               styles.selectionButtonText,
               selectionMode && styles.selectionButtonTextActive
             ]}>
-              {selectionMode ? 'Cancelar' : 'Seleccionar'}
+              {selectionMode ? 'Cancelar' : 'Seleccionar productos'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -376,7 +375,7 @@ export default function ProductsScreen(): JSX.Element {
       {/* Buscador */}
       <View style={styles.searchContainer}>
         <Input
-          placeholder="Buscar por nombre, código o categoría..."
+          placeholder="Buscar por nombre, código o departamento..."
           onChangeText={debouncedSearch}
           leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
           rightIcon={
@@ -404,8 +403,7 @@ export default function ProductsScreen(): JSX.Element {
         contentContainerStyle={styles.productsList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
       {/* Botón flotante para generar presupuesto */}
@@ -522,10 +520,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   productCard: {
-    flex: 1,
-    marginBottom: spacing.md,
-    marginHorizontal: spacing.xs,
-    maxWidth: '48%',
+    marginBottom: 0,
   },
   productCardSelected: {
     borderWidth: 1,
@@ -714,4 +709,7 @@ const styles = StyleSheet.create({
     color: colors.text.inverse,
     marginLeft: spacing.sm,
   },
+  separator: {
+    height: spacing.sm,
+  }
 });

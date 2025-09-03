@@ -221,7 +221,7 @@ export default function ProductDetailScreen(): JSX.Element {
           </View>
         </View>
         
-        {product && !editing && (
+        {/* {product && !editing && (
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.headerButton}
@@ -236,7 +236,7 @@ export default function ProductDetailScreen(): JSX.Element {
               <Ionicons name="trash" size={20} color={colors.error} />
             </TouchableOpacity>
           </View>
-        )}
+        )} */}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -328,7 +328,7 @@ export default function ProductDetailScreen(): JSX.Element {
         </Card>
 
         {/* Precios y costos */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Precios y Costos</Text>
           
           <View style={styles.row}>
@@ -372,7 +372,7 @@ export default function ProductDetailScreen(): JSX.Element {
         </Card>
 
         {/* Inventario */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Inventario</Text>
           
           <View style={styles.row}>
@@ -402,7 +402,7 @@ export default function ProductDetailScreen(): JSX.Element {
         </Card>
 
         {/* Información adicional */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Información Adicional</Text>
           
           <Input
@@ -469,6 +469,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,

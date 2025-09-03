@@ -311,20 +311,16 @@ export default function QuotesScreen(): JSX.Element {
         styles.quoteCard,
         isExpired && styles.expiredCard
       ]}>
-        <TouchableOpacity
-          style={styles.quoteContent}
-          onPress={() => router.push(`/quotes/${quote.id}`)}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity>
           <View style={styles.quoteHeader}>
             <View style={styles.quoteNumberContainer}>
-              <View style={styles.statusIconContainer}>
-                <Ionicons 
+                 {/*<View style={styles.statusIconContainer}>
+             <Ionicons 
                   name={getStatusIcon(quote.status)} 
                   size={20} 
                   color={getStatusColor(quote.status)} 
                 />
-              </View>
+              </View>*/}
               <View>
                 <Text style={styles.quoteNumber}>{quote.quote_number}</Text>
                 <Text style={styles.quoteDate}>{formatDate(quote.quote_date)}</Text>
@@ -363,10 +359,7 @@ export default function QuotesScreen(): JSX.Element {
           </View>
 
           <View style={styles.quoteBody}>
-            <View style={styles.customerInfo}>
-              <View style={styles.customerIcon}>
-                <Ionicons name="person" size={16} color={colors.primary[500]} />
-              </View>
+            <View style={styles.customerInfo}>             
               <View style={styles.customerDetails}>
                 <Text style={styles.customerName}>
                   {quote.customer?.name || 'Cliente no especificado'}
@@ -393,7 +386,7 @@ export default function QuotesScreen(): JSX.Element {
               </Text>
             </View>
             
-            <View style={styles.quoteActions}>
+            {/*<View style={styles.quoteActions}>
               {quote.status === 'draft' && (
                 <TouchableOpacity
                   style={[styles.actionButton, styles.sendActionButton]}
@@ -435,7 +428,7 @@ export default function QuotesScreen(): JSX.Element {
               >
                 <Ionicons name="trash-outline" size={16} color={colors.error} />
               </TouchableOpacity>
-            </View>
+            </View>*/}
           </View>
         </TouchableOpacity>
       </Card>
