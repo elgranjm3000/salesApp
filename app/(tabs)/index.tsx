@@ -22,7 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import type { DashboardData, Sale } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -85,10 +85,12 @@ const CompanySelector: React.FC<CompanySelectorProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   
-  const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(search.toLowerCase()) ||
+  const filteredCompanies = companies.filter(company =>    
+    company.name?.toLowerCase().includes(search.toLowerCase()) ||
     company.description?.toLowerCase().includes(search.toLowerCase())
   );
+
+  
 
   const renderCompany: ListRenderItem<Company> = ({ item }) => (
     <TouchableOpacity
@@ -227,6 +229,7 @@ export default function DashboardScreen(): JSX.Element {
     } else {
       setSelectedCompany(null);
     }
+    
   };  
   loadSelectedCompany();
   },[user]);
@@ -278,6 +281,7 @@ export default function DashboardScreen(): JSX.Element {
     
     try {
       setLoadingSellers(true);
+      console.log("compañia: ",selectedCompany.id);
       const response = await api.getCompanySellers(selectedCompany.id);
       setCompanySellers(response.data);
     } catch (error) {
@@ -372,8 +376,8 @@ export default function DashboardScreen(): JSX.Element {
         actions.push(
           { title: 'Nuevo Presupuesto', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/quotes/new') },
           { title: 'Nuevo Cliente', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers/new') },
-          { title: 'Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
-          { title: 'Mis Presupuestos', icon: 'document-text', color: '#8b5cf6', onPress: () => router.push('/quotes') }
+          { title: 'Ver Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
+          { title: 'Reportes', icon: 'document-text', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;
         
@@ -422,7 +426,7 @@ export default function DashboardScreen(): JSX.Element {
         </View>
         <View style={styles.saleRight}>
           <Text style={styles.saleAmount}>{formatCurrency(sale.total)}</Text>
-          <Text style={styles.saleDate}>{formatDate(sale.date)}</Text>
+          <Text style={styles.saleDate}>{sale.date}</Text>
         </View>
       </View>
       <View style={styles.saleStatus}>
@@ -495,19 +499,19 @@ export default function DashboardScreen(): JSX.Element {
           <Card padding="lg">
             <View style={styles.companySelectorHeader}>
               <Text style={styles.companySelectorTitle}>Empresa Seleccionada</Text>
-              <TouchableOpacity
+             {/* <TouchableOpacity
                 style={styles.changeCompanyButton}
                 onPress={() => setShowCompanySelector(true)}
               >
                 <Text style={styles.changeCompanyText}>Cambiar</Text>
                 <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
-              </TouchableOpacity>
+              </TouchableOpacity>*/}
             </View>
             
             {selectedCompany ? (
               <TouchableOpacity
                 style={styles.selectedCompanyCard}
-                onPress={() => setShowCompanySelector(true)}
+                //onPress={() => setShowCompanySelector(true)}
                 activeOpacity={0.8}
               >
                 <View style={styles.selectedCompanyIcon}>
@@ -1262,7 +1266,7 @@ const styles = StyleSheet.create({
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    marginTop: 10,
+    marginTop: 150,
   },
   sectionHeader: {
     flexDirection: 'row',

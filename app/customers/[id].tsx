@@ -304,7 +304,7 @@ export default function CustomerDetailScreen(): JSX.Element {
         </Card>
 
         {/* Documento de identidad */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Documento de Identidad</Text>
           
           {/* Selector de tipo de documento */}
@@ -350,7 +350,7 @@ export default function CustomerDetailScreen(): JSX.Element {
         </Card>
 
         {/* Dirección */}
-        <Card>
+        <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Dirección</Text>
           
           <Input
@@ -401,7 +401,7 @@ export default function CustomerDetailScreen(): JSX.Element {
 
         {/* Estadísticas del cliente (solo en modo vista) */}
         {customer && !editing && (
-          <Card>
+          <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Estadísticas</Text>
             
             <View style={styles.statsContainer}>

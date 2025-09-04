@@ -244,7 +244,9 @@ export default function ProfileScreen(): JSX.Element {
   };
 
   const CompanyCard: React.FC<CompanyCardProps> = ({ company, onPress }) => (
-    <TouchableOpacity style={styles.companyCard} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.companyCard} 
+            //onPress={onPress} 
+            activeOpacity={0.8}>
       <View style={styles.companyHeader}>
         <View style={styles.companyIcon}>
           <Ionicons name="business" size={24} color={colors.primary[500]} />
@@ -432,8 +434,8 @@ export default function ProfileScreen(): JSX.Element {
         {user.role === 'company' && (
           <Card style={{ marginTop: spacing.lg }}>
             <View style={styles.companiesHeader}>
-              <Text style={styles.sectionTitle}>Mis Compañías</Text>
-             {/* <TouchableOpacity
+              {/*<Text style={styles.sectionTitle}>Mis Compañías</Text>
+              <TouchableOpacity
                 style={styles.addCompanyButton}
                 onPress={() => router.push('/companies/new')}
               >

@@ -27,7 +27,7 @@ export default function TabLayout(): JSX.Element {
         
       case 'company':
         // Company ve dashboard, productos, clientes, presupuestos y reportes
-        return ['index', 'products', 'customers', 'quotes', 'reports'].includes(tabName);
+        return ['index', 'products', 'customers', 'quotes', 'sellers','reports'].includes(tabName);
         
       case 'seller':
         // Seller ve dashboard, productos, clientes y presupuestos
@@ -105,6 +105,19 @@ export default function TabLayout(): JSX.Element {
         }}
       />
       
+      
+
+        <Tabs.Screen
+        name="sellers"
+        options={{
+          title: 'Vendedores',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+          href: shouldShowTab('sellers') ? '/sellers' : null,
+        }}
+      />
+
       <Tabs.Screen
         name="reports"
         options={{

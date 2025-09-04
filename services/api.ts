@@ -12,7 +12,8 @@ import {
 } from '../types';
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
-const BASE_URL = 'https://reward-sailing-locator-recommended.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+// cloudflared tunnel --url http://localhost:80
+const BASE_URL = 'https://tourism-depending-downtown-symbols.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;

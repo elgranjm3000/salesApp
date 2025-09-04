@@ -1,9 +1,11 @@
-// app/quotes/new.tsx - Versión completa con validaciones de stock y suma de productos
+// app/quotes/new.tsx - Versión con integración BCV
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+//import DateTimePicker from '@react-native-community/datetimepicker';
+
 import {
   Alert,
   FlatList,
@@ -36,6 +38,11 @@ export default function NewQuoteScreen(): JSX.Element {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [quoteItems, setQuoteItems] = useState([]);
   
+  // BCV
+  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [rateDate, setRateDate] = useState<string>('');
+  const [loadingRate, setLoadingRate] = useState(false);
+  
   // Modales
   const [showCustomerSelector, setShowCustomerSelector] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
@@ -63,9 +70,125 @@ export default function NewQuoteScreen(): JSX.Element {
   const [errors, setErrors] = useState({});
   const [editingItemId, setEditingItemId] = useState(null);
 
+  // Función para obtener la tasa BCV
+  const fetchBCVRate = async () => {
+    try {
+      setLoadingRate(true);
+      
+      // Intenta múltiples APIs para mayor confiabilidad
+      let rate = null;
+      let date = '';
+
+      try {
+        // API 1: ExchangeRate-API
+        const response1 = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data1 = await response1.json();
+        if (data1.rates?.VES) {
+          rate = data1.rates.VES;
+          date = data1.date || new Date().toLocaleDateString();
+        }
+      } catch (error) {
+        console.log('API 1 falló:', error);
+      }
+
+      // API 2: Fixer.io (alternativa)
+      if (!rate) {
+        try {
+          const response2 = await fetch('https://api.fixer.io/latest?access_key=YOUR_API_KEY&symbols=VES');
+          const data2 = await response2.json();
+          if (data2.rates?.VES) {
+            rate = data2.rates.VES;
+            date = data2.date || new Date().toLocaleDateString();
+          }
+        } catch (error) {
+          console.log('API 2 falló:', error);
+        }
+      }
+
+      // API 3: DolarToday (específica para Venezuela)
+      if (!rate) {
+        try {
+          const response3 = await fetch('https://s3.amazonaws.com/dolartoday/data.json');
+          const data3 = await response3.json();
+          if (data3.USD?.bcv) {
+            rate = data3.USD.bcv;
+            date = 'DolarToday';
+          }
+        } catch (error) {
+          console.log('API 3 falló:', error);
+        }
+      }
+
+      if (rate) {
+        setBcvRate(rate);
+        setRateDate(date);
+        // Guardar en cache local
+        await AsyncStorage.setItem('bcv_rate', JSON.stringify({
+          rate,
+          date,
+          timestamp: Date.now()
+        }));
+      } else {
+        // Intentar cargar desde cache
+        const cachedRate = await AsyncStorage.getItem('bcv_rate');
+        if (cachedRate) {
+          const cached = JSON.parse(cachedRate);
+          // Si el cache es de menos de 24 horas, usarlo
+          if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+            setBcvRate(cached.rate);
+            setRateDate(`${cached.date} (cache)`);
+          }
+        }
+        
+        // Si no hay cache válido, usar tasa de respaldo
+        if (!bcvRate) {
+          setBcvRate(36.5); // Actualizar según necesidad
+          setRateDate('Tasa aproximada');
+        }
+      }
+      
+    } catch (error) {
+      console.log('Error al obtener tasa BCV:', error);
+      // Tasa de respaldo
+      setBcvRate(36.5);
+      setRateDate('Tasa aproximada');
+    } finally {
+      setLoadingRate(false);
+    }
+  };
+
+  // Función para formatear montos con BCV
+  const formatWithBCV = (amount: number) => {
+    const usdFormatted = formatCurrency(amount);
+    if (bcvRate) {
+      const bcvAmount = (amount * bcvRate).toLocaleString('es-VE', {
+        style: 'currency',
+        currency: 'VES',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      return `${usdFormatted}\n${bcvAmount}`;
+    }
+    return usdFormatted;
+  };
+
+  // Función para mostrar solo BCV
+  const formatBCV = (amount: number) => {
+    if (bcvRate) {
+      return (amount * bcvRate).toLocaleString('es-VE', {
+        style: 'currency',
+        currency: 'VES',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+    return 'N/A';
+  };
+
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
+    fetchBCVRate();
   }, []);
 
   // Preseleccionar cliente
@@ -376,6 +499,33 @@ export default function NewQuoteScreen(): JSX.Element {
       </View>
 
       <ScrollView style={styles.content}>
+        {/* Tasa BCV */}
+        {bcvRate && (
+          <Card style={styles.exchangeCard}>
+            <View style={styles.exchangeHeader}>
+              <Ionicons name="swap-horizontal" size={18} color={colors.warning} />
+              <Text style={styles.exchangeTitle}>Tasa de Cambio</Text>
+              <TouchableOpacity 
+                onPress={fetchBCVRate} 
+                style={styles.refreshButton}
+                disabled={loadingRate}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={16} 
+                  color={loadingRate ? colors.gray[400] : colors.warning} 
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.exchangeRate}>
+              1 USD = {bcvRate.toFixed(2)} Bs.
+            </Text>
+            <Text style={styles.exchangeDate}>
+              {loadingRate ? 'Actualizando...' : `Actualizada: ${rateDate}`}
+            </Text>
+          </Card>
+        )}
+
         {/* Cliente */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Cliente</Text>
@@ -422,13 +572,22 @@ export default function NewQuoteScreen(): JSX.Element {
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.itemActions}>
-                  <Text style={styles.itemTotal}>{formatCurrency(item.total_price)}</Text>
-                  <TouchableOpacity onPress={() => editItem(item)}>
-                    <Ionicons name="create-outline" size={16} color={colors.primary[500]} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeItem(item.id)}>
-                    <Ionicons name="trash" size={16} color={colors.error} />
-                  </TouchableOpacity>
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.itemTotal}>{formatCurrency(item.total_price)}</Text>
+                    {bcvRate && (
+                      <Text style={styles.itemTotalBCV}>
+                        {formatBCV(item.total_price)}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity onPress={() => editItem(item)}>
+                      <Ionicons name="create-outline" size={16} color={colors.primary[500]} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => removeItem(item.id)}>
+                      <Ionicons name="trash" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))
@@ -463,7 +622,7 @@ export default function NewQuoteScreen(): JSX.Element {
           />
 
           <Input
-            label="Notas"
+            label="Observaciones"
             value={formData.notes}
             onChangeText={(value) => setFormData(prev => ({ ...prev, notes: value }))}
             multiline
@@ -474,23 +633,51 @@ export default function NewQuoteScreen(): JSX.Element {
         {quoteItems.length > 0 && (
           <Card style={[styles.card, styles.summaryCard]}>
             <Text style={styles.sectionTitle}>Resumen</Text>
+            
             <View style={styles.summaryRow}>
-              <Text>Subtotal:</Text>
-              <Text>{formatCurrency(totals.subtotal)}</Text>
+              <Text style={styles.summaryLabel}>Subtotal:</Text>
+              <View style={styles.summaryAmounts}>
+                <Text style={styles.summaryValue}>{formatCurrency(totals.subtotal)}</Text>
+                {bcvRate && (
+                  <Text style={styles.summaryValueBCV}>{formatBCV(totals.subtotal)}</Text>
+                )}
+              </View>
             </View>
+            
             {totals.discountAmount > 0 && (
               <View style={styles.summaryRow}>
-                <Text>Descuento:</Text>
-                <Text style={{ color: colors.error }}>-{formatCurrency(totals.discountAmount)}</Text>
+                <Text style={styles.summaryLabel}>Descuento:</Text>
+                <View style={styles.summaryAmounts}>
+                  <Text style={[styles.summaryValue, { color: colors.error }]}>
+                    -{formatCurrency(totals.discountAmount)}
+                  </Text>
+                  {bcvRate && (
+                    <Text style={[styles.summaryValueBCV, { color: colors.error }]}>
+                      -{formatBCV(totals.discountAmount)}
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
+            
             <View style={styles.summaryRow}>
-              <Text>IVA (16%):</Text>
-              <Text>{formatCurrency(totals.tax)}</Text>
+              <Text style={styles.summaryLabel}>IVA (16%):</Text>
+              <View style={styles.summaryAmounts}>
+                <Text style={styles.summaryValue}>{formatCurrency(totals.tax)}</Text>
+                {bcvRate && (
+                  <Text style={styles.summaryValueBCV}>{formatBCV(totals.tax)}</Text>
+                )}
+              </View>
             </View>
+            
             <View style={[styles.summaryRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Total:</Text>
-              <Text style={styles.totalValue}>{formatCurrency(totals.total)}</Text>
+              <View style={styles.summaryAmounts}>
+                <Text style={styles.totalValue}>{formatCurrency(totals.total)}</Text>
+                {bcvRate && (
+                  <Text style={styles.totalValueBCV}>{formatBCV(totals.total)}</Text>
+                )}
+              </View>
             </View>
           </Card>
         )}
@@ -581,21 +768,35 @@ export default function NewQuoteScreen(): JSX.Element {
                   onPress={() => selectProduct(item)}
                   disabled={availableStock <= 0}
                 >
-                  <Text style={[
-                    styles.modalItemText,
-                    availableStock <= 0 && styles.modalItemTextDisabled
-                  ]}>
-                    {item.name}
-                  </Text>
-                  <Text style={[
-                    styles.modalItemSubtext,
-                    availableStock <= 0 && styles.modalItemTextDisabled
-                  ]}>
-                    {formatCurrency(item.price)} • Stock total: {item.stock} • Disponible: {availableStock}
-                  </Text>
-                  {availableStock <= 0 && (
-                    <Text style={styles.noStockText}>Sin stock disponible</Text>
-                  )}
+                  <View style={styles.productModalItem}>
+                    <View style={styles.productModalInfo}>
+                      <Text style={[
+                        styles.modalItemText,
+                        availableStock <= 0 && styles.modalItemTextDisabled
+                      ]}>
+                        {item.name}
+                      </Text>
+                      <Text style={[
+                        styles.modalItemSubtext,
+                        availableStock <= 0 && styles.modalItemTextDisabled
+                      ]}>
+                        Stock total: {item.stock} • Disponible: {availableStock}
+                      </Text>
+                      {availableStock <= 0 && (
+                        <Text style={styles.noStockText}>Sin stock disponible</Text>
+                      )}
+                    </View>
+                    <View style={styles.productModalPrice}>
+                      <Text style={styles.modalItemPrice}>
+                        {formatCurrency(item.price)}
+                      </Text>
+                      {bcvRate && (
+                        <Text style={styles.modalItemPriceBCV}>
+                          {formatBCV(item.price)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
                 </TouchableOpacity>
               );
             }}
@@ -605,6 +806,7 @@ export default function NewQuoteScreen(): JSX.Element {
 
       {/* Modal Configurar Item */}
       <Modal visible={showItemModal} animationType="slide">
+       <ScrollView>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
@@ -619,12 +821,21 @@ export default function NewQuoteScreen(): JSX.Element {
             {selectedProduct && (
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{selectedProduct.name}</Text>
-                <Text style={styles.productDetails}>
-                  Precio: {formatCurrency(selectedProduct.price)} • Stock total: {selectedProduct.stock}
-                </Text>
-                <Text style={styles.productDetails}>
-                  Stock disponible: {getAvailableStock(selectedProduct)}
-                </Text>
+                <View style={styles.productPriceInfo}>
+                  <View>
+                    <Text style={styles.productDetails}>
+                      Precio: {formatCurrency(selectedProduct.price)}
+                    </Text>
+                    {bcvRate && (
+                      <Text style={styles.productDetailsBCV}>
+                        {formatBCV(selectedProduct.price)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.productDetails}>
+                    Stock total: {selectedProduct.stock} • Disponible: {getAvailableStock(selectedProduct)}
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -657,13 +868,29 @@ export default function NewQuoteScreen(): JSX.Element {
             />
 
             <View style={styles.itemPreview}>
-              <Text>Total: {formatCurrency(
-                calculateItemTotal(
-                  Number(itemData.quantity) || 0,
-                  Number(itemData.unit_price) || 0,
-                  Number(itemData.discount) || 0
-                )
-              )}</Text>
+              <Text style={styles.previewLabel}>Total del item:</Text>
+              <View style={styles.previewAmounts}>
+                <Text style={styles.previewTotal}>
+                  {formatCurrency(
+                    calculateItemTotal(
+                      Number(itemData.quantity) || 0,
+                      Number(itemData.unit_price) || 0,
+                      Number(itemData.discount) || 0
+                    )
+                  )}
+                </Text>
+                {bcvRate && (
+                  <Text style={styles.previewTotalBCV}>
+                    {formatBCV(
+                      calculateItemTotal(
+                        Number(itemData.quantity) || 0,
+                        Number(itemData.unit_price) || 0,
+                        Number(itemData.discount) || 0
+                      )
+                    )}
+                  </Text>
+                )}
+              </View>
             </View>
 
             <View style={styles.buttons}>
@@ -684,6 +911,7 @@ export default function NewQuoteScreen(): JSX.Element {
             </View>
           </View>
         </View>
+        </ScrollView> 
       </Modal>
     </View>
   );
@@ -717,11 +945,50 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.lg,
   },
+
+  // Exchange Rate Card
+  exchangeCard: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.warning + '10',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.warning + '30',
+  },
+  exchangeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  exchangeTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.warning,
+    marginLeft: spacing.xs,
+    flex: 1,
+  },
+  refreshButton: {
+    padding: spacing.xs,
+  },
+  exchangeRate: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  exchangeDate: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+
   card: {
     marginBottom: spacing.lg,
   },
   summaryCard: {
     backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[200],
   },
   sectionTitle: {
     fontSize: typography.fontSize.base,
@@ -788,34 +1055,74 @@ const styles = StyleSheet.create({
   },
   itemActions: {
     alignItems: 'flex-end',
-    gap: spacing.sm,
-    flexDirection: 'row',
+  },
+  priceContainer: {
+    alignItems: 'flex-end',
+    marginBottom: spacing.sm,
   },
   itemTotal: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
     color: colors.success,
   },
+  itemTotalBCV: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.success,
+    opacity: 0.8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+
+  // Summary Styles
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  summaryLabel: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+  },
+  summaryAmounts: {
+    alignItems: 'flex-end',
+  },
+  summaryValue: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  summaryValueBCV: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   totalRow: {
     borderTopWidth: 1,
     borderTopColor: colors.primary[200],
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     marginTop: spacing.sm,
   },
   totalLabel: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-  },
-  totalValue: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.primary[600],
   },
+  totalValue: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[600],
+  },
+  totalValueBCV: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.primary[500],
+    marginTop: spacing.xs,
+  },
+
   error: {
     fontSize: typography.fontSize.sm,
     color: colors.error,
@@ -825,10 +1132,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   button: {
     flex: 1,
   },
+
+  // Modal Styles
   modal: {
     flex: 1,
     backgroundColor: colors.background,
@@ -875,6 +1185,33 @@ const styles = StyleSheet.create({
     color: colors.error,
     marginTop: spacing.xs,
   },
+
+  // Product Modal Item
+  productModalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  productModalInfo: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  productModalPrice: {
+    alignItems: 'flex-end',
+  },
+  modalItemPrice: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.success,
+  },
+  modalItemPriceBCV: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    opacity: 0.8,
+    marginTop: spacing.xs,
+  },
+
+  // Modal Content
   modalContent: {
     padding: spacing.lg,
   },
@@ -887,17 +1224,50 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
+    marginBottom: spacing.md,
+  },
+  productPriceInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   productDetails: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginTop: spacing.xs,
   },
+  productDetailsBCV: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    opacity: 0.8,
+  },
+
+  // Item Preview
   itemPreview: {
-    padding: spacing.md,
+    padding: spacing.lg,
     backgroundColor: colors.gray[50],
     borderRadius: borderRadius.md,
     marginTop: spacing.md,
     marginBottom: spacing.lg,
+  },
+  previewLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+  },
+  previewAmounts: {
+    alignItems: 'center',
+  },
+  previewTotal: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.success,
+  },
+  previewTotalBCV: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.success,
+    opacity: 0.8,
+    marginTop: spacing.xs,
   },
 });

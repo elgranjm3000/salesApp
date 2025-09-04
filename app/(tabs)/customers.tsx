@@ -106,10 +106,7 @@ export default function CustomersScreen(): JSX.Element {
           style={styles.customerContent}
           onPress={() => router.push(`/customers/${customer.id}`)}
           activeOpacity={0.8}
-        >
-          <View style={styles.customerAvatar}>
-            <Ionicons name="person" size={24} color={colors.primary[500]} />
-          </View>
+        >         
           
           <View style={styles.customerInfo}>
             <Text style={styles.customerName}>{customer.name}</Text>
@@ -140,7 +137,7 @@ export default function CustomersScreen(): JSX.Element {
               style={styles.actionButton}
               onPress={() => router.push(`/quotes/new?customer_id=${customer.id}`)}
             >
-              <Ionicons name="document-text" size={18} color={colors.primary[500]} />
+              <Text style={{ color: colors.primary[500] }}>Crear presupuesto</Text>
             </TouchableOpacity>
             
           </View>
@@ -251,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   customersList: {
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   customerCard: {
     marginBottom: spacing.md,
