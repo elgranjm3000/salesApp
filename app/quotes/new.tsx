@@ -260,8 +260,9 @@ export default function NewQuoteScreen(): JSX.Element {
   );
 
   const filteredProducts = products.filter(p => 
-    p.status === 'active' && 
-    p.name.toLowerCase().includes(productSearch.toLowerCase())
+    (p.status === 'active') && 
+    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.code.toLowerCase().includes(productSearch.toLowerCase())
   );
 
   // Función auxiliar para obtener stock disponible
@@ -774,13 +775,13 @@ export default function NewQuoteScreen(): JSX.Element {
                         styles.modalItemText,
                         availableStock <= 0 && styles.modalItemTextDisabled
                       ]}>
-                        {item.name}
+                        {item.name} 
                       </Text>
                       <Text style={[
                         styles.modalItemSubtext,
                         availableStock <= 0 && styles.modalItemTextDisabled
                       ]}>
-                        Stock total: {item.stock} • Disponible: {availableStock}
+                        Codigo:  {item.code} • Stock total: {item.stock} • Disponible: {availableStock}
                       </Text>
                       {availableStock <= 0 && (
                         <Text style={styles.noStockText}>Sin stock disponible</Text>

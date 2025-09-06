@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -168,21 +168,8 @@ export default function SellerDetailsScreen(): JSX.Element {
       icon: 'card',
       color: colors.primary[500],
       subtitle: 'Por cobros efectivos',
-    },
-    {
-      title: 'Nota Débito',
-      value: `${seller.percent_gerencial_debit_note}%`,
-      icon: 'document-text',
-      color: colors.warning,
-      subtitle: 'Comisión gerencial',
-    },
-    {
-      title: 'Cheque Devuelto',
-      value: `${seller.percent_returned_check}%`,
-      icon: 'close-circle',
-      color: colors.error,
-      subtitle: 'Penalización por devolución',
-    },
+    },    
+    
   ];
 
   return (
@@ -206,10 +193,10 @@ export default function SellerDetailsScreen(): JSX.Element {
           <Text style={styles.sellerName}>{seller.user?.name}</Text>
           
           <View style={styles.sellerBasicInfo}>
-            <View style={styles.sellerInfoItem}>
+            {/*<View style={styles.sellerInfoItem}>
               <Ionicons name="qr-code" size={16} color={colors.text.secondary} />
               <Text style={styles.sellerInfoText}>#{seller.code}</Text>
-            </View>
+            </View>*/}
             <View style={styles.sellerInfoItem}>
               <Ionicons name="business" size={16} color={colors.text.secondary} />
               <Text style={styles.sellerInfoText}>{seller.company?.name}</Text>
@@ -243,14 +230,14 @@ export default function SellerDetailsScreen(): JSX.Element {
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.headerActions}>
+       {/* <View style={styles.headerActions}>
           <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
             <Ionicons name="create" size={20} color={colors.primary[500]} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
             <Ionicons name="trash" size={20} color={colors.error} />
           </TouchableOpacity>
-        </View>
+        </View>*/}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -391,7 +378,7 @@ export default function SellerDetailsScreen(): JSX.Element {
               </View>
             </View>
 
-            <View style={styles.commissionRow}>
+            {/*<View style={styles.commissionRow}>
               <View style={styles.commissionItem}>
                 <View style={styles.commissionHeader}>
                   <Ionicons name="document-text" size={20} color={colors.warning} />
@@ -407,9 +394,9 @@ export default function SellerDetailsScreen(): JSX.Element {
                 </View>
                 <Text style={styles.commissionPercentage}>{seller.percent_gerencial_credit_note}%</Text>
               </View>
-            </View>
+            </View>*/}
 
-            <View style={styles.commissionSingle}>
+            {/*<View style={styles.commissionSingle}>
               <View style={styles.commissionItem}>
                 <View style={styles.commissionHeader}>
                   <Ionicons name="close-circle" size={20} color={colors.error} />
@@ -417,7 +404,7 @@ export default function SellerDetailsScreen(): JSX.Element {
                 </View>
                 <Text style={styles.commissionPercentage}>{seller.percent_returned_check}%</Text>
               </View>
-            </View>
+            </View>*/}
           </View>
         </Card>
 
@@ -456,9 +443,9 @@ export default function SellerDetailsScreen(): JSX.Element {
       </ScrollView>
 
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleEdit}>
+    {/*  <TouchableOpacity style={styles.fab} onPress={handleEdit}>
         <Ionicons name="create" size={24} color="white" />
-      </TouchableOpacity>
+      </TouchableOpacity>]*/}
     </View>
   );
 }

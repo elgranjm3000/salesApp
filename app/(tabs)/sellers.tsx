@@ -186,7 +186,7 @@ export default function SellersScreen(): JSX.Element {
             )}
           </View>
 
-          <View style={styles.sellerActions}>
+          {/* <View style={styles.sellerActions}>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={(e) => {
@@ -214,7 +214,7 @@ export default function SellersScreen(): JSX.Element {
             >
               <Ionicons name="trash" size={18} color={colors.error} />
             </TouchableOpacity>
-          </View>
+          </View>*/}
         </TouchableOpacity>
       </Card>
     );
@@ -251,12 +251,12 @@ export default function SellersScreen(): JSX.Element {
               {filteredSellers.length} vendedor{filteredSellers.length !== 1 ? 'es' : ''}
             </Text>
           </View>
-          <TouchableOpacity
+         {/* <TouchableOpacity
             style={styles.addButton}
             onPress={() => router.push('/sellers/new')}
           >
             <Ionicons name="add" size={24} color={colors.text.inverse} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 

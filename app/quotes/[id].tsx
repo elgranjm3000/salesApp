@@ -1,24 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { Card } from '../../components/ui/Card';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import { formatCurrency, formatDateOnly } from '../../utils/helpers';
 
-interface ExchangeRateResponse {
-  USD: {
-    BCV: number;
-    date: string;
-  };
-}
-
 export default function QuoteDetailScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const [quote, setQuote] = useState<any>(null);
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [rateDate, setRateDate] = useState<string>('');
@@ -26,13 +32,9 @@ export default function QuoteDetailScreen(): JSX.Element {
   // Función para obtener la tasa BCV
   const fetchBCVRate = async () => {
     try {
-      // API gratuita para obtener tasa del BCV
       const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
       const data = await response.json();
-      
-      // Si no tiene VES (Bolívar Venezolano), usar API alternativa
       if (!data.rates.VES) {
-        // API alternativa específica para Venezuela
         const bcvResponse = await fetch('https://s3.amazonaws.com/dolartoday/data.json');
         const bcvData = await bcvResponse.json();
         setBcvRate(bcvData.USD.bcv || bcvData.USD.promedio_real);
@@ -43,8 +45,7 @@ export default function QuoteDetailScreen(): JSX.Element {
       }
     } catch (error) {
       console.log('Error al obtener tasa BCV:', error);
-      // Tasa de respaldo (actualizar manualmente si es necesario)
-      setBcvRate(36.0); // Tasa aproximada como respaldo
+      setBcvRate(36.0);
       setRateDate('Tasa aproximada');
     }
   };
@@ -92,6 +93,402 @@ export default function QuoteDetailScreen(): JSX.Element {
     return usdFormatted;
   };
 
+  // Generar HTML para el PDF
+  const generatePDFHTML = () => {
+    const itemsHTML = quote.items?.map((item: any, index: number) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 12px; text-align: left;">${index + 1}</td>
+        <td style="padding: 12px; text-align: left;">${item.product?.name || item.name || 'Producto sin nombre'}</td>
+        <td style="padding: 12px; text-align: center;">${item.quantity || 0}</td>
+        <td style="padding: 12px; text-align: right;">${formatCurrency(item.unit_price || 0)}</td>
+        <td style="padding: 12px; text-align: right; font-weight: bold;">${formatCurrency(item.total || 0)}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #6b7280;">No hay productos agregados</td></tr>';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Presupuesto #${quote.id}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Arial', sans-serif; 
+            line-height: 1.6; 
+            color: #374151;
+            background: #fff;
+          }
+          .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+          .header { 
+            text-align: center; 
+            margin-bottom: 40px; 
+            border-bottom: 3px solid #3b82f6;
+            padding-bottom: 20px;
+          }
+          .logo { 
+            width: 80px; 
+            height: 80px; 
+            background: #dbeafe; 
+            border-radius: 50%; 
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: #3b82f6;
+            font-weight: bold;
+          }
+          .company-name { 
+            font-size: 28px; 
+            font-weight: bold; 
+            color: #1f2937;
+            margin-bottom: 8px;
+          }
+          .quote-number { 
+            font-size: 18px; 
+            color: #6b7280;
+            font-weight: 500;
+          }
+          
+          .info-section { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 40px; 
+            margin-bottom: 40px;
+          }
+          .info-block h3 { 
+            font-size: 16px; 
+            font-weight: bold; 
+            color: #1f2937;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .info-block p { 
+            margin-bottom: 6px; 
+            color: #4b5563;
+          }
+          
+          .exchange-rate {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 30px;
+            text-align: center;
+          }
+          .exchange-rate h4 {
+            color: #92400e;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 600;
+          }
+          .exchange-rate .rate {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+          }
+          
+          .products-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+          }
+          .products-table th { 
+            background: #f3f4f6; 
+            padding: 16px 12px; 
+            text-align: left; 
+            font-weight: bold;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+          }
+          .products-table td { 
+            padding: 12px; 
+            border-bottom: 1px solid #f3f4f6;
+          }
+          .products-table tbody tr:hover {
+            background: #f9fafb;
+          }
+          
+          .summary { 
+            background: #f8fafc; 
+            border-radius: 12px; 
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+          }
+          .summary h3 { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-bottom: 20px;
+            color: #1e293b;
+          }
+          .summary-row { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 12px;
+            padding: 4px 0;
+          }
+          .summary-row.total { 
+            border-top: 2px solid #3b82f6; 
+            padding-top: 16px; 
+            margin-top: 16px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e293b;
+          }
+          .discount { color: #dc2626; }
+          
+          .terms {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+          }
+          .terms h4 {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #1f2937;
+            text-transform: uppercase;
+          }
+          .terms p {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #4b5563;
+          }
+          
+          .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <!-- Header -->
+          <div class="header">
+            <div class="logo">📋</div>
+            <div class="company-name">${quote.company?.name || 'Empresa'}</div>
+            <div class="quote-number">Presupuesto #${quote.id}</div>
+          </div>
+
+          <!-- Información Cliente y Empresa -->
+          <div class="info-section">
+            <div class="info-block">
+              <h3>Información del Cliente</h3>
+              <p><strong>Nombre:</strong> ${quote.customer?.name || 'Sin cliente asignado'}</p>
+              <p><strong>Email:</strong> ${quote.customer?.email || 'Sin email'}</p>
+              <p><strong>Dirección:</strong> ${quote.customer?.address || 'Sin dirección'}</p>
+              <p><strong>Documento:</strong> ${quote.customer?.document_type && quote.customer?.document_number ? `${quote.customer.document_type}: ${quote.customer.document_number}` : 'Sin documento'}</p>
+            </div>
+            <div class="info-block">
+              <h3>Detalles del Presupuesto</h3>
+              <p><strong>Fecha:</strong> ${formatDateOnly(quote.quote_date) || 'No especificada'}</p>
+              <p><strong>Válido hasta:</strong> ${formatDateOnly(quote.valid_until) || 'No especificado'}</p>
+              <p><strong>Vendedor:</strong> ${quote.seller?.name || 'Sin vendedor asignado'}</p>
+              <p><strong>Descuento general:</strong> ${quote.discount || 0}%</p>
+            </div>
+          </div>
+
+          ${bcvRate ? `
+          <!-- Tasa de Cambio -->
+          <div class="exchange-rate">
+            <h4>Tasa de Cambio</h4>
+            <div class="rate">1 USD = ${bcvRate.toFixed(2)} Bs.</div>
+            <div style="font-size: 12px; margin-top: 8px;">Actualizada: ${rateDate}</div>
+          </div>
+          ` : ''}
+
+          <!-- Tabla de Productos -->
+          <table class="products-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Producto</th>
+                <th style="text-align: center;">Cantidad</th>
+                <th style="text-align: right;">Precio Unit.</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHTML}
+            </tbody>
+          </table>
+
+          <!-- Resumen Financiero -->
+          <div class="summary">
+            <h3>Resumen Financiero</h3>
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>${formatCurrency(quote.subtotal || 0)}</span>
+            </div>
+            <div class="summary-row">
+              <span>Descuento:</span>
+              <span class="discount">-${formatCurrency(quote.discount_amount || 0)}</span>
+            </div>
+            <div class="summary-row">
+              <span>IVA:</span>
+              <span>${formatCurrency(quote.tax_amount || 0)}</span>
+            </div>
+            <div class="summary-row total">
+              <span>TOTAL:</span>
+              <div>
+                <div>${formatCurrency(quote.total || 0)}</div>
+                ${bcvRate ? `<div style="font-size: 14px; color: #6b7280; margin-top: 4px;">${((quote.total || 0) * bcvRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</div>` : ''}
+              </div>
+            </div>
+          </div>
+
+          ${quote.terms_conditions ? `
+          <!-- Términos y Condiciones -->
+          <div class="terms">
+            <h4>Términos y Condiciones</h4>
+            <p>${quote.terms_conditions}</p>
+          </div>
+          ` : ''}
+
+          ${quote.notes ? `
+          <!-- Observaciones -->
+          <div class="terms">
+            <h4>Observaciones</h4>
+            <p>${quote.notes}</p>
+          </div>
+          ` : ''}
+
+          <!-- Footer -->
+          <div class="footer">
+            <p>Presupuesto generado el ${new Date().toLocaleDateString('es-ES', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  // Función para generar PDF
+  const generatePDF = async () => {
+    try {
+      setGeneratingPDF(true);
+
+      const html = generatePDFHTML();
+      
+      const { uri } = await Print.printToFileAsync({
+        html,
+        base64: false,
+        width: 612, // Ancho A4 en puntos
+        height: 792, // Alto A4 en puntos
+      });
+
+      return uri;
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'No se pudo generar el PDF');
+      return null;
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  // Función para compartir PDF
+  const sharePDF = async () => {
+    const pdfUri = await generatePDF();
+    if (pdfUri) {
+      try {
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(pdfUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Presupuesto #${quote.id}`,
+            UTI: 'com.adobe.pdf'
+          });
+        }
+      } catch (error) {
+        console.error('Error sharing PDF:', error);
+        Alert.alert('Error', 'No se pudo compartir el PDF');
+      }
+    }
+  };
+
+  // Función para enviar por WhatsApp
+  const shareToWhatsApp = async () => {
+    const pdfUri = await generatePDF();
+    if (pdfUri) {
+      try {
+        // Primero intentar abrir WhatsApp con mensaje
+        const message = `Hola! Te envío el presupuesto #${quote.id} de ${quote.company?.name || 'nuestra empresa'}. Total: ${formatCurrency(quote.total || 0)}`;
+        const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+        
+        const canOpen = await Linking.canOpenURL(whatsappUrl);
+        if (canOpen) {
+          await Linking.openURL(whatsappUrl);
+          // Luego mostrar opciones para compartir el PDF
+          setTimeout(() => {
+            Alert.alert(
+              'Compartir PDF',
+              'Ahora puedes adjuntar el PDF desde tu galería o usar la opción de compartir.',
+              [
+                { text: 'Entendido' },
+                { 
+                  text: 'Compartir PDF', 
+                  onPress: () => sharePDF() 
+                }
+              ]
+            );
+          }, 1000);
+        } else {
+          // WhatsApp no está instalado, compartir directamente
+          await sharePDF();
+        }
+      } catch (error) {
+        console.error('Error opening WhatsApp:', error);
+        // Si falla, usar compartir normal
+        await sharePDF();
+      }
+    }
+  };
+
+  // Función para previsualizar PDF
+  const previewPDF = async () => {
+    const pdfUri = await generatePDF();
+    if (pdfUri) {
+      try {
+        // Copiar a un directorio accesible
+        const fileName = `presupuesto_${quote.id}_${Date.now()}.pdf`;
+        const destinationUri = `${FileSystem.documentDirectory}${fileName}`;
+        
+        await FileSystem.copyAsync({
+          from: pdfUri,
+          to: destinationUri
+        });
+
+        // Compartir para previsualizar
+        await Sharing.shareAsync(destinationUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Vista previa - Presupuesto #${quote.id}`,
+        });
+      } catch (error) {
+        console.error('Error previewing PDF:', error);
+        Alert.alert('Error', 'No se pudo mostrar la vista previa');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -120,18 +517,58 @@ export default function QuoteDetailScreen(): JSX.Element {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
             <Ionicons name="document-text" size={32} color={colors.primary[500]} />
           </View>
           <Text style={styles.title}>Presupuesto #{quote.id}</Text>
+        </View>
+        <Text style={styles.subtitle}> 
+          {quote.customer?.name || 'Sin cliente asignado'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {quote.company?.name || 'Sin empresa asignada'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {quote.customer?.email || 'sin email asignado'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {quote.customer?.address || 'sin direccion asignada'}
+        </Text>
+        <Text style={styles.subtitle}>
+          { quote.customer?.document_type && quote.customer?.document_number || 'sin documento asignado' }
+        </Text>
+        {quote.seller && (
           <Text style={styles.subtitle}>
-            {quote.customer?.name || 'Sin cliente asignado'}
+            Vendedor asignado: {quote.seller.name}
           </Text>
-          <Text style={styles.subtitle}>
-            {quote.company?.name || 'Sin empresa asignada'}
-          </Text>
+        )}
+
+        {/* Botones de acción PDF */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.previewButton]} 
+            onPress={previewPDF}
+            disabled={generatingPDF}
+          >
+            <Ionicons name="eye" size={20} color={colors.info} />
+            <Text style={[styles.actionButtonText, { color: colors.info }]}>
+              {generatingPDF ? 'Generando...' : 'Ver PDF'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.shareButton]} 
+            onPress={sharePDF}
+            disabled={generatingPDF}
+          >
+            <Ionicons name="share" size={20} color={colors.primary[500]} />
+            <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>
+              Compartir
+            </Text>
+          </TouchableOpacity>
+          
+          
         </View>
       </View>
 
@@ -164,17 +601,15 @@ export default function QuoteDetailScreen(): JSX.Element {
             <Text style={styles.infoValue}>{quote.discount || 0}%</Text>
           </View>
         </View>
-        
         {quote.terms_conditions && (
           <View style={styles.textSection}>
             <Text style={styles.infoLabel}>Términos y condiciones:</Text>
             <Text style={styles.infoDescription}>{quote.terms_conditions}</Text>
           </View>
         )}
-        
         {quote.notes && (
           <View style={styles.textSection}>
-            <Text style={styles.infoLabel}>Notas adicionales:</Text>
+            <Text style={styles.infoLabel}>Observaciones:</Text>
             <Text style={styles.infoDescription}>{quote.notes}</Text>
           </View>
         )}
@@ -185,7 +620,6 @@ export default function QuoteDetailScreen(): JSX.Element {
         <Text style={styles.sectionTitle}>
           Productos ({quote.items?.length || 0})
         </Text>
-        
         {!quote.items || quote.items.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={48} color={colors.gray[400]} />
@@ -203,20 +637,17 @@ export default function QuoteDetailScreen(): JSX.Element {
                     <Text style={styles.itemBadgeText}>#{index + 1}</Text>
                   </View>
                 </View>
-                
                 <View style={styles.itemDetails}>
                   <View style={styles.itemDetailRow}>
                     <Text style={styles.itemDetailLabel}>Cantidad:</Text>
                     <Text style={styles.itemDetailValue}>{item.quantity || 0}</Text>
                   </View>
-                  
                   <View style={styles.itemDetailRow}>
                     <Text style={styles.itemDetailLabel}>Precio unitario:</Text>
                     <Text style={styles.itemDetailValue}>
                       {formatWithBCV(item.unit_price || 0)}
                     </Text>
                   </View>
-                  
                   {item.discount_percentage > 0 && (
                     <View style={styles.itemDetailRow}>
                       <Text style={styles.itemDetailLabel}>Descuento:</Text>
@@ -226,7 +657,6 @@ export default function QuoteDetailScreen(): JSX.Element {
                     </View>
                   )}
                 </View>
-                
                 <View style={styles.itemTotalRow}>
                   <Text style={styles.itemTotalLabel}>Total:</Text>
                   <Text style={styles.itemTotalValue}>
@@ -242,30 +672,25 @@ export default function QuoteDetailScreen(): JSX.Element {
       {/* Resumen Financiero */}
       <Card style={styles.summaryCard}>
         <Text style={styles.sectionTitle}>Resumen Financiero</Text>
-        
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal:</Text>
           <Text style={styles.summaryValue}>
             {formatWithBCV(quote.subtotal || 0)}
           </Text>
         </View>
-        
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Descuento:</Text>
           <Text style={[styles.summaryValue, styles.discountText]}>
             -{formatWithBCV(quote.discount_amount || 0)}
           </Text>
         </View>
-        
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>IVA:</Text>
           <Text style={styles.summaryValue}>
-            {formatWithBCV(quote.tax || 0)}
+            {formatWithBCV(quote.tax_amount || 0)}
           </Text>
         </View>
-        
         <View style={styles.divider} />
-        
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL:</Text>
           <View>
@@ -334,12 +759,48 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.sm,
   },
-  subtitle: {
+  subtitle: { 
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
   
+  // Botones de acción
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    gap: spacing.xs,
+  },
+  previewButton: {
+    backgroundColor: colors.info + '10',
+    borderColor: colors.info + '30',
+  },
+  shareButton: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[200],
+  },
+  whatsappButton: {
+    backgroundColor: colors.success + '10',
+    borderColor: colors.success + '30',
+  },
+  actionButtonText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+  },
+
   // Exchange Rate Card
   exchangeCard: {
     margin: spacing.lg,

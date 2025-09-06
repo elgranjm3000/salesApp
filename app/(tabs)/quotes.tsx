@@ -611,7 +611,7 @@ onPress={() => router.push(`/quotes/${quote.id}`)}
 <View style={styles.quoteHeader}>
 <View style={styles.quoteNumberContainer}>
 <View>
-<Text style={styles.quoteNumber}>{quote.quote_number}</Text>
+<Text style={styles.quoteNumber}>{quote.id}</Text>
 <Text style={styles.quoteDate}>{formatDate(quote.quote_date)}</Text>
 </View>
 </View>

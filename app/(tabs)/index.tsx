@@ -26,6 +26,55 @@ import { formatCurrency } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
 
+interface Quote {
+  id: number;
+  quote_number: string;
+  customer_id: number;
+  customer?: {
+    id: number;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  user_id: number;
+  user?: {
+    id: number;
+    name: string;
+  };
+  company_id?: number;
+  company?: {
+    id: number;
+    name: string;
+  };
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  status: "draft" | "sent" | "approved" | "rejected" | "expired";
+  valid_until: string;
+  quote_date: string;
+  terms_conditions?: string;
+  notes?: string;
+  items?: QuoteItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface QuoteItem {
+  id: number;
+  quote_id: number;
+  product_id: number;
+  product?: {
+    id: number;
+    name: string;
+    code: string;
+  };
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  discount: number;
+}
+
 interface Company {
   id: number;
   name: string;
@@ -257,6 +306,40 @@ export default function DashboardScreen(): JSX.Element {
     }
   };
 
+  const getStatusText = (status: Quote['status']) => {
+    switch (status) {
+      case 'approved':
+        return 'Aprobado';
+      case 'sent':
+        return 'Enviado';
+      case 'draft':
+        return 'Borrador';
+      case 'rejected':
+        return 'Rechazado';
+      case 'expired':
+        return 'Expirado';
+      default:
+        return status;
+      }
+    };
+
+    const getStatusColor = (status: Quote['status']) => {
+      switch (status) {
+        case "approved":
+          return colors.success;
+        case "sent":
+          return colors.info;
+        case "draft":
+          return colors.warning;
+        case "rejected":
+          return colors.error;
+        case "expired":
+          return colors.gray[500];
+        default:
+          return colors.text.secondary;
+      }
+    };
+
   const loadCompanies = async (): Promise<void> => {
     try {
       setLoadingCompanies(true);
@@ -375,7 +458,7 @@ export default function DashboardScreen(): JSX.Element {
       case 'seller':
         actions.push(
           { title: 'Nuevo Presupuesto', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/quotes/new') },
-          { title: 'Nuevo Cliente', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers/new') },
+          { title: 'Ver Clientes', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers') },
           { title: 'Ver Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
           { title: 'Reportes', icon: 'document-text', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
@@ -432,18 +515,13 @@ export default function DashboardScreen(): JSX.Element {
       <View style={styles.saleStatus}>
         <View style={[
           styles.statusBadge, 
-          { backgroundColor: sale.status === 'completed' ? colors.success + '20' : 
-                            sale.status === 'pending' ? colors.warning + '20' : 
-                            colors.error + '20' }
+          { color: getStatusColor(sale.status) }
         ]}>
           <Text style={[
             styles.statusText,
-            { color: sale.status === 'completed' ? colors.success : 
-                    sale.status === 'pending' ? colors.warning : 
-                    colors.error }
+            { color: getStatusColor(sale.status) }
           ]}>
-            {sale.status === 'completed' ? 'Completado' : 
-             sale.status === 'pending' ? 'Pendiente' : 'Cancelado'}
+            {getStatusText(sale.status)}
           </Text>
         </View>
       </View>
@@ -498,7 +576,11 @@ export default function DashboardScreen(): JSX.Element {
         <View style={styles.companySelectorContainer}>
           <Card padding="lg">
             <View style={styles.companySelectorHeader}>
-              <Text style={styles.companySelectorTitle}>Empresa Seleccionada</Text>
+                {user?.role === 'company'  ? (
+                  <Text style={styles.companySelectorTitle}>Empresa Seleccionada</Text>
+                ) : (
+                  <Text style={styles.companySelectorTitle}>Empresa asociada</Text>
+                )}
              {/* <TouchableOpacity
                 style={styles.changeCompanyButton}
                 onPress={() => setShowCompanySelector(true)}
@@ -524,11 +606,15 @@ export default function DashboardScreen(): JSX.Element {
                       {selectedCompany.description}
                     </Text>
                   )}
+                  {user?.role === 'company' && (
                   <Text style={styles.selectedCompanyMeta}>
                     {companySellers.length} vendedor{companySellers.length !== 1 ? 'es' : ''} • {selectedCompany.status === 'active' ? 'Activa' : 'Inactiva'}
                   </Text>
+                  )}
                 </View>
+                 {user?.role === 'company' && (
                 <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+                 )}
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
