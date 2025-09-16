@@ -530,19 +530,19 @@ export default function QuoteDetailScreen(): JSX.Element {
           <Text style={styles.title}>Presupuesto #{quote.id}</Text>
         </View>
         <Text style={styles.subtitle}> 
-          {quote.customer?.name || 'Sin cliente asignado'}
+          Empresa: {quote.customer?.name || 'Sin cliente asignado'}
         </Text>
         <Text style={styles.subtitle}>
-          {quote.company?.name || 'Sin empresa asignada'}
+          Representate legal: {quote.company?.name || 'Sin empresa asignada'}
         </Text>
         <Text style={styles.subtitle}>
-          {quote.customer?.email || 'sin email asignado'}
+           Correo electronico: {quote.customer?.email || 'sin email asignado'}
         </Text>
         <Text style={styles.subtitle}>
-          {quote.customer?.address || 'sin direccion asignada'}
+          Dirección: {quote.customer?.address || 'sin direccion asignada'}
         </Text>
         <Text style={styles.subtitle}>
-          { quote.customer?.document_type && quote.customer?.document_number || 'sin documento asignado' }
+          Documento: { quote.customer?.document_type && quote.customer?.document_number || 'sin documento asignado' }
         </Text>
         {quote.seller && (
           <Text style={styles.subtitle}>
@@ -776,6 +776,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
+    marginTop: spacing.xs,
   },
   
   // Botones de acción

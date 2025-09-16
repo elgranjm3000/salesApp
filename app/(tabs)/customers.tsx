@@ -49,7 +49,7 @@ export default function CustomersScreen(): JSX.Element {
       } else {
         response = await api.getCustomers();
       }
-      setCustomers(response.data.data);
+      setCustomers(response.data);
     } catch (error) {
       console.log('Error loading customers:', error);
     } finally {
@@ -137,7 +137,7 @@ export default function CustomersScreen(): JSX.Element {
               style={styles.actionButton}
               onPress={() => router.push(`/quotes/new?customer_id=${customer.id}`)}
             >
-              <Text style={{ color: colors.primary[500] }}>Crear presupuesto</Text>
+              <Text style={{ color: colors.primary[500] }}>Crear{'\n'}presupuesto</Text>
             </TouchableOpacity>
             
           </View>
@@ -251,11 +251,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   customerCard: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   customerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    
   },
   customerAvatar: {
     width: 56,
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.xs,    
   },
   contactText: {
     fontSize: typography.fontSize.sm,
@@ -287,7 +288,9 @@ const styles = StyleSheet.create({
   },
   customerActions: {
     flexDirection: 'column',
-    gap: spacing.sm,
+    marginLeft: spacing.md,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   actionButton: {
     padding: spacing.sm,

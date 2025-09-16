@@ -420,7 +420,7 @@ class ApiService {
   // Categories
   async getCategories(): Promise<Category[]> {
     const response: AxiosResponse<Category[]> = await this.client.get('/categories');
-    return response.data.data;
+    return response.data;
   }
 
   async createCategory(data: Partial<Category>): Promise<Category> {

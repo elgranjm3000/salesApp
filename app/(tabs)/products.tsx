@@ -73,7 +73,7 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
           styles.categoryChipText,
           selectedCategory?.id === category.id && styles.categoryChipActiveText
         ]}>
-          {category.name}
+          {category.description}
         </Text>
       </TouchableOpacity>
     ))}
@@ -111,7 +111,7 @@ export default function ProductsScreen(): JSX.Element {
         api.getCategories()
       ]);
 
-      setProducts(productsResponse.data.data || []);
+      setProducts(productsResponse.data || []);
       setCategories(categoriesResponse.data || []);
     } catch (error) {
       console.log('Error loading data:', error);
@@ -235,11 +235,11 @@ export default function ProductsScreen(): JSX.Element {
           
           <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={2}>
-              {product.name}
+             #{product.code}
             </Text>
-            <Text style={styles.productCode}>#{product.code}</Text>
+            <Text style={styles.productCode}> {product.name}</Text>
             <Text style={styles.productCategory}>
-              {product.category?.name || 'Sin categoría'}
+              {product.category?.description || 'Sin categoría'}
             </Text>
             
             <View style={styles.priceContainer}>
@@ -357,7 +357,7 @@ export default function ProductsScreen(): JSX.Element {
               styles.selectionButtonText,
               selectionMode && styles.selectionButtonTextActive
             ]}>
-              {selectionMode ? 'Cancelar' : 'Seleccionar productos'}
+              {selectionMode ? 'Cancelar' : 'Seleccionar \n productos'}
             </Text>
           </TouchableOpacity>
         </View>

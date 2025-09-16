@@ -22,7 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import type { DashboardData, Sale } from '../../types';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, formatFecha, formatHora } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -483,7 +483,6 @@ export default function DashboardScreen(): JSX.Element {
           { title: 'Nuevo Presupuesto', icon: 'add-circle', color: '#10b981', onPress: () => router.push('/quotes/new') },
           { title: 'Ver Clientes', icon: 'person-add', color: '#0ea5e9', onPress: () => router.push('/customers') },
           { title: 'Ver Productos', icon: 'cube', color: '#f59e0b', onPress: () => router.push('/products') },
-          { title: 'Reportes', icon: 'document-text', color: '#8b5cf6', onPress: () => router.push('/reports') }
         );
         break;
         
@@ -527,12 +526,13 @@ export default function DashboardScreen(): JSX.Element {
     >
       <View style={styles.saleHeader}>
         <View style={styles.saleLeft}>
-          <Text style={styles.saleNumber}>{sale?.number}</Text>
+          <Text style={styles.saleNumber}>{sale?.id}</Text>
           <Text style={styles.saleCustomer}>{sale?.customer || 'Cliente no especificado'}</Text>
         </View>
         <View style={styles.saleRight}>
           <Text style={styles.saleAmount}>{formatCurrency(sale.total)}</Text>
-          <Text style={styles.saleDate}>{sale.date}</Text>
+          <Text style={styles.saleDate}>{formatFecha(sale.date)}</Text>
+          <Text style={styles.saleDate}>{formatHora(sale.date)}</Text>
         </View>
       </View>
       <View style={styles.saleStatus}>
@@ -1274,7 +1274,7 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     width: 32,
-    height: 32,
+    height: 36,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1334,7 +1334,7 @@ const styles = StyleSheet.create({
   },
   quickActionsContainer: {
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: 5,
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -1382,7 +1382,7 @@ const styles = StyleSheet.create({
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    marginTop: 150,
+    marginTop: 50,
   },
   sectionHeader: {
     flexDirection: 'row',

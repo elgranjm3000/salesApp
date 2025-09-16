@@ -27,7 +27,7 @@ export default function TabLayout(): JSX.Element {
         
       case 'company':
         // Company ve dashboard, productos, clientes, presupuestos y reportes
-        return ['index', 'products', 'customers', 'quotes', 'sellers','reports'].includes(tabName);
+        return ['index', 'products', 'customers', 'quotes', 'sellers'].includes(tabName);
         
       case 'seller':
         // Seller ve dashboard, productos, clientes y presupuestos
