@@ -474,7 +474,7 @@ export default function DashboardScreen(): JSX.Element {
           /*{ title: 'Crear Vendedor', icon: 'person-add', color: '#10b981', onPress: () => router.push('/sellers/new') },
           { title: 'Mis vendedores', icon: 'people', color: '#0ea5e9', onPress: () => router.push('/sellers') },*/
           { title: 'Nuevo Presupuesto', icon: 'document-text', color: '#f59e0b', onPress: () => router.push({ pathname: '/quotes/new', params: { company_id: selectedCompany?.id?.toString() } }) },
-          { title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }
+          /*{ title: 'Reportes', icon: 'analytics', color: '#8b5cf6', onPress: () => router.push('/reports') }*/
         );
         break;
         
@@ -847,7 +847,7 @@ export default function DashboardScreen(): JSX.Element {
       </View>
 
       {/* Presupuestos recientes */}
-      <View style={styles.recentSalesContainer}>
+      <View style={[styles.recentSalesContainer, { marginTop: user?.role === 'company' ? 50 : 150 }]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Presupuestos Recientes</Text>
           <TouchableOpacity onPress={() => router.push('/quotes')}>
@@ -1382,7 +1382,7 @@ const styles = StyleSheet.create({
   recentSalesContainer: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    marginTop: 50,
+    
   },
   sectionHeader: {
     flexDirection: 'row',

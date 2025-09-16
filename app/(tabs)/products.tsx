@@ -45,6 +45,9 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
     showsHorizontalScrollIndicator={false}
     contentContainerStyle={styles.categoriesScrollContainer}
   >
+    
+
+
     <TouchableOpacity
       style={[
         styles.categoryChip,
@@ -52,6 +55,7 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
       ]}
       onPress={() => onSelectCategory(null)}
     >
+     
       <Text style={[
         styles.categoryChipText,
         !selectedCategory && styles.categoryChipActiveText
@@ -364,6 +368,9 @@ export default function ProductsScreen(): JSX.Element {
       </View>
 
       {/* Filtros de categoría */}
+      <View style={styles.filtersContainer}>
+            <Text style={{marginLeft:30}}>Departamento:</Text>
+      </View>
       <View style={styles.filtersContainer}>
         <CategoryFilter
           categories={categories}

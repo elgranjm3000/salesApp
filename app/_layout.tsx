@@ -6,6 +6,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { colors } from '../theme/design';
 
 export default function RootLayout(): JSX.Element {
+
   return (
     <AuthProvider>
       <View style={{ flex: 1 }}>

@@ -234,8 +234,8 @@ export default function NewQuoteScreen(): JSX.Element {
         api.getProducts({ per_page: 100, company_id: company?.id }),
       ]);
       
-      setCustomers(customersRes.data.data || []);
-      setProducts(productsRes.data.data || []);
+      setCustomers(customersRes.data || []);
+      setProducts(productsRes.data || []);
       
       // Fecha por defecto (30 días)
       const validUntil = new Date();

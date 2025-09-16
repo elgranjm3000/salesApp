@@ -17,9 +17,14 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import { debounce, formatCurrency, formatDate } from '../../utils/helpers';
+
+
+
+
 
 interface Quote {
   id: number;
@@ -441,6 +446,7 @@ const DateFilter: React.FC<DateFilterProps> = ({
 
   return (
     <>
+
       <TouchableOpacity
         style={[
           styles.filterChip,
@@ -542,6 +548,7 @@ export default function QuotesScreen(): JSX.Element {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchText, setSearchText] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<Quote['status'] | 'all'>('all');
+  const { user } = useAuth(); // Agrega esta línea al inicio del componente
 
   // ✨ NUEVOS ESTADOS PARA VENDEDORES
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -1067,8 +1074,15 @@ export default function QuotesScreen(): JSX.Element {
           selectedStatus={selectedStatus}
           onSelectStatus={setSelectedStatus}
         />
+
+ <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.filtersScrollContainer}
+    >     
         <View style={styles.filtersRow}>
           {/* ✨ AGREGAR FILTRO DE VENDEDORES */}
+          {user?.role === 'company' && (
           <SellerFilter
             sellers={sellers}
             selectedSeller={selectedSeller}
@@ -1077,6 +1091,8 @@ export default function QuotesScreen(): JSX.Element {
             onToggleSellerModal={() => setShowSellerModal(!showSellerModal)}
             loading={loadingSellers}
           />
+          )}
+
           <DateFilter
             selectedDateFilter={selectedDateFilter}
             customDateFrom={customDateFrom}
@@ -1090,6 +1106,7 @@ export default function QuotesScreen(): JSX.Element {
             onToggleDateModal={() => setShowDateModal(!showDateModal)}
           />
         </View>
+        </ScrollView>   
       </View>
 
       {/* Buscadores */}
