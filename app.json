@@ -26,7 +26,16 @@
       "permissions": [
         "android.permission.USE_FINGERPRINT",
         "android.permission.USE_BIOMETRIC"
-      ]
+      ],
+       "statusBar": {
+        "barStyle": "dark-content",
+        "backgroundColor": "transparent",
+        "translucent": true
+      },
+      "navigationBar": {
+        "visible": "immersive",
+        "backgroundColor": "transparent"
+      }
     },
     "web": {
       "bundler": "metro",
