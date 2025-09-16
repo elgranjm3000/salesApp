@@ -451,6 +451,8 @@ export default function NewQuoteScreen(): JSX.Element {
         terms_conditions: formData.terms_conditions.trim(),
         notes: formData.notes.trim(),
         discount: Number(formData.discount),
+        bcv_rate: bcvRate,
+        bcv_date: rateDate,
       };
       
       const quote = await api.createQuote(quoteData);

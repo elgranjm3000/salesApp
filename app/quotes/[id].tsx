@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -18,7 +17,7 @@ import { Card } from '../../components/ui/Card';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
-import { formatCurrency, formatDateOnly } from '../../utils/helpers';
+import { formatBcvRate, formatCurrency, formatDateOnly } from '../../utils/helpers';
 
 export default function QuoteDetailScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,7 +62,18 @@ export default function QuoteDetailScreen(): JSX.Element {
   const fetchQuote = async () => {
     try {
       const response = await api.getQuote(Number(id));
+      const quoteData = response.data;
       setQuote(response.data);
+       if (quoteData.bcv_rate && quoteData.bcv_date) {
+        console.log("MONTO DE PRESUPUESTO CON BCV GUARDADO:", quoteData.bcv_rate);
+        setBcvRate(quoteData.bcv_rate);
+        setRateDate(quoteData.bcv_date);
+      } else {
+        // Si no tiene tasa guardada, obtener la actual (para presupuestos antiguos)
+        const currentRate = await fetchCurrentBCVRate();
+        setBcvRate(currentRate.rate);
+        setRateDate(`${currentRate.date} (actual)`);
+      }
     } catch (error) {
       Alert.alert('Error', 'No se pudo cargar el presupuesto');
     } finally {
@@ -304,7 +314,7 @@ export default function QuoteDetailScreen(): JSX.Element {
           <!-- Tasa de Cambio -->
           <div class="exchange-rate">
             <h4>Tasa de Cambio</h4>
-            <div class="rate">1 USD = ${bcvRate.toFixed(2)} Bs.</div>
+            <div class="rate">1 USD = ${formatBcvRate(bcvRate)} Bs.</div>
             <div style="font-size: 12px; margin-top: 8px;">Actualizada: ${rateDate}</div>
           </div>
           ` : ''}
@@ -469,18 +479,14 @@ export default function QuoteDetailScreen(): JSX.Element {
     if (pdfUri) {
       try {
         // Copiar a un directorio accesible
-        const fileName = `presupuesto_${quote.id}_${Date.now()}.pdf`;
-        const destinationUri = `${FileSystem.documentDirectory}${fileName}`;
-        
-        await FileSystem.copyAsync({
-          from: pdfUri,
-          to: destinationUri
-        });
-
+        //setGeneratingPDF(true);
+        const html = generatePDFHTML();
+    
         // Compartir para previsualizar
-        await Sharing.shareAsync(destinationUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Vista previa - Presupuesto #${quote.id}`,
+        await Print.printAsync({
+          html,
+          width: 612, // Ancho A4 en puntos
+          height: 792, // Alto A4 en puntos
         });
       } catch (error) {
         console.error('Error previewing PDF:', error);
@@ -544,6 +550,13 @@ export default function QuoteDetailScreen(): JSX.Element {
           </Text>
         )}
 
+        <Text style={styles.subtitle}>
+          Fecha de creacion: {formatDateOnly(quote.created_at) || 'No especificada'}
+        </Text>
+        <Text style={styles.subtitle}>
+          Fecha de última actualización: {formatDateOnly(quote.updated_at) || 'No especificada'}
+        </Text>
+
         {/* Botones de acción PDF */}
         <View style={styles.actionButtons}>
           <TouchableOpacity 
@@ -553,7 +566,7 @@ export default function QuoteDetailScreen(): JSX.Element {
           >
             <Ionicons name="eye" size={20} color={colors.info} />
             <Text style={[styles.actionButtonText, { color: colors.info }]}>
-              {generatingPDF ? 'Generando...' : 'Ver PDF'}
+              {generatingPDF ? 'Ver PDF' : 'Ver PDF'}
             </Text>
           </TouchableOpacity>
           
@@ -580,7 +593,7 @@ export default function QuoteDetailScreen(): JSX.Element {
             <Text style={styles.exchangeTitle}>Tasa de Cambio</Text>
           </View>
           <Text style={styles.exchangeRate}>
-            1 USD = {bcvRate.toFixed(2)} Bs.
+            1 USD = {formatBcvRate(bcvRate)} Bs.
           </Text>
           <Text style={styles.exchangeDate}>
             Actualizada: {rateDate}

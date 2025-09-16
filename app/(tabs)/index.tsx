@@ -257,9 +257,32 @@ export default function DashboardScreen(): JSX.Element {
   const [showCompanySelector, setShowCompanySelector] = useState<boolean>(false);
   const { user, logout } = useAuth();
 
+  // ✨ FUNCIÓN DE AUTO-LOGOUT EFICIENTE
+  const handleAutoLogout = useCallback(async () => {
+    try {
+      await logout();
+      // Limpiar AsyncStorage
+      await AsyncStorage.multiRemove(['selectedCompany', 'user', 'token']);
+      // Redirigir al login
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.log('Error during auto-logout:', error);
+      // En caso de error, forzar navegación al login
+      router.replace('/(auth)/login');
+    }
+  }, [logout]);
+
+  // ✨ EFECTO PARA VERIFICAR USUARIO AL MONTAR
   useEffect(() => {
+    if (!user?.name) {
+      console.log('Usuario no disponible, ejecutando auto-logout...');
+      handleAutoLogout();
+      return; // Detener ejecución del resto del componente
+    }
+    
+    // Si el usuario existe, cargar datos normalmente
     loadInitialData();
-  }, []);
+  }, [user, handleAutoLogout]);
   
 
   useEffect(() => {
@@ -528,6 +551,16 @@ export default function DashboardScreen(): JSX.Element {
     </TouchableOpacity>
   );
 
+  // ✨ RETORNO TEMPRANO SI NO HAY USUARIO (Prevención adicional)
+  if (!user) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="log-out-outline" size={48} color={colors.primary[500]} />
+        <Text style={styles.loadingText}>Cerrando sesión...</Text>
+      </View>
+    );
+  }
+
   if (loading && !dashboardData) {
     return (
       <View style={styles.loadingContainer}>
@@ -612,9 +645,9 @@ export default function DashboardScreen(): JSX.Element {
                   </Text>
                   )}
                 </View>
-                 {user?.role === 'company' && (
-                <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
-                 )}
+                 {/* {user?.role === 'company' && (
+                   <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} /> 
+                 )}*/}
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -695,33 +728,30 @@ export default function DashboardScreen(): JSX.Element {
 
       {/* Métricas principales */}
       <View style={styles.metricsContainer}>
-        <Text style={styles.sectionTitle}>Resumen de Hoy</Text>
+        <Text style={styles.sectionTitle}>Resumen</Text>
         <View style={styles.metricsGrid}>
           <Card style={[styles.metricCard, { borderLeftColor: colors.success }]}>
             <View style={styles.metricHeader}>
               <View style={[styles.iconContainer, { backgroundColor: colors.success + '15' }]}>
-                <Ionicons name="document-text" size={20} color={colors.success} />
+                <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_today || 0}</Text>
               </View>
               <View style={styles.trendContainer}>
-                <Ionicons name="trending-up" size={14} color={colors.success} />
                 <Text style={[styles.trendText, { color: colors.success }]}>+12%</Text>
               </View>
-            </View>
-            <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_today || 0}</Text>
+            </View>            
             <Text style={styles.metricTitle}>Presupuestos Hoy</Text>
           </Card>
 
           <Card style={[styles.metricCard, { borderLeftColor: colors.primary[500] }]}>
             <View style={styles.metricHeader}>
               <View style={[styles.iconContainer, { backgroundColor: colors.primary[500] + '15' }]}>
-                <Ionicons name="calendar" size={20} color={colors.primary[500]} />
+                <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_this_month || 0}</Text>
               </View>
               <View style={styles.trendContainer}>
                 <Ionicons name="trending-up" size={14} color={colors.success} />
                 <Text style={[styles.trendText, { color: colors.success }]}>+8%</Text>
               </View>
             </View>
-            <Text style={styles.metricValue}>{dashboardData?.data.business_summary?.quotes_this_month || 0}</Text>
             <Text style={styles.metricTitle}>Presupuestos Mes</Text>
           </Card>
 
@@ -1259,7 +1289,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   metricValue: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize['3xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
     marginBottom: spacing.xs,

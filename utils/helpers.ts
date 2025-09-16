@@ -2,6 +2,21 @@ import { Alert } from 'react-native';
 
 // =================== FORMATEO DE MONEDA ===================
 
+export const validateBcvRate = (rate: any): number | null => {
+  if (rate === null || rate === undefined) return null;
+  
+  const numericRate = typeof rate === 'string' ? parseFloat(rate) : rate;
+  
+  if (isNaN(numericRate) || numericRate <= 0) return null;
+  
+  return numericRate;
+};
+
+export const formatBcvRate = (rate: any, decimals: number = 2): string => {
+  const validRate = validateBcvRate(rate);
+  return validRate ? validRate.toFixed(decimals) : '0.00';
+};
+
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -34,11 +49,22 @@ export const formatDate = (date: string | Date): string => {
 };
 
 export const formatDateOnly = (date: string | Date): string => {
+  let targetDate: Date;
+  
+  if (typeof date === 'string') {
+    // Si viene de base de datos, asumimos que es la fecha correcta
+    const [datePart] = date.split(/[T\s]/);
+    const [year, month, day] = datePart.split('-').map(Number);
+    targetDate = new Date(year, month - 1, day);
+  } else {
+    targetDate = new Date(date);
+  }
+
   return new Intl.DateTimeFormat('es-ES', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  }).format(new Date(date));
+  }).format(targetDate);
 };
 
 export const formatDateShort = (date: string | Date): string => {

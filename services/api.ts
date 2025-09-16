@@ -13,7 +13,7 @@ import {
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
-const BASE_URL = 'https://consistency-saw-county-magnitude.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -246,6 +246,8 @@ interface CreateQuoteData {
   terms_conditions?: string;
   notes?: string;
   metadata?: Record<string, any>;
+  bcv_rate?: number;
+  bcv_date?: string;
 }
 
 class ApiService {
