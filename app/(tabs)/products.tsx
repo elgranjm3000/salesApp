@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   },
   floatingButtonContainer: {
     position: 'absolute',
-    bottom: spacing.lg,
+    bottom: 80,
     left: spacing.lg,
     right: spacing.lg,
   },
@@ -709,6 +709,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
+    marginBottom: 40
   },
   generateQuoteButtonText: {
     fontSize: typography.fontSize.base,

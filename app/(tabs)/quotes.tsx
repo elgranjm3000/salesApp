@@ -732,7 +732,7 @@ export default function QuotesScreen(): JSX.Element {
       //filtered = filtered.filter(quote => quote.user_seller_id === selectedSeller.user_id);
       filtered = filtered.filter(quote => {
     const matches = quote.user_seller_id === selectedSeller?.user_id;
-    console.log(`Quote ${quote.id}: seller ${quote.user_seller_id} matches?`, matches);
+    
     return matches;
 });
     }
@@ -1146,6 +1146,7 @@ export default function QuotesScreen(): JSX.Element {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
+    
   );
 }
 
@@ -1253,7 +1254,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.sm,   
   },
   filterChip: {
     flexDirection: 'row',
@@ -1416,6 +1417,7 @@ const styles = StyleSheet.create({
   },
   quotesList: {
     padding: spacing.lg,
+    marginBottom: 100,
   },
   separator: {
     height: spacing.sm,

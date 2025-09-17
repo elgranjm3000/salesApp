@@ -31,10 +31,10 @@
         "barStyle": "dark-content",
         "backgroundColor": "transparent",
         "translucent": true,
-         "hidden": true
+         "hidden": false
       },
       "navigationBar": {
-        "visible": "immersive",
+        "visible": "hidden",
         "backgroundColor": "transparent"
       },
       "softwareKeyboardLayoutMode": "pan"

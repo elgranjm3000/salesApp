@@ -1,11 +1,13 @@
 // app/(tabs)/_layout.tsx - Layout actualizado con Presupuestos
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme/design';
 
 export default function TabLayout(): JSX.Element {
   const { user, loading } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (loading) {
     return <></>;
@@ -48,13 +50,19 @@ export default function TabLayout(): JSX.Element {
           backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.gray[100],
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
-          height: 64,
+          height:  64 + Math.max(insets.bottom, 0),
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          elevation: 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
+          paddingBottom: 20,
         },
         tabBarIconStyle: {
           marginBottom: 2,
