@@ -116,8 +116,8 @@ export default function LoginScreen(): JSX.Element {
           <View style={styles.iconContainer}>
             <Ionicons name="storefront" size={48} color={colors.primary[500]} />
           </View>
-          <Text style={styles.title}>Sales App</Text>
-          <Text style={styles.subtitle}>Sistema de Ventas Inteligente</Text>
+          <Text style={styles.title}>Chrystal Mobile</Text>
+            <Text style={styles.subtitle}>  ¡Tu empresa en tus manos!</Text> 
         </View>
 
         {/* Biometric Login Button */}
@@ -187,7 +187,7 @@ export default function LoginScreen(): JSX.Element {
             title="Iniciar Sesión"
             onPress={handleLogin}
             loading={loading}
-            style={{ marginTop: spacing.md }}
+            style={{ marginTop: spacing.md, backgroundColor: "#004856" }}
           />
         </Card>
 
@@ -297,15 +297,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: spacing.lg,
+    
   },
   registerText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
+     marginBottom: 100,
   },
   registerLink: {
     fontSize: typography.fontSize.base,
     color: colors.primary[500],
     fontWeight: typography.fontWeight.semibold,
+    marginBottom: 100,
   },
   biometricInfo: {
     flexDirection: 'row',

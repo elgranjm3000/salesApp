@@ -847,7 +847,7 @@ export default function DashboardScreen(): JSX.Element {
       </View>
 
       {/* Presupuestos recientes */}
-      <View style={[styles.recentSalesContainer, { marginTop: user?.role === 'company' ? 50 : 150 }]}>
+      <View style={[styles.recentSalesContainer, { marginTop: user?.role === 'company' ? 25 : 150 }]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Presupuestos Recientes</Text>
           <TouchableOpacity onPress={() => router.push('/quotes')}>
@@ -968,6 +968,7 @@ const styles = StyleSheet.create({
   // Company Selector Styles
   companySelectorContainer: {
     padding: spacing.lg,
+    paddingBottom: 5,
   },
   companySelectorHeader: {
     flexDirection: 'row',
@@ -1240,7 +1241,7 @@ const styles = StyleSheet.create({
 
   // Existing styles with updated references
   metricsContainer: {
-    padding: spacing.lg,
+    padding: spacing.lg,    
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
@@ -1334,7 +1335,7 @@ const styles = StyleSheet.create({
   },
   quickActionsContainer: {
     paddingHorizontal: spacing.lg,
-    marginBottom: 5,
+    paddingBottom: 1,
   },
   quickActionsGrid: {
     flexDirection: 'row',
