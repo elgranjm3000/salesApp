@@ -418,8 +418,10 @@ class ApiService {
   }
 
   // Categories
-  async getCategories(): Promise<Category[]> {
-    const response: AxiosResponse<Category[]> = await this.client.get('/categories');
+  async getCategories(params?: {    
+    company_id?:number;
+  }): Promise<Category[]> {
+    const response: AxiosResponse<Category[]> = await this.client.get('/categories', { params });
     return response.data;
   }
 

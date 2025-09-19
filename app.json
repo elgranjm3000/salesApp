@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Chrystal Mobile",
-    "slug": "ChrystalMobile",
+    "name": "Sales App / Chrystal Mobile",
+    "slug": "SalesAPp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
@@ -27,11 +27,11 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.USE_BIOMETRIC"
       ],
-       "statusBar": {
+      "statusBar": {
         "barStyle": "dark-content",
         "backgroundColor": "transparent",
         "translucent": true,
-         "hidden": false
+        "hidden": false
       },
       "navigationBar": {
         "visible": "hidden",
@@ -65,6 +65,7 @@
       "eas": {
         "projectId": "b5c84581-7905-484b-b5c8-35d16a311ca0"
       }
-    }
+    },
+    "owner": "elgranjm"
   }
 }

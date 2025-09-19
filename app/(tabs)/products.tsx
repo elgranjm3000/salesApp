@@ -112,7 +112,7 @@ export default function ProductsScreen(): JSX.Element {
       
       const [productsResponse, categoriesResponse] = await Promise.all([
         api.getProducts({ company_id: company?.id }),
-        api.getCategories()
+        api.getCategories({ company_id: company?.id })
       ]);
 
       setProducts(productsResponse.data || []);
@@ -238,10 +238,10 @@ export default function ProductsScreen(): JSX.Element {
           </View>
           
           <View style={styles.productInfo}>
-            <Text style={styles.productName} numberOfLines={2}>
-             #{product.code}
+            <Text style={styles.productCode} numberOfLines={2}>
+             {product.code}
             </Text>
-            <Text style={styles.productCode}> {product.name}</Text>
+            <Text style={styles.productName}> {product.name}</Text>
             <Text style={styles.productCategory}>
               {product.category?.description || 'Sin categoría'}
             </Text>
@@ -448,6 +448,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: spacing['2xl'],
   },
   headerLeft: {
     flex: 1,

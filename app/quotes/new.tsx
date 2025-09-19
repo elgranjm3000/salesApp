@@ -607,6 +607,7 @@ export default function NewQuoteScreen(): JSX.Element {
             value={formData.valid_until}
             onChangeText={(value) => setFormData(prev => ({ ...prev, valid_until: value }))}
             error={errors.valid_until}
+            editable={false}
           />
 
           <Input

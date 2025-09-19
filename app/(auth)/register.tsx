@@ -5,12 +5,13 @@ import React, { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -89,7 +90,20 @@ export default function RegisterScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'COMPANY_NOT_FOUND') {
-        Alert.alert('Empresa no encontrada', 'Contacte con su administrador de Chrystal');
+        Alert.alert(
+  'Empresa no encontrada',
+  'Comuníquese con el call center para registrar su empresa',
+  [
+    {
+      text: 'Cancelar',
+      style: 'cancel',
+    },    
+    {
+      text: 'WhatsApp',
+      onPress: () => Linking.openURL('https://wa.me/584142441226')
+    }
+  ]
+);
       } else if (errorCode === 'COMPANY_ALREADY_HAS_USER') {
         Alert.alert('Empresa ya registrada', 'Esta empresa ya tiene un usuario registrado en el sistema');
       } else {
@@ -238,9 +252,9 @@ export default function RegisterScreen(): JSX.Element {
 
   const renderStep1 = () => (
     <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Verificación de Empresa</Text>
+      <Text style={styles.sectionTitle}>Validacion de Empresa</Text>
       <Text style={styles.sectionSubtitle}>
-        Ingrese su email y RIF para verificar que su empresa esté registrada en el sistema
+        Ingrese su email y RIF para validar que su empresa esté registrada en el sistema
       </Text>
       
       <Input
@@ -266,7 +280,7 @@ export default function RegisterScreen(): JSX.Element {
       />
 
       <Button
-        title="Verificar Empresa"
+        title="Validar Empresa"
         onPress={handleCheckCompanyInfo}
         loading={loading}
         style={styles.actionButton}
@@ -282,43 +296,54 @@ export default function RegisterScreen(): JSX.Element {
       </Text>
       
       <View style={styles.companyInfo}>
-        <View style={styles.infoRow}>
-          <Ionicons name="business" size={20} color={colors.text.secondary} />
-          <Text style={styles.infoLabel}>Nombre:</Text>
+        <View style={styles.infoRowColumn}>
+           <View style={styles.infoHeader}>
+              <Ionicons name="business" size={20} color={colors.text.secondary} />
+              <Text style={styles.infoLabel}>Nombre:</Text>
+            </View>
           <Text style={styles.infoValue}>{companyData.name}</Text>
         </View>
         
-        <View style={styles.infoRow}>
-          <Ionicons name="mail" size={20} color={colors.text.secondary} />
-          <Text style={styles.infoLabel}>Email:</Text>
-          <Text style={styles.infoValue}>{companyData.email}</Text>
+        <View style={styles.infoRowColumn}>
+          <View style={styles.infoHeader}>
+            <Ionicons name="mail" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>Email:</Text>            
+          </View>
+          <Text style={[styles.infoValue]}>{companyData.email}</Text>
         </View>
+ 
         
-        <View style={styles.infoRow}>
-          <Ionicons name="call" size={20} color={colors.text.secondary} />
-          <Text style={styles.infoLabel}>Teléfono:</Text>
+        <View style={styles.infoRowColumn}>
+          <View style={styles.infoHeader}>
+            <Ionicons name="call" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>Teléfono:</Text>
+          </View>
           <Text style={styles.infoValue}>{companyData.phone}</Text>
         </View>
         
-        <View style={styles.infoRow}>
-          <Ionicons name="location" size={20} color={colors.text.secondary} />
-          <Text style={styles.infoLabel}>Dirección:</Text>
+        <View style={styles.infoRowColumn}>
+          <View style={styles.infoHeader}>
+              <Ionicons name="location" size={20} color={colors.text.secondary} />
+              <Text style={styles.infoLabel}>Dirección:</Text>
+          </View>
           <Text style={styles.infoValue}>{companyData.address}</Text>
         </View>
         
-        <View style={styles.infoRow}>
-          <Ionicons name="card" size={20} color={colors.text.secondary} />
-          <Text style={styles.infoLabel}>RIF:</Text>
+        <View style={styles.infoRowColumn}>
+           <View style={styles.infoHeader}>
+              <Ionicons name="card" size={20} color={colors.text.secondary} />
+              <Text style={styles.infoLabel}>RIF:</Text>
+          </View>
           <Text style={styles.infoValue}>{companyData.rif}</Text>
         </View>
         
-        {companyData.license && (
+        {/*{companyData.license && (
           <View style={styles.infoRow}>
             <Ionicons name="key" size={20} color={colors.text.secondary} />
             <Text style={styles.infoLabel}>Licencia:</Text>
             <Text style={styles.infoValue}>{companyData.license}</Text>
           </View>
-        )}
+        )}*/}
       </View>
 
       <Text style={styles.confirmQuestion}>¿Desea registrar esta compañía?</Text>
@@ -382,9 +407,9 @@ export default function RegisterScreen(): JSX.Element {
 
   const renderStep4 = () => (
     <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Crear Usuario</Text>
+      <Text style={styles.sectionTitle}>Crear contraseña</Text>
       <Text style={styles.sectionSubtitle}>
-        Complete la información para crear su usuario y finalizar el registro
+        Complete la información para crear su contraseña y finalizar su registro
       </Text>      
       
 
@@ -409,7 +434,7 @@ export default function RegisterScreen(): JSX.Element {
       />
 
       <Button
-        title="Completar Registro"
+        title="Aceptar"
         onPress={handleCompleteRegistration}
         loading={loading}
         style={styles.actionButton}
@@ -448,7 +473,7 @@ export default function RegisterScreen(): JSX.Element {
 
   const getStepTitle = () => {
     switch (currentStep) {
-      case 1: return 'Verificar Empresa';
+      case 1: return 'Validar Empresa';
       case 2: return 'Confirmar Datos';
       case 3: return 'Código de Validación';
       case 4: return 'Crear Usuario';
@@ -612,6 +637,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
   infoLabel: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
@@ -656,5 +686,10 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: spacing.xl,
+  },
+   infoRowColumn: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
   },
 });
