@@ -2,6 +2,22 @@
 
 Una aplicación móvil completa para gestión comercial, desarrollada con React Native y Expo. Permite administrar productos, clientes, presupuestos y vendedores con funcionalidad offline completa.
 
+## 📸 Capturas de pantalla
+
+<div align="center">
+  <img src="./screenshots/1.png" alt="1" width="250"/>
+  <img src="./screenshots/2.png" alt="2" width="250"/>
+  <img src="./screenshots/3.png" alt="3" width="250"/>
+  <img src="./screenshots/4.png" alt="4" width="250"/>
+  <img src="./screenshots/4.png" alt="4" width="250"/>
+  <img src="./screenshots/5.png" alt="4" width="250"/>
+  <img src="./screenshots/6.png" alt="4" width="250"/>
+  <img src="./screenshots/7.png" alt="4" width="250"/>
+  <img src="./screenshots/8.png" alt="4" width="250"/>
+  <img src="./screenshots/9.png" alt="4" width="250"/>
+  <img src="./screenshots/10.png" alt="4" width="250"/>
+</div>
+
 ## 🌟 Características Principales
 
 - 📦 **Gestión de Productos** - Catálogo completo con códigos, precios y stock

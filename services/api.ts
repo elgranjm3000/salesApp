@@ -13,8 +13,8 @@ import {
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
-const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
-
+//const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
+const BASE_URL = 'http://localhost/sales-api/public/api'; // Cambiar por tu IP
 interface LoginCredentials {
   email: string;
   password: string;
