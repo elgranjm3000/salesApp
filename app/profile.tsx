@@ -23,7 +23,6 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { borderRadius, colors, spacing, typography } from '../theme/design';
-import type { User } from '../types';
 import StorageService from '../utils/storage';
 
 interface Company {
@@ -129,17 +128,18 @@ export default function ProfileScreen(): JSX.Element {
       };
 
       // Aquí deberías llamar a la API para actualizar el usuario
-      // const updatedUser = await api.updateUser(user!.id, updatedData);
-      // updateUser(updatedUser);
+      const updatedUser = await api.updateUser(user!.id, updatedData);
+      updateUser(updatedUser);
       
       // Por ahora simulamos la actualización
-      const updatedUser: User = {
+     /* const updatedUser: User = {
         ...user!,
         ...updatedData,
         updated_at: new Date().toISOString(),
       };
       
-      updateUser(updatedUser);
+      updateUser(updatedUser);*/
+      
       setEditing(false);
       Alert.alert('Éxito', 'Perfil actualizado correctamente');
     } catch (error: any) {

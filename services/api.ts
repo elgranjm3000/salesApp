@@ -14,7 +14,7 @@ import {
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
 //const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
-const BASE_URL = 'http://localhost/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://choice-matching-get-tower.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 interface LoginCredentials {
   email: string;
   password: string;
@@ -112,9 +112,9 @@ interface CreateUserData {
   name: string;
   email: string;
   phone?: string;
-  role: 'company';
-  password: string;
-  password_confirmation: string;
+  role?: 'company';
+  password?: string;
+  password_confirmation?: string;
   status?: 'active' | 'inactive';
   rif?: string;
   companyName?: string;
@@ -123,7 +123,7 @@ interface CreateUserData {
   country?: string;
   province?: string;
   city?: string;
-  key_activation: string;
+  key_activation?: string;
 }
 
 interface Company {

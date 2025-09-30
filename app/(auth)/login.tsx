@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -114,7 +115,13 @@ export default function LoginScreen(): JSX.Element {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Ionicons name="storefront" size={48} color={colors.primary[500]} />
+            {/* <Ionicons name="storefront" size={48} color={colors.primary[500]} />*/}
+
+            <Image
+                source={require('../../assets/images/logo.png')} // o una URL remota
+                style={{ width: 100, height: 100 }}
+                resizeMode="contain"
+            />
           </View>
           <Text style={styles.title}>Chrystal Mobile</Text>
             <Text style={styles.subtitle}>  ¡Tu empresa en tus manos!</Text> 
@@ -199,12 +206,19 @@ export default function LoginScreen(): JSX.Element {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.registerContainerPassword}>
+          <Text style={styles.registerText}>¿Olvidaste tu contraseña? </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+            <Text style={styles.registerLink}>Haz clic aquí</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Info sobre biometría */}
         {isBiometricSupported && !isBiometricEnabled && (
           <View style={[styles.biometricInfo, {marginBottom: (isBiometricEnabled) ? 200 : 0 }] }>
             <Ionicons name="information-circle" size={16} color={colors.text.secondary} />
             <Text style={styles.biometricInfoText}>
-              Puedes activar la huella dactilar después de iniciar sesión
+              Después de iniciar sesión, vaya a Mi perfil > seguridad para activar la huella dactilar
             </Text>
           </View>
         )}
@@ -296,19 +310,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.lg,
+    marginTop: spacing.lg,    
+    
+  },
+   registerContainerPassword: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
     
   },
   registerText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
-     marginBottom: 100,
+     marginBottom: 20,
   },
   registerLink: {
     fontSize: typography.fontSize.base,
     color: colors.primary[500],
     fontWeight: typography.fontWeight.semibold,
-    marginBottom: 100,
+    marginBottom: 20,
   },
   biometricInfo: {
     flexDirection: 'row',
