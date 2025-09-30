@@ -208,7 +208,7 @@ export default function LoginScreen(): JSX.Element {
 
         <View style={styles.registerContainerPassword}>
           <Text style={styles.registerText}>¿Olvidaste tu contraseña? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
             <Text style={styles.registerLink}>Haz clic aquí</Text>
           </TouchableOpacity>
         </View>

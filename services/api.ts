@@ -250,6 +250,47 @@ interface CreateQuoteData {
   bcv_date?: string;
 }
 
+
+interface ForgotPasswordRequest {
+  email: string;
+}
+
+interface ForgotPasswordResponse {
+  success: boolean;
+  message: string;
+  data: {
+    email: string;
+    expires_in_minutes: number;
+  };
+}
+
+interface VerifyResetCodeRequest {
+  email: string;
+  code: string;
+}
+
+interface VerifyResetCodeResponse {
+  success: boolean;
+  message: string;
+  data: {
+    reset_token: string;
+    expires_in_minutes: number;
+  };
+}
+
+interface ResetPasswordRequest {
+  reset_token: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
+interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+
 class ApiService {
   private client: AxiosInstance;
 
@@ -754,6 +795,48 @@ class ApiService {
     const response = await this.client.get('/quotes/stats');
     return response.data;
   }
+
+
+  // =================== RECUPERACIÓN DE CONTRASEÑA ===================
+
+// Paso 1: Solicitar código de recuperación
+async forgotPassword(data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+  console.log("Requesting password reset for:", data.email);
+  try {
+    const response: AxiosResponse<ForgotPasswordResponse> = await this.client.post('/auth/forgot-password', data);
+    console.log("Password reset request successful:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error requesting password reset:", error);
+    throw error;
+  }
+}
+
+// Paso 2: Verificar código de recuperación
+async verifyResetCode(data: VerifyResetCodeRequest): Promise<VerifyResetCodeResponse> {
+  console.log("Verifying reset code for:", data.email);
+  try {
+    const response: AxiosResponse<VerifyResetCodeResponse> = await this.client.post('/auth/verify-reset-code', data);
+    console.log("Reset code verification successful:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error verifying reset code:", error);
+    throw error;
+  }
+}
+
+// Paso 3: Restablecer contraseña
+async resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+  console.log("Resetting password for:", data.email);
+  try {
+    const response: AxiosResponse<ResetPasswordResponse> = await this.client.post('/auth/reset-password', data);
+    console.log("Password reset successful:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    throw error;
+  }
+}
 }
 
 export const api = new ApiService();
