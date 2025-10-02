@@ -4,6 +4,20 @@ import React, { createContext, ReactNode, useContext, useEffect, useReducer } fr
 import { api } from '../services/api';
 import { User } from '../types';
 
+// NUEVAS INTERFACES PARA SESIÓN ÚNICA
+interface LoginDeviceInfo {
+  device_name?: string;
+  device_type?: 'web' | 'mobile' | 'tablet';
+  force_logout?: boolean;
+}
+
+interface LoginResult {
+  success: boolean;
+  message?: string;
+  isActiveSessionError?: boolean;
+  activeSessionData?: any;
+}
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -25,8 +39,8 @@ type AuthAction =
   | { type: 'DISABLE_BIOMETRIC' };
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  loginWithBiometric: () => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string, deviceInfo?: LoginDeviceInfo) => Promise<LoginResult>; // ACTUALIZADO
+  loginWithBiometric: (deviceInfo?: LoginDeviceInfo) => Promise<LoginResult>; // ACTUALIZADO
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
   refreshToken: () => Promise<void>;
@@ -71,7 +85,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: action.payload,
       };
     case 'LOGOUT':
-      // NO cambiar isBiometricEnabled aquí - mantener configuración
       return {
         ...state,
         user: null,
@@ -156,7 +169,6 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       if (token && userString) {
         const user: User = JSON.parse(userString);
         
-        // Verificar que el token siga siendo válido
         try {
           const currentUser = await api.me();
           dispatch({
@@ -164,10 +176,8 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
             payload: { token, user: currentUser },
           });
           
-          // Actualizar datos del usuario en storage
           await AsyncStorage.setItem('user', JSON.stringify(currentUser));
         } catch (error) {
-          // Token expirado o inválido
           await AsyncStorage.multiRemove(['token', 'user','selectedCompany']);
           dispatch({ type: 'LOGOUT' });
         }
@@ -180,13 +190,18 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
     }
   };
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
+  // MÉTODO LOGIN ACTUALIZADO CON SOPORTE PARA SESIÓN ÚNICA
+  const login = async (
+    email: string, 
+    password: string,
+    deviceInfo?: LoginDeviceInfo
+  ): Promise<LoginResult> => {
     try {
       dispatch({ type: 'LOADING' });
       
-      const response = await api.login({ email, password });
+      // Llamar al API con información del dispositivo
+      const response = await api.login({ email, password }, deviceInfo);
       
-      // Adaptarse a diferentes estructuras de respuesta
       const userData = response.data?.user || response.user;
       const tokenData = response.data?.token || response.token;
 
@@ -194,11 +209,10 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
         throw new Error('Datos de respuesta inválidos');
       }
 
-      // Guardar credenciales para biometría
       await AsyncStorage.multiSet([
         ['token', tokenData],
         ['user', JSON.stringify(userData)],
-        ['user_credentials', JSON.stringify({ email, password })] // Para biometría
+        ['user_credentials', JSON.stringify({ email, password })]
       ]);
 
       dispatch({
@@ -209,6 +223,19 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       return { success: true };
     } catch (error: any) {
       console.error('Login error:', error);
+      
+      // NUEVO: Detectar error de sesión activa
+      if (error.isActiveSessionError) {
+        dispatch({ type: 'LOGIN_ERROR', payload: 'Sesión activa detectada' });
+        return {
+          success: false,
+          isActiveSessionError: true,
+          activeSessionData: error.activeSessionData,
+          message: error.activeSessionData?.message || 'Ya existe una sesión activa',
+        };
+      }
+      
+      // Error normal
       const message = error.response?.data?.message || 'Error de login';
       dispatch({
         type: 'LOGIN_ERROR',
@@ -218,7 +245,8 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
     }
   };
 
-  const loginWithBiometric = async (): Promise<{ success: boolean; message?: string }> => {
+  // MÉTODO loginWithBiometric ACTUALIZADO
+  const loginWithBiometric = async (deviceInfo?: LoginDeviceInfo): Promise<LoginResult> => {
     try {
       console.log('Attempting biometric login...', { 
         supported: state.isBiometricSupported, 
@@ -233,13 +261,11 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
         return { success: false, message: 'Biometría no activada' };
       }
 
-      // Verificar que tengamos credenciales guardadas antes de mostrar biometría
       const credentialsStr = await AsyncStorage.getItem('user_credentials');
       if (!credentialsStr) {
         return { success: false, message: 'No hay credenciales guardadas' };
       }
 
-      // Verificar biometría
       const biometricResult = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Usar huella dactilar para iniciar sesión',
         cancelLabel: 'Cancelar',
@@ -258,8 +284,8 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
       const credentials = JSON.parse(credentialsStr);
       
-      // Login normal con las credenciales guardadas
-      return await login(credentials.email, credentials.password);
+      // ACTUALIZADO: Pasar deviceInfo al login
+      return await login(credentials.email, credentials.password, deviceInfo);
       
     } catch (error: any) {
       console.error('Biometric login error:', error);
@@ -302,15 +328,11 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
   const logout = async (): Promise<void> => {
     try {
-      // Intentar hacer logout en el servidor
       await api.logout();
     } catch (error) {
-      // Ignorar errores del logout del servidor
       console.log('Server logout error (ignored):', error);
     } finally {
-      // Limpiar solo token y user, NO las credenciales biométricas ni configuración
       await AsyncStorage.multiRemove(['token', 'user','selectedCompany']);
-      // Mantener 'user_credentials' y 'biometric_enabled' para próximos logins
       dispatch({ type: 'LOGOUT' });
     }
   };

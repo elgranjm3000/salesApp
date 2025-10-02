@@ -14,10 +14,17 @@ import {
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
 //const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
-const BASE_URL = 'https://choice-matching-get-tower.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://curriculum-ballet-nashville-guarantees.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+
 interface LoginCredentials {
   email: string;
   password: string;
+}
+
+interface LoginCredentialsWithDevice extends LoginCredentials {
+  device_name?: string;
+  device_type?: 'web' | 'mobile' | 'tablet';
+  force_logout?: boolean;
 }
 
 interface LoginResponse {
@@ -290,6 +297,50 @@ interface ResetPasswordResponse {
   message: string;
 }
 
+interface ActiveSessionInfo {
+  device_name: string;
+  device_type: string;
+  ip_address: string;
+  last_activity: string;
+  login_time: string;
+}
+
+interface LoginResponseWithSession extends LoginResponse {
+  device_info?: {
+    device_name: string;
+    device_type: string;
+    expires_at: string;
+  };
+}
+
+interface ActiveSessionExistsError {
+  success: false;
+  code: 'ACTIVE_SESSION_EXISTS';
+  message: string;
+  data: {
+    active_session: ActiveSessionInfo;
+  };
+}
+
+interface ActiveSession {
+  id: number;
+  device_name: string;
+  device_type: string;
+  ip_address: string;
+  last_activity: string;
+  created_at: string;
+  is_current: boolean;
+}
+
+interface ActiveSessionsResponse {
+  success: boolean;
+  data: ActiveSession[];
+}
+
+interface LogoutAllDevicesRequest {
+  password: string;
+}
+
 
 class ApiService {
   private client: AxiosInstance;
@@ -386,14 +437,64 @@ class ApiService {
 
   // =================== MÉTODOS DE AUTENTICACIÓN EXISTENTES ===================
 
-  async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    console.log(credentials)
+   async login(
+    credentials: LoginCredentials, 
+    deviceInfo?: {
+      device_name?: string;
+      device_type?: 'web' | 'mobile' | 'tablet';
+      force_logout?: boolean;
+    }
+  ): Promise<LoginResponseWithSession> {
+    console.log("Login attempt with credentials:", credentials);
+    
+    const requestData: LoginCredentialsWithDevice = {
+      ...credentials,
+      device_name: deviceInfo?.device_name || 'Mobile App',
+      device_type: deviceInfo?.device_type || 'mobile',
+      force_logout: deviceInfo?.force_logout || false,
+    };
+    
     try {
-      const response: AxiosResponse<LoginResponse> = await this.client.post('/auth/login', credentials);
+      const response: AxiosResponse<LoginResponseWithSession> = await this.client.post(
+        '/auth/login', 
+        requestData
+      );
       console.log("Login successful");
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Verificar si es error de sesión activa
+      if (error.response?.status === 409 && error.response?.data?.code === 'ACTIVE_SESSION_EXISTS') {
+        console.log("Active session detected");
+        throw {
+          isActiveSessionError: true,
+          activeSessionData: error.response.data,
+        };
+      }
+      
       console.error("Error en login:", error);
+      throw error;
+    }
+  }
+
+   async getActiveSessions(): Promise<ActiveSession[]> {
+    try {
+      const response: AxiosResponse<ActiveSessionsResponse> = await this.client.get(
+        '/auth/active-sessions'
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error("Error getting active sessions:", error);
+      throw error;
+    }
+  }
+
+  // NUEVO: Cerrar todas las sesiones
+  async logoutAllDevices(password: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await this.client.post('/auth/logout-all-devices', { password });
+      return response.data;
+    } catch (error) {
+      console.error("Error logging out all devices:", error);
       throw error;
     }
   }

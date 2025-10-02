@@ -1,4 +1,6 @@
+// app/(auth)/login.tsx - ACTUALIZADO
 import { Ionicons } from '@expo/vector-icons';
+import * as Device from 'expo-device';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -12,11 +14,20 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { ActiveSessionModal } from '../../components/ActiveSessionModal'; // NUEVO
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../theme/design';
+
+interface ActiveSessionInfo {
+  device_name: string;
+  device_type: string;
+  ip_address: string;
+  last_activity: string;
+  login_time: string;
+}
 
 export default function LoginScreen(): JSX.Element {
   const { 
@@ -32,12 +43,16 @@ export default function LoginScreen(): JSX.Element {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [biometricLoading, setBiometricLoading] = useState(false);
+  
+  // NUEVO: Estados para modal de sesión activa
+  const [showActiveSessionModal, setShowActiveSessionModal] = useState(false);
+  const [activeSessionInfo, setActiveSessionInfo] = useState<ActiveSessionInfo | null>(null);
+  const [forceLogoutLoading, setForceLogoutLoading] = useState(false);
 
   // Auto-login con biometría si está habilitada
   useEffect(() => {
     const tryBiometricLogin = async () => {
       if (isBiometricEnabled && isBiometricSupported && !loading) {
-        // Esperar un poco para que la UI se renderice
         setTimeout(handleBiometricLogin, 800);
       }
     };
@@ -70,16 +85,55 @@ export default function LoginScreen(): JSX.Element {
     return isValid;
   };
 
-  const handleLogin = async (): Promise<void> => {
+  // NUEVO: Obtener nombre del dispositivo
+  const getDeviceName = async (): Promise<string> => {
+    try {
+      const deviceName = Device.deviceName || Device.modelName || 'Mobile Device';
+      const brand = Device.brand || '';
+      return brand ? `${brand} ${deviceName}` : deviceName;
+    } catch {
+      return 'Mobile App';
+    }
+  };
+
+  // ACTUALIZADO: Manejar login con detección de sesión activa
+  const handleLogin = async (forceLogout: boolean = false): Promise<void> => {
     if (!validateForm()) return;
 
-    const result = await login(email, password);
+    const deviceName = await getDeviceName();
+
+    const result = await login(email, password, {
+      device_name: deviceName,
+      device_type: 'mobile',
+      force_logout: forceLogout,
+    });
+    
+    // Verificar si es error de sesión activa
+    if (!result.success && result.isActiveSessionError) {
+      setActiveSessionInfo(result.activeSessionData?.data?.active_session || null);
+      setShowActiveSessionModal(true);
+      return;
+    }
     
     if (result.success) {
+      setShowActiveSessionModal(false);
       router.replace('/(tabs)');
     } else {
       Alert.alert('Error de acceso', result.message || 'Error desconocido');
     }
+  };
+
+  // NUEVO: Manejar cierre forzado de sesión anterior
+  const handleForceLogin = async (): Promise<void> => {
+    setForceLogoutLoading(true);
+    await handleLogin(true);
+    setForceLogoutLoading(false);
+  };
+
+  // NUEVO: Cancelar modal de sesión activa
+  const handleCancelActiveSession = (): void => {
+    setShowActiveSessionModal(false);
+    setActiveSessionInfo(null);
   };
 
   const handleBiometricLogin = async (): Promise<void> => {
@@ -87,12 +141,16 @@ export default function LoginScreen(): JSX.Element {
     
     setBiometricLoading(true);
     
-    const result = await loginWithBiometric();
+    const deviceName = await getDeviceName();
+    
+    const result = await loginWithBiometric({
+      device_name: deviceName,
+      device_type: 'mobile',
+    });
     
     if (result.success) {
       router.replace('/(tabs)');
     } else {
-      // Solo mostrar error si no es que el usuario canceló
       if (result.message && !result.message.includes('cancelada') && !result.message.includes('fallida')) {
         Alert.alert(
           'Error de acceso biométrico', 
@@ -111,124 +169,131 @@ export default function LoginScreen(): JSX.Element {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            {/* <Ionicons name="storefront" size={48} color={colors.primary[500]} />*/}
-
-            <Image
-                source={require('../../assets/images/logo.png')} // o una URL remota
+        <View style={styles.content}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Image
+                source={require('../../assets/images/logo.png')}
                 style={{ width: 100, height: 100 }}
                 resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.title}>Chrystal Mobile</Text>
+            <Text style={styles.subtitle}>¡Tu empresa en tus manos!</Text> 
+          </View>
+
+          {/* Biometric Login Button */}
+          {isBiometricSupported && isBiometricEnabled && (
+            <Card style={styles.biometricCard}>
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading || loading}
+              >
+                <View style={styles.biometricIconContainer}>
+                  <Ionicons 
+                    name="finger-print" 
+                    size={32} 
+                    color={biometricLoading ? colors.gray[400] : colors.primary[500]} 
+                  />
+                </View>
+                <Text style={[
+                  styles.biometricText,
+                  (biometricLoading || loading) && { color: colors.gray[400] }
+                ]}>
+                  {biometricLoading ? 'Autenticando...' : 'Usar Huella Dactilar'}
+                </Text>
+                <Text style={styles.biometricSubtext}>
+                  Toca para iniciar sesión rápidamente
+                </Text>
+              </TouchableOpacity>
+            </Card>
+          )}
+
+          {/* Divider */}
+          {isBiometricSupported && isBiometricEnabled && (
+            <View style={styles.dividerContainer}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>o</Text>
+              <View style={styles.divider} />
+            </View>
+          )}
+
+          {/* Formulario */}
+          <Card padding="lg">
+            <Input
+              label="Email"
+              placeholder="tu@email.com"
+              value={email}
+              onChangeText={setEmail}
+              error={emailError}
+              leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
             />
-          </View>
-          <Text style={styles.title}>Chrystal Mobile</Text>
-            <Text style={styles.subtitle}>  ¡Tu empresa en tus manos!</Text> 
-        </View>
 
-        {/* Biometric Login Button */}
-        {isBiometricSupported && isBiometricEnabled && (
-          <Card style={styles.biometricCard}>
-            <TouchableOpacity
-              style={styles.biometricButton}
-              onPress={handleBiometricLogin}
-              disabled={biometricLoading || loading}
-            >
-              <View style={styles.biometricIconContainer}>
-                <Ionicons 
-                  name="finger-print" 
-                  size={32} 
-                  color={biometricLoading ? colors.gray[400] : colors.primary[500]} 
-                />
-              </View>
-              <Text style={[
-                styles.biometricText,
-                (biometricLoading || loading) && { color: colors.gray[400] }
-              ]}>
-                {biometricLoading ? 'Autenticando...' : 'Usar Huella Dactilar'}
-              </Text>
-              <Text style={styles.biometricSubtext}>
-                Toca para iniciar sesión rápidamente
-              </Text>
-            </TouchableOpacity>
+            <Input
+              label="Contraseña"
+              placeholder="Tu contraseña"
+              value={password}
+              onChangeText={setPassword}
+              error={passwordError}
+              secureTextEntry
+              leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
+              autoComplete="password"
+              autoCapitalize="none"
+            />
+
+            <Button
+              title="Iniciar Sesión"
+              onPress={() => handleLogin(false)}
+              loading={loading}
+              style={{ marginTop: spacing.md, backgroundColor: "#004856" }}
+            />
           </Card>
-        )}
 
-        {/* Divider */}
-        {isBiometricSupported && isBiometricEnabled && (
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>o</Text>
-            <View style={styles.divider} />
+          {/* Enlace de registro */}
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+              <Text style={styles.registerLink}>Crear Cuenta</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* Formulario */}
-        <Card padding="lg" >
-          <Input
-            label="Email"
-            placeholder="tu@email.com"
-            value={email}
-            onChangeText={setEmail}
-            error={emailError}
-            leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
-
-          <Input
-            label="Contraseña"
-            placeholder="Tu contraseña"
-            value={password}
-            onChangeText={setPassword}
-            error={passwordError}
-            secureTextEntry
-            leftIcon={<Ionicons name="lock-closed" size={20} color={colors.text.tertiary} />}
-            autoComplete="password"
-            autoCapitalize="none"
-          />
-
-          <Button
-            title="Iniciar Sesión"
-            onPress={handleLogin}
-            loading={loading}
-            style={{ marginTop: spacing.md, backgroundColor: "#004856" }}
-          />
-        </Card>
-
-        {/* Enlace de registro */}
-        <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>¿No tienes cuenta? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-            <Text style={styles.registerLink}>Crear Cuenta</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.registerContainerPassword}>
-          <Text style={styles.registerText}>¿Olvidaste tu contraseña? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-            <Text style={styles.registerLink}>Haz clic aquí</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Info sobre biometría */}
-        {isBiometricSupported && !isBiometricEnabled && (
-          <View style={[styles.biometricInfo, {marginBottom: (isBiometricEnabled) ? 200 : 0 }] }>
-            <Ionicons name="information-circle" size={16} color={colors.text.secondary} />
-            <Text style={styles.biometricInfoText}>
-              Después de iniciar sesión, vaya a Mi perfil > seguridad para activar la huella dactilar
-            </Text>
+          <View style={styles.registerContainerPassword}>
+            <Text style={styles.registerText}>¿Olvidaste tu contraseña? </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+              <Text style={styles.registerLink}>Haz clic aquí</Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
+
+          {/* Info sobre biometría */}
+          {isBiometricSupported && !isBiometricEnabled && (
+            <View style={[styles.biometricInfo, {marginBottom: (isBiometricEnabled) ? 200 : 0}]}>
+              <Ionicons name="information-circle" size={16} color={colors.text.secondary} />
+              <Text style={styles.biometricInfoText}>
+                Después de iniciar sesión, vaya a Mi perfil {'>'}seguridad para activar la huella dactilar
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
+
+      {/* NUEVO: Modal de sesión activa */}
+      <ActiveSessionModal
+        visible={showActiveSessionModal}
+        sessionInfo={activeSessionInfo}
+        onForceLogin={handleForceLogin}
+        onCancel={handleCancelActiveSession}
+        loading={forceLogoutLoading}
+      />
     </KeyboardAvoidingView>
   );
 }
 
-
+// Estilos sin cambios...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -311,19 +376,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: spacing.lg,    
-    
   },
-   registerContainerPassword: {
+  registerContainerPassword: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 1,
-    
   },
   registerText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
-     marginBottom: 20,
+    marginBottom: 20,
   },
   registerLink: {
     fontSize: typography.fontSize.base,
