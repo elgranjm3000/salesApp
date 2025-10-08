@@ -1,4 +1,4 @@
-// app/profile.tsx - Perfil mejorado con compañías y biometría
+// app/profile.tsx - Perfil optimizado
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -16,14 +16,12 @@ import {
   View,
 } from 'react-native';
 import { BiometricSettings } from '../components/BiometricSettings';
-import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { borderRadius, colors, spacing, typography } from '../theme/design';
-import StorageService from '../utils/storage';
 
 interface Company {
   id: number;
@@ -41,42 +39,44 @@ interface Company {
   updated_at: string;
 }
 
+interface Seller {
+  id: number;
+  user_id: number;
+  company_id: number;
+  code: string;
+  description?: string;
+  percent_sales: number;
+  percent_receivable: number;
+  seller_status: 'active' | 'inactive';
+  company?: {
+    id: number;
+    name: string;
+    description?: string;
+    status: 'active' | 'inactive';
+  };
+}
+
 interface CompanyCardProps {
   company: Company;
-  onPress: () => void;
+}
+
+interface SellerCompanyCardProps {
+  seller: Seller;
 }
 
 export default function ProfileScreen(): JSX.Element {
-  const { user, logout, updateUser } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { user, logout } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [sellerCompanies, setSellerCompanies] = useState<Seller[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [storageInfo, setStorageInfo] = useState<any>(null);
 
   useEffect(() => {
-    loadStorageInfo();
     if (user?.role === 'company') {
       loadUserCompanies();
+    } else if (user?.role === 'seller') {
+      loadSellerCompanies();
     }
   }, [user]);
-
-  const loadStorageInfo = async () => {
-    try {
-      const info = await StorageService.getStorageInfo();
-      setStorageInfo(info);
-    } catch (error) {
-      console.error('Error loading storage info:', error);
-    }
-  };
 
   const loadUserCompanies = async () => {
     if (user?.role !== 'company') return;
@@ -84,7 +84,6 @@ export default function ProfileScreen(): JSX.Element {
     try {
       setLoadingCompanies(true);
       const response = await api.getCompanies();
-      // Filtrar solo las compañías del usuario actual
       const userCompanies = response.data.filter(company => company.user_id === user.id);
       setCompanies(userCompanies);
     } catch (error) {
@@ -94,59 +93,18 @@ export default function ProfileScreen(): JSX.Element {
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Ingresa un email válido';
-    }
-
-    if (formData.phone && formData.phone.length < 9) {
-      newErrors.phone = 'El teléfono debe tener al menos 9 dígitos';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSave = async () => {
-    if (!validateForm()) return;
-
+  const loadSellerCompanies = async () => {
+    if (user?.role !== 'seller') return;
+    
     try {
-      setSaving(true);
-      
-      const updatedData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim() || undefined,
-      };
-
-      // Aquí deberías llamar a la API para actualizar el usuario
-      const updatedUser = await api.updateUser(user!.id, updatedData);
-      updateUser(updatedUser);
-      
-      // Por ahora simulamos la actualización
-     /* const updatedUser: User = {
-        ...user!,
-        ...updatedData,
-        updated_at: new Date().toISOString(),
-      };
-      
-      updateUser(updatedUser);*/
-      
-      setEditing(false);
-      Alert.alert('Éxito', 'Perfil actualizado correctamente');
-    } catch (error: any) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'No se pudo actualizar el perfil');
+      setLoadingCompanies(true);
+      // Asumiendo que existe un endpoint para obtener las empresas del vendedor
+      const response = await api.getSellerCompanies(user.id);
+      setSellerCompanies(response.data);
+    } catch (error) {
+      console.error('Error loading seller companies:', error);
     } finally {
-      setSaving(false);
+      setLoadingCompanies(false);
     }
   };
 
@@ -168,85 +126,8 @@ export default function ProfileScreen(): JSX.Element {
     );
   };
 
-  const clearStorageData = () => {
-    Alert.alert(
-      'Limpiar Datos',
-      '¿Estás seguro de que quieres eliminar todos los datos almacenados localmente? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Limpiar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await StorageService.clearAllData();
-              await loadStorageInfo();
-              Alert.alert('Éxito', 'Datos locales eliminados correctamente');
-            } catch (error) {
-              Alert.alert('Error', 'No se pudieron eliminar los datos');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const getRoleText = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return 'Administrador';
-      case 'manager':
-        return 'Manager';
-      case 'company':
-        return 'Compañía';
-      case 'seller':
-        return 'Vendedor';
-      default:
-        return role;
-    }
-  };
-
-  const getRoleColor = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return colors.error;
-      case 'manager':
-        return colors.primary[500];
-      case 'company':
-        return colors.success;
-      case 'seller':
-        return colors.warning;
-      default:
-        return colors.text.secondary;
-    }
-  };
-
-  const getRoleIcon = (role: string): keyof typeof Ionicons.glyphMap => {
-    switch (role) {
-      case 'admin':
-        return 'shield-checkmark';
-      case 'manager':
-        return 'business';
-      case 'company':
-        return 'storefront';
-      case 'seller':
-        return 'person';
-      default:
-        return 'person';
-    }
-  };
-
-  const CompanyCard: React.FC<CompanyCardProps> = ({ company, onPress }) => (
-    <TouchableOpacity style={styles.companyCard} 
-            //onPress={onPress} 
-            activeOpacity={0.8}>
+  const CompanyCard: React.FC<CompanyCardProps> = ({ company }) => (
+    <View style={styles.companyCard}>
       <View style={styles.companyHeader}>
         <View style={styles.companyIcon}>
           <Ionicons name="business" size={24} color={colors.primary[500]} />
@@ -259,12 +140,10 @@ export default function ProfileScreen(): JSX.Element {
             </Text>
           )}
         </View>
-        <View style={styles.companyStatus}>
-          <View style={[
-            styles.statusIndicator,
-            { backgroundColor: company.status === 'active' ? colors.success : colors.error }
-          ]} />
-        </View>
+        <View style={[
+          styles.statusIndicator,
+          { backgroundColor: company.status === 'active' ? colors.success : colors.error }
+        ]} />
       </View>
       
       <View style={styles.companyDetails}>
@@ -280,6 +159,12 @@ export default function ProfileScreen(): JSX.Element {
             <Text style={styles.companyDetailText}>{company.email}</Text>
           </View>
         )}
+        {company.contact && (
+          <View style={styles.companyDetailRow}>
+            <Ionicons name="person" size={14} color={colors.text.secondary} />
+            <Text style={styles.companyDetailText}>Contacto: {company.contact}</Text>
+          </View>
+        )}
         {company.sellers_count !== undefined && (
           <View style={styles.companyDetailRow}>
             <Ionicons name="people" size={14} color={colors.text.secondary} />
@@ -289,26 +174,70 @@ export default function ProfileScreen(): JSX.Element {
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </View>
+  );
+
+  const SellerCompanyCard: React.FC<SellerCompanyCardProps> = ({ seller }) => (
+    <View style={styles.companyCard}>
+      <View style={styles.companyHeader}>
+        <View style={styles.companyIcon}>
+          <Ionicons name="business" size={24} color={colors.primary[500]} />
+        </View>
+        <View style={styles.companyInfo}>
+          <Text style={styles.companyName}>{seller.company?.name || 'Empresa'}</Text>
+          {seller.company?.description && (
+            <Text style={styles.companyDescription} numberOfLines={2}>
+              {seller.company.description}
+            </Text>
+          )}
+          <Text style={styles.sellerCode}>Código: {seller.code}</Text>
+        </View>
+        <View style={[
+          styles.statusIndicator,
+          { backgroundColor: seller.seller_status === 'active' ? colors.success : colors.error }
+        ]} />
+      </View>
+      
+      <View style={styles.companyDetails}>
+        <View style={styles.companyDetailRow}>
+          <Ionicons name="trending-up" size={14} color={colors.text.secondary} />
+          <Text style={styles.companyDetailText}>
+            Comisión ventas: {seller.percent_sales}%
+          </Text>
+        </View>
+        <View style={styles.companyDetailRow}>
+          <Ionicons name="cash" size={14} color={colors.text.secondary} />
+          <Text style={styles.companyDetailText}>
+            Comisión cobros: {seller.percent_receivable}%
+          </Text>
+        </View>
+      </View>
+    </View>
   );
 
   const renderCompany: ListRenderItem<Company> = ({ item }) => (
-    <CompanyCard
-      company={item}
-      onPress={() => router.push(`/companies/${item.id}`)}
-    />
+    <CompanyCard company={item} />
+  );
+
+  const renderSellerCompany: ListRenderItem<Seller> = ({ item }) => (
+    <SellerCompanyCard seller={item} />
   );
 
   if (!user) {
     return <View style={styles.container} />;
   }
 
+  // Determinar el nombre a mostrar
+  const displayName = user.role === 'company' 
+    ? (companies[0]?.contact || user.name)
+    : user.name;
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header */}
+      {/* Header con Logout */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity 
@@ -317,20 +246,16 @@ export default function ProfileScreen(): JSX.Element {
           >
             <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Mi Perfil</Text>
-            {/* <Text style={styles.headerSubtitle}>{getRoleText(user.role)}</Text>*/}
-          </View>
+          <Text style={styles.headerTitle}>Mi Perfil</Text>
         </View>
         
-        {!editing && (
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => setEditing(true)}
-          >
-            <Ionicons name="create" size={20} color={colors.primary[500]} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          <Text style={styles.logoutText}>Salir</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -340,9 +265,10 @@ export default function ProfileScreen(): JSX.Element {
           <RefreshControl 
             refreshing={loadingCompanies} 
             onRefresh={() => {
-              loadStorageInfo();
               if (user?.role === 'company') {
                 loadUserCompanies();
+              } else if (user?.role === 'seller') {
+                loadSellerCompanies();
               }
             }} 
           />
@@ -352,30 +278,14 @@ export default function ProfileScreen(): JSX.Element {
         <Card style={styles.avatarCard}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              {user.avatar ? (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>
+                  {user.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
             </View>
             <View style={styles.avatarInfo}>
               <Text style={styles.userName}>{user.name}</Text>
-              <View style={styles.roleContainer}>
-                {/*<View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + '20' }]}>
-                  <Ionicons name={getRoleIcon(user.role)} size={16} color={getRoleColor(user.role)} />
-                   <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
-                    {getRoleText(user.role)}
-                  </Text>
-                </View>*/}
-              </View>
               <View style={styles.statusBadge}>
                 <View style={[
                   styles.statusIndicator,
@@ -389,11 +299,11 @@ export default function ProfileScreen(): JSX.Element {
           </View>
         </Card>
 
-        {/* Configuración de Seguridad */}
-        <View style={styles.section}>
+        {/* Seguridad en Card */}
+        <Card style={styles.securityCard}>
           <Text style={styles.sectionTitle}>Seguridad</Text>
           <BiometricSettings />
-        </View>
+        </Card>
 
         {/* Información personal */}
         <Card>
@@ -401,19 +311,15 @@ export default function ProfileScreen(): JSX.Element {
           
           <Input
             label="Nombre Completo"
-            value={formData.name}
-            onChangeText={(value) => updateFormData('name', value)}
-            error={errors.name}
-            editable={editing}
+            value={displayName}
+            editable={false}
             leftIcon={<Ionicons name="person" size={20} color={colors.text.tertiary} />}
           />
 
           <Input
             label="Email"
-            value={formData.email}
-            onChangeText={(value) => updateFormData('email', value)}
-            error={errors.email}
-            editable={editing}
+            value={user.email}
+            editable={false}
             keyboardType="email-address"
             autoCapitalize="none"
             leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
@@ -421,154 +327,67 @@ export default function ProfileScreen(): JSX.Element {
 
           <Input
             label="Teléfono"
-            value={formData.phone}
-            onChangeText={(value) => updateFormData('phone', value)}
-            error={errors.phone}
-            editable={editing}
+            value={user.phone || 'No especificado'}
+            editable={false}
             keyboardType="phone-pad"
             leftIcon={<Ionicons name="call" size={20} color={colors.text.tertiary} />}
           />
         </Card>
 
-        {/* Compañías del usuario (solo si es company) */}
+        {/* Compañías del usuario company */}
         {user.role === 'company' && (
-          <Card style={{ marginTop: spacing.lg }}>
+          <Card style={styles.companiesCard}>
             <View style={styles.companiesHeader}>
-              {/*<Text style={styles.sectionTitle}>Mis Compañías</Text>
-              <TouchableOpacity
-                style={styles.addCompanyButton}
-                onPress={() => router.push('/companies/new')}
-              >
-                <Ionicons name="add" size={20} color={colors.primary[500]} />
-              </TouchableOpacity> */}
+              <Text style={styles.sectionTitle}>Mi Empresa</Text>
             </View>
             
             {loadingCompanies ? (
-              <LoadingSpinner text="Cargando compañías..." />
+              <LoadingSpinner text="Cargando empresa..." />
             ) : companies.length > 0 ? (
               <FlatList
                 data={companies}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={renderCompany}
                 scrollEnabled={false}
-                style={styles.companiesList}
               />
             ) : (
               <View style={styles.emptyCompanies}>
                 <Ionicons name="business" size={48} color={colors.text.tertiary} />
-                <Text style={styles.emptyCompaniesText}>No tienes compañías registradas</Text>
-                <Button
-                  title="Crear Primera Compañía"
-                  variant="outline"
-                  onPress={() => router.push('/companies/new')}
-                  style={styles.createCompanyButton}
-                />
+                <Text style={styles.emptyCompaniesText}>
+                  No hay información de empresa disponible
+                </Text>
               </View>
             )}
           </Card>
         )}
 
-        {/* Información de la cuenta */}
-        {/* <Card style={{ marginTop: spacing.lg }}>
-          <Text style={styles.sectionTitle}>Información de la Cuenta</Text>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>ID de Usuario:</Text>
-            <Text style={styles.infoValue}>#{user.id}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Fecha de registro:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(user.created_at).toLocaleDateString('es-ES')}
-            </Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Última actualización:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(user.updated_at).toLocaleDateString('es-ES')}
-            </Text>
-          </View>
-          
-          {user.email_verified_at && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email verificado:</Text>
-              <View style={styles.verificationBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={styles.verificationText}>Verificado</Text>
-              </View>
-            </View>
-          )}
-        </Card>*/}
-
-        {/* Información de almacenamiento */}
-       {/* {storageInfo && (
-          <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.sectionTitle}>Datos Locales</Text>
-            
-            <View style={styles.storageInfo}>
-              <View style={styles.storageItem}>
-                <Ionicons name="archive" size={20} color={colors.info} />
-                <Text style={styles.storageLabel}>Ventas offline:</Text>
-                <Text style={styles.storageValue}>{storageInfo.offlineSalesCount}</Text>
-              </View>
-              
-              <View style={styles.storageItem}>
-                <Ionicons name="cube" size={20} color={colors.primary[500]} />
-                <Text style={styles.storageLabel}>Productos en caché:</Text>
-                <Text style={styles.storageValue}>{storageInfo.cachedProductsCount}</Text>
-              </View>
-              
-              <View style={styles.storageItem}>
-                <Ionicons name="people" size={20} color={colors.warning} />
-                <Text style={styles.storageLabel}>Clientes en caché:</Text>
-                <Text style={styles.storageValue}>{storageInfo.cachedCustomersCount}</Text>
-              </View>
+        {/* Empresas del vendedor */}
+        {user.role === 'seller' && (
+          <Card style={styles.companiesCard}>
+            <View style={styles.companiesHeader}>
+              <Text style={styles.sectionTitle}>
+                Mis Empresas ({sellerCompanies.length})
+              </Text>
             </View>
             
-            <Button
-              title="Limpiar Datos Locales"
-              variant="outline"
-              onPress={clearStorageData}
-              style={styles.clearButton}
-            />
+            {loadingCompanies ? (
+              <LoadingSpinner text="Cargando empresas..." />
+            ) : sellerCompanies.length > 0 ? (
+              <FlatList
+                data={sellerCompanies}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderSellerCompany}
+                scrollEnabled={false}
+              />
+            ) : (
+              <View style={styles.emptyCompanies}>
+                <Ionicons name="business" size={48} color={colors.text.tertiary} />
+                <Text style={styles.emptyCompaniesText}>
+                  No estás asociado a ninguna empresa
+                </Text>
+              </View>
+            )}
           </Card>
-        )}*/}
-
-        {/* Acciones */}
-        {editing ? (
-          <View style={styles.actions}>
-            <Button
-              title="Cancelar"
-              variant="outline"
-              onPress={() => {
-                setEditing(false);
-                setFormData({
-                  name: user.name,
-                  email: user.email,
-                  phone: user.phone || '',
-                });
-                setErrors({});
-              }}
-              style={styles.cancelButton}
-            />
-            <Button
-              title="Guardar Cambios"
-              onPress={handleSave}
-              loading={saving}
-              style={styles.saveButton}
-            />
-          </View>
-        ) : (
-          <View style={styles.logoutContainer}>
-            <Button
-              title="Cerrar Sesión"
-              variant="outline"
-              onPress={handleLogout}
-              style={styles.logoutButton}
-            />
-          </View>
         )}
 
         <View style={styles.bottomSpacer} />
@@ -606,22 +425,25 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
   },
-  headerSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  editButton: {
-    padding: spacing.sm,
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.gray[100],
+    backgroundColor: colors.error + '10',
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+  },
+  logoutText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.error,
+    marginLeft: spacing.xs,
   },
   content: {
     flex: 1,
     padding: spacing.lg,
-  },
-  section: {
-    marginBottom: spacing.lg,
   },
   avatarCard: {
     marginBottom: spacing.lg,
@@ -655,22 +477,6 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.sm,
   },
-  roleContainer: {
-    marginBottom: spacing.sm,
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    alignSelf: 'flex-start',
-  },
-  userRole: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    marginLeft: spacing.xs,
-  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -685,25 +491,20 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },
+  securityCard: {
+    marginBottom: spacing.lg,
+  },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
     marginBottom: spacing.md,
   },
+  companiesCard: {
+    marginTop: spacing.lg,
+  },
   companiesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,    
-  },
-  addCompanyButton: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[50],
-  },
-  companiesList: {
-    maxHeight: 300,
+    marginBottom: spacing.md,
   },
   companyCard: {
     backgroundColor: colors.gray[50],
@@ -740,8 +541,11 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: spacing.xs,
   },
-  companyStatus: {
-    alignItems: 'center',
+  sellerCode: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.medium,
+    marginTop: spacing.xs,
   },
   companyDetails: {
     marginTop: spacing.sm,
@@ -764,79 +568,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
     marginTop: spacing.md,
-    marginBottom: spacing.lg,
     textAlign: 'center',
-  },
-  createCompanyButton: {
-    marginTop: spacing.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  infoLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-  },
-  infoValue: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.primary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  verificationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  verificationText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.success,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.medium,
-  },
-  storageInfo: {
-    marginBottom: spacing.lg,
-  },
-  storageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  storageLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  storageValue: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.primary,
-    fontWeight: typography.fontWeight.bold,
-  },
-  clearButton: {
-    marginTop: spacing.md,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.xl,
-  },
-  cancelButton: {
-    flex: 1,
-  },
-  saveButton: {
-    flex: 2,
-  },
-  logoutContainer: {
-    marginTop: spacing.xl,
-  },
-  logoutButton: {
-    borderColor: colors.error,
   },
   bottomSpacer: {
     height: spacing.xl,

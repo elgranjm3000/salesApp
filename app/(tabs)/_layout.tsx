@@ -79,6 +79,18 @@ export default function TabLayout(): JSX.Element {
           href: shouldShowTab('index') ? '/' : null,
         }}
       />
+
+
+       <Tabs.Screen
+        name="quotes"
+        options={{
+          title: 'Presupuestos',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text" size={size} color={color} />
+          ),
+          href: shouldShowTab('quotes') ? '/quotes' : null,
+        }}
+      />
       
       <Tabs.Screen
         name="products"
@@ -102,16 +114,7 @@ export default function TabLayout(): JSX.Element {
         }}
       />
       
-      <Tabs.Screen
-        name="quotes"
-        options={{
-          title: 'Presupuestos',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
-          ),
-          href: shouldShowTab('quotes') ? '/quotes' : null,
-        }}
-      />
+     
       
       
 

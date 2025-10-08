@@ -4,8 +4,10 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,7 +16,6 @@ import {
   View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
@@ -32,13 +33,28 @@ interface CompanyData {
   rif?: string;
 }
 
+interface RifType {
+  id: string;
+  label: string;
+}
+
+// Tipos de RIF disponibles
+const RIF_TYPES: RifType[] = [
+  { id: 'V', label: 'V - Venezolano' },
+  { id: 'E', label: 'E - Extranjero' },
+  { id: 'J', label: 'J - Jurídico' },
+  { id: 'G', label: 'G - Gubernamental' }
+];
+
 export default function RegisterScreen(): JSX.Element {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
   
   // Step 1: Email y RIF
   const [email, setEmail] = useState('');
-  const [rif, setRif] = useState('');
+  const [rifType, setRifType] = useState('');
+  const [rifNumber, setRifNumber] = useState('');
+  const [showRifPicker, setShowRifPicker] = useState(false);
   
   // Step 2: Datos de la empresa encontrada
   const [companyData, setCompanyData] = useState<CompanyData>({});
@@ -48,7 +64,6 @@ export default function RegisterScreen(): JSX.Element {
   
   // Step 4: Datos del usuario
   const [userData, setUserData] = useState({
-    name: '',
     password: '',
     password_confirmation: '',
     validation_token: '',
@@ -72,14 +87,21 @@ export default function RegisterScreen(): JSX.Element {
       return;
     }
     
-    if (!rif.trim()) {
-      setErrors({ rif: 'El RIF es requerido' });
+    if (!rifType) {
+      setErrors({ rif: 'Seleccione el tipo de RIF' });
+      return;
+    }
+    
+    if (!rifNumber.trim()) {
+      setErrors({ rif: 'Ingrese el número de RIF' });
       return;
     }
 
+    const fullRif = `${rifType}${rifNumber}`;
+
     try {
       setLoading(true);
-      const response = await api.checkCompanyInfo({ email: email.trim(), rif: rif.trim() });
+      const response = await api.checkCompanyInfo({ email: email.trim(), rif: fullRif });
       
       if (response.success) {
         setCompanyData(response.data);
@@ -91,19 +113,19 @@ export default function RegisterScreen(): JSX.Element {
       
       if (errorCode === 'COMPANY_NOT_FOUND') {
         Alert.alert(
-  'Empresa no encontrada',
-  'Comuníquese con el call center para registrar su empresa',
-  [
-    {
-      text: 'Cancelar',
-      style: 'cancel',
-    },    
-    {
-      text: 'WhatsApp',
-      onPress: () => Linking.openURL('https://wa.me/584142441226')
-    }
-  ]
-);
+          'Empresa no encontrada',
+          'Comuníquese con el call center para registrar su empresa',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },    
+            {
+              text: 'WhatsApp',
+              onPress: () => Linking.openURL('https://wa.me/584142441226')
+            }
+          ]
+        );
       } else if (errorCode === 'COMPANY_ALREADY_HAS_USER') {
         Alert.alert('Empresa ya registrada', 'Esta empresa ya tiene un usuario registrado en el sistema');
       } else {
@@ -194,8 +216,6 @@ export default function RegisterScreen(): JSX.Element {
     clearErrors();
     const newErrors: Record<string, string> = {};
 
-    
-
     if (!userData.password) {
       newErrors.password = 'La contraseña es requerida';
     } else if (userData.password.length < 8) {
@@ -250,9 +270,52 @@ export default function RegisterScreen(): JSX.Element {
     }
   };
 
+  // Componente para selector de tipo de RIF
+  const renderRifPicker = () => (
+    <Modal
+      visible={showRifPicker}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowRifPicker(false)}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowRifPicker(false)}
+      >
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Seleccione tipo de RIF</Text>
+            <TouchableOpacity onPress={() => setShowRifPicker(false)}>
+              <Ionicons name="close" size={24} color={colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={RIF_TYPES}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.pickerItem}
+                onPress={() => {
+                  setRifType(item.id);
+                  setShowRifPicker(false);
+                  clearErrors();
+                }}
+              >
+                <Text style={styles.pickerItemText}>{item.label}</Text>
+                {rifType === item.id && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   const renderStep1 = () => (
-    <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Validacion de Empresa</Text>
+    <View style={styles.formContent}>
       <Text style={styles.sectionSubtitle}>
         Ingrese su email y RIF para validar que su empresa esté registrada en el sistema
       </Text>
@@ -268,16 +331,30 @@ export default function RegisterScreen(): JSX.Element {
         leftIcon={<Ionicons name="mail" size={20} color={colors.text.tertiary} />}
       />
 
-      <Input
-        label="RIF *"
-        placeholder="J-12345678-9"
-        value={rif}
-        onChangeText={setRif}
-        error={errors.rif}
-        keyboardType="default"
-        autoCapitalize="characters"
-        leftIcon={<Ionicons name="card" size={20} color={colors.text.tertiary} />}
-      />
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>RIF *</Text>
+        
+        <View style={styles.rifContainer}>
+          <TouchableOpacity
+            style={[styles.rifTypeButton, errors.rif && styles.rifTypeButtonError]}
+            onPress={() => setShowRifPicker(true)}
+          >
+            <Text style={[styles.rifTypeText, !rifType && styles.rifTypePlaceholder]}>
+              {rifType || 'Tipo'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={colors.text.secondary} />
+          </TouchableOpacity>
+
+          <Input
+            placeholder="123456789"
+            value={rifNumber}
+            onChangeText={setRifNumber}
+            keyboardType="default"
+            style={styles.rifNumberInput}
+          />
+        </View>
+        {errors.rif && <Text style={styles.inputError}>{errors.rif}</Text>}
+      </View>
 
       <Button
         title="Validar Empresa"
@@ -285,22 +362,23 @@ export default function RegisterScreen(): JSX.Element {
         loading={loading}
         style={styles.actionButton}
       />
-    </Card>
+      
+      {renderRifPicker()}
+    </View>
   );
 
   const renderStep2 = () => (
-    <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Confirmar Empresa</Text>
+    <View style={styles.formContent}>
       <Text style={styles.sectionSubtitle}>
         Se encontró la siguiente información de su empresa:
       </Text>
       
       <View style={styles.companyInfo}>
         <View style={styles.infoRowColumn}>
-           <View style={styles.infoHeader}>
-              <Ionicons name="business" size={20} color={colors.text.secondary} />
-              <Text style={styles.infoLabel}>Nombre:</Text>
-            </View>
+          <View style={styles.infoHeader}>
+            <Ionicons name="business" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>Nombre:</Text>
+          </View>
           <Text style={styles.infoValue}>{companyData.name}</Text>
         </View>
         
@@ -309,9 +387,8 @@ export default function RegisterScreen(): JSX.Element {
             <Ionicons name="mail" size={20} color={colors.text.secondary} />
             <Text style={styles.infoLabel}>Email:</Text>            
           </View>
-          <Text style={[styles.infoValue]}>{companyData.email}</Text>
+          <Text style={styles.infoValue}>{companyData.email}</Text>
         </View>
- 
         
         <View style={styles.infoRowColumn}>
           <View style={styles.infoHeader}>
@@ -323,27 +400,19 @@ export default function RegisterScreen(): JSX.Element {
         
         <View style={styles.infoRowColumn}>
           <View style={styles.infoHeader}>
-              <Ionicons name="location" size={20} color={colors.text.secondary} />
-              <Text style={styles.infoLabel}>Dirección:</Text>
+            <Ionicons name="location" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>Dirección:</Text>
           </View>
           <Text style={styles.infoValue}>{companyData.address}</Text>
         </View>
         
         <View style={styles.infoRowColumn}>
-           <View style={styles.infoHeader}>
-              <Ionicons name="card" size={20} color={colors.text.secondary} />
-              <Text style={styles.infoLabel}>RIF:</Text>
+          <View style={styles.infoHeader}>
+            <Ionicons name="card" size={20} color={colors.text.secondary} />
+            <Text style={styles.infoLabel}>RIF:</Text>
           </View>
           <Text style={styles.infoValue}>{companyData.rif}</Text>
         </View>
-        
-        {/*{companyData.license && (
-          <View style={styles.infoRow}>
-            <Ionicons name="key" size={20} color={colors.text.secondary} />
-            <Text style={styles.infoLabel}>Licencia:</Text>
-            <Text style={styles.infoValue}>{companyData.license}</Text>
-          </View>
-        )}*/}
       </View>
 
       <Text style={styles.confirmQuestion}>¿Desea registrar esta compañía?</Text>
@@ -362,12 +431,11 @@ export default function RegisterScreen(): JSX.Element {
           style={[styles.actionButton, { flex: 1, marginLeft: spacing.sm }]}
         />
       </View>
-    </Card>
+    </View>
   );
 
   const renderStep3 = () => (
-    <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Código de Validación</Text>
+    <View style={styles.formContent}>
       <Text style={styles.sectionSubtitle}>
         Hemos enviado un código de 6 dígitos a su correo electrónico. Ingrese el código para continuar.
       </Text>
@@ -402,16 +470,14 @@ export default function RegisterScreen(): JSX.Element {
       >
         <Text style={styles.backLinkText}>Volver al inicio</Text>
       </TouchableOpacity>
-    </Card>
+    </View>
   );
 
   const renderStep4 = () => (
-    <Card style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Crear contraseña</Text>
+    <View style={styles.formContent}>
       <Text style={styles.sectionSubtitle}>
         Complete la información para crear su contraseña y finalizar su registro
       </Text>      
-      
 
       <Input
         label="Contraseña *"
@@ -439,7 +505,7 @@ export default function RegisterScreen(): JSX.Element {
         loading={loading}
         style={styles.actionButton}
       />
-    </Card>
+    </View>
   );
 
   const renderStepIndicator = () => (
@@ -498,13 +564,21 @@ export default function RegisterScreen(): JSX.Element {
           <View style={styles.iconContainer}>
             <Ionicons name="business" size={32} color={colors.primary[500]} />
           </View>
-          <Text style={styles.title}>{getStepTitle()}</Text>
           <Text style={styles.subtitle}>Registro de Empresa</Text>
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {renderStepIndicator()}
+        
+        {/* Título del paso - SIN bordes/card */}
+        <View style={styles.stepTitleContainer}>
+          <Text style={styles.stepTitle}>{getStepTitle()}</Text>
+        </View>
         
         {currentStep === 1 && renderStep1()}
         {currentStep === 2 && renderStep2()}
@@ -552,25 +626,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  title: {
-    fontSize: typography.fontSize['2xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
   subtitle: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: spacing.lg,
   },
   stepIndicator: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   stepContainer: {
     flexDirection: 'row',
@@ -611,20 +681,111 @@ const styles = StyleSheet.create({
   stepLineCompleted: {
     backgroundColor: colors.success,
   },
-  formCard: {
-    marginBottom: spacing.lg,
+  // Título del paso - sin bordes ni card
+  stepTitleContainer: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
   },
-  sectionTitle: {
-    fontSize: typography.fontSize.lg,
+  stepTitle: {
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  formContent: {
+    // Sin card, sin bordes, sin padding extra
   },
   sectionSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: spacing.lg,
     lineHeight: 20,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  inputError: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    marginTop: spacing.xs,
+  },
+  // Estilos para el selector de RIF
+  rifContainer: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  rifTypeButton: {
+    width: 80,
+    height: 55,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  rifTypeButtonError: {
+    borderColor: colors.error,
+  },
+  rifTypeText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  rifTypePlaceholder: {
+    color: colors.text.tertiary,
+    fontWeight: typography.fontWeight.normal,
+  },
+  rifNumberInput: {
+    flex: 1,
+    marginLeft: 0, 
+  },
+  // Modal para selector de RIF
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '50%',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+  },
+  pickerTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+  },
+  pickerItemText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
   },
   companyInfo: {
     backgroundColor: colors.gray[50],
@@ -632,9 +793,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     marginBottom: spacing.lg,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  infoRowColumn: {
     marginBottom: spacing.md,
   },
   infoHeader: {
@@ -647,13 +806,11 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.secondary,
     marginLeft: spacing.sm,
-    minWidth: 80,
   },
   infoValue: {
     fontSize: typography.fontSize.sm,
     color: colors.text.primary,
-    flex: 1,
-    marginLeft: spacing.sm,
+    marginLeft: spacing.sm + 20,
   },
   confirmQuestion: {
     fontSize: typography.fontSize.base,
@@ -667,17 +824,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   actionButton: {
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   codeInfo: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     textAlign: 'center',
+    marginTop: spacing.sm,
     marginBottom: spacing.lg,
   },
   backLink: {
     alignSelf: 'center',
     padding: spacing.sm,
+    marginTop: spacing.sm,
   },
   backLinkText: {
     fontSize: typography.fontSize.sm,
@@ -686,10 +845,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: spacing.xl,
-  },
-   infoRowColumn: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
   },
 });

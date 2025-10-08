@@ -274,7 +274,7 @@ export default function LoginScreen(): JSX.Element {
             <View style={[styles.biometricInfo, {marginBottom: (isBiometricEnabled) ? 200 : 0}]}>
               <Ionicons name="information-circle" size={16} color={colors.text.secondary} />
               <Text style={styles.biometricInfoText}>
-                Después de iniciar sesión, vaya a Mi perfil {'>'}seguridad para activar la huella dactilar
+                Después de iniciar sesión, vaya a Mi Perfil {'>'} Seguridad para activar la huella dactilar
               </Text>
             </View>
           )}
@@ -293,7 +293,6 @@ export default function LoginScreen(): JSX.Element {
   );
 }
 
-// Estilos sin cambios...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -302,11 +301,12 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: spacing.lg,
-    justifyContent: 'center',
+    paddingTop: spacing.sm,
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing['2xl'],
+    marginBottom: spacing.md,
+    marginTop: 0,
   },
   iconContainer: {
     width: 96,
@@ -315,19 +315,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
   },
   title: {
     fontSize: typography.fontSize['3xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: typography.fontSize.lg,
     color: colors.text.secondary,
     textAlign: 'center',
+    marginBottom: spacing.xl,
   },
   biometricCard: {
     marginBottom: spacing.lg,

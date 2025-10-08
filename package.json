@@ -44,7 +44,8 @@
     "react-native-tab-view": "^4.1.3",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
-    "expo-device": "~8.0.9"
+    "expo-device": "~8.0.9",
+    "expo-camera": "~17.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

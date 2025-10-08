@@ -1,11 +1,15 @@
+
+// app/(tabs)/products.tsx - Con escaneo de código de barras
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
   ListRenderItem,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -35,6 +39,13 @@ interface CategoryFilterProps {
   onSelectCategory: (category: Category | null) => void;
 }
 
+interface QuantitySelectorProps {
+  visible: boolean;
+  product: Product | null;
+  onConfirm: (product: Product, quantity: number) => void;
+  onClose: () => void;
+}
+
 const CategoryFilter: React.FC<CategoryFilterProps> = ({
   categories,
   selectedCategory,
@@ -45,9 +56,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
     showsHorizontalScrollIndicator={false}
     contentContainerStyle={styles.categoriesScrollContainer}
   >
-    
-
-
     <TouchableOpacity
       style={[
         styles.categoryChip,
@@ -55,7 +63,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
       ]}
       onPress={() => onSelectCategory(null)}
     >
-     
       <Text style={[
         styles.categoryChipText,
         !selectedCategory && styles.categoryChipActiveText
@@ -84,6 +91,113 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   </ScrollView>
 );
 
+const QuantitySelector: React.FC<QuantitySelectorProps> = ({
+  visible,
+  product,
+  onConfirm,
+  onClose,
+}) => {
+  const [quantity, setQuantity] = useState(1);
+
+  const incrementQuantity = () => {
+    if (product && quantity < product.stock) {
+      setQuantity(quantity + 1);
+    }
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) {
+      setQuantity(quantity - 1);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (product) {
+      onConfirm(product, quantity);
+      setQuantity(1);
+    }
+  };
+
+  if (!product) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.quantityModal}>
+          <View style={styles.quantityModalHeader}>
+            <Text style={styles.quantityModalTitle}>Seleccionar Cantidad</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.productPreview}>
+            <Text style={styles.productPreviewName}>{product.name}</Text>
+            <Text style={styles.productPreviewCode}>{product.code}</Text>
+            <Text style={styles.productPreviewPrice}>{formatCurrency(product.price)}</Text>
+          </View>
+
+          <View style={styles.quantitySelector}>
+            <TouchableOpacity
+              style={[styles.quantityButton, quantity <= 1 && styles.quantityButtonDisabled]}
+              onPress={decrementQuantity}
+              disabled={quantity <= 1}
+            >
+              <Ionicons name="remove" size={24} color={quantity <= 1 ? colors.text.tertiary : colors.primary[500]} />
+            </TouchableOpacity>
+
+            <View style={styles.quantityDisplay}>
+              <Text style={styles.quantityValue}>{quantity}</Text>
+              <Text style={styles.quantityLabel}>unidades</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.quantityButton, quantity >= product.stock && styles.quantityButtonDisabled]}
+              onPress={incrementQuantity}
+              disabled={quantity >= product.stock}
+            >
+              <Ionicons name="add" size={24} color={quantity >= product.stock ? colors.text.tertiary : colors.primary[500]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.stockInfo}>
+            <Ionicons name="layers" size={16} color={colors.text.secondary} />
+            <Text style={styles.stockInfoText}>
+              Stock disponible: {product.stock} unidades
+            </Text>
+          </View>
+
+          <View style={styles.totalInfo}>
+            <Text style={styles.totalLabel}>Total:</Text>
+            <Text style={styles.totalValue}>
+              {formatCurrency(product.price * quantity)}
+            </Text>
+          </View>
+
+          <View style={styles.quantityModalActions}>
+            <Button
+              title="Cancelar"
+              variant="outline"
+              onPress={onClose}
+              style={{ flex: 1, marginRight: spacing.sm }}
+            />
+            <Button
+              title="Confirmar"
+              onPress={handleConfirm}
+              style={{ flex: 1, marginLeft: spacing.sm }}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function ProductsScreen(): JSX.Element {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -95,6 +209,15 @@ export default function ProductsScreen(): JSX.Element {
   // Estados para selección múltiple
   const [selectionMode, setSelectionMode] = useState<boolean>(false);
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+
+  // Estados para escáner
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+
+  // Estados para selector de cantidad
+  const [showQuantitySelector, setShowQuantitySelector] = useState(false);
+  const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<Product | null>(null);
 
   useEffect(() => {
     loadData();
@@ -128,14 +251,12 @@ export default function ProductsScreen(): JSX.Element {
   const filterProducts = (): void => {
     let filtered = products;
 
-    // Filtrar por categoría
     if (selectedCategory) {
       filtered = filtered.filter(product => 
         product.category_id === selectedCategory.id
       );
     }
 
-    // Filtrar por texto de búsqueda
     if (searchText) {
       filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -169,18 +290,104 @@ export default function ProductsScreen(): JSX.Element {
     });
   };
 
+  const handleOpenScanner = async () => {
+    if (!permission?.granted) {
+      const { granted } = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permiso Requerido',
+          'Se necesita permiso para acceder a la cámara para escanear códigos de barras'
+        );
+        return;
+      }
+    }
+    setScanned(false);
+    setShowScanner(true);
+  };
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    
+    setScanned(true);
+    
+    // Buscar producto por código
+    const foundProduct = products.find(p => 
+      p.code.toLowerCase() === data.toLowerCase() ||
+      p.barcode?.toLowerCase() === data.toLowerCase()
+    );
+
+    if (foundProduct) {
+      setShowScanner(false);
+      setSelectedProductForQuantity(foundProduct);
+      setShowQuantitySelector(true);
+    } else {
+      Alert.alert(
+        'Producto No Encontrado',
+        `El código "${data}" no corresponde a ningún producto en el catálogo.`,
+        [
+          {
+            text: 'Escanear Otro',
+            onPress: () => setScanned(false),
+          },
+          {
+            text: 'Cerrar',
+            onPress: () => setShowScanner(false),
+          },
+        ]
+      );
+    }
+  };
+
+  const handleQuantityConfirm = (product: Product, quantity: number) => {
+    setShowQuantitySelector(false);
+    setSelectedProductForQuantity(null);
+    
+    // Agregar producto con cantidad a la selección
+    const productWithQuantity = { ...product, selectedQuantity: quantity };
+    
+    if (selectionMode) {
+      // Agregar a productos seleccionados
+      setSelectedProducts(prev => {
+        const exists = prev.find(p => p.id === product.id);
+        if (exists) {
+          return prev.map(p => 
+            p.id === product.id ? productWithQuantity : p
+          );
+        }
+        return [...prev, productWithQuantity];
+      });
+      
+      Alert.alert(
+        'Producto Agregado',
+        `${product.name} (${quantity} unidades) agregado a la selección`
+      );
+    } else {
+      // Crear presupuesto directamente con cantidad
+      router.push(`/quotes/new?preselected_products=${product.id}&quantity=${quantity}`);
+    }
+  };
+
   const generateQuote = () => {
     if (selectedProducts.length === 0) {
       Alert.alert('Error', 'Selecciona al menos un producto para generar el presupuesto');
       return;
     }
 
-    const selectedProductIds = selectedProducts.map(p => p.id).join(',');
-    router.push(`/quotes/new?preselected_products=${selectedProductIds}`);
+    const productsData = selectedProducts.map(p => ({
+      id: p.id,
+      quantity: (p as any).selectedQuantity || 1
+    }));
+    
+    const params = new URLSearchParams({
+      products: JSON.stringify(productsData)
+    });
+
+    router.push(`/quotes/new?${params.toString()}`);
   };
 
   const createQuoteFromProduct = (product: Product) => {
-    router.push(`/quotes/new?preselected_products=${product.id}`);
+    setSelectedProductForQuantity(product);
+    setShowQuantitySelector(true);
   };
 
   const ProductItem: React.FC<ProductItemProps> = ({ 
@@ -223,13 +430,6 @@ export default function ProductsScreen(): JSX.Element {
           )}
 
           <View style={styles.productImageContainer}>
-            {/* {product.image ? (
-              <Image source={{ uri: product.image }} style={styles.productImage} />
-            ) : (
-              <View style={styles.productImagePlaceholder}>
-                <Ionicons name="cube" size={32} color={colors.text.tertiary} />
-              </View>
-            )}*/}
             {isLowStock && (
               <View style={styles.lowStockBadge}>
                 <Ionicons name="warning" size={12} color={colors.text.inverse} />
@@ -239,9 +439,9 @@ export default function ProductsScreen(): JSX.Element {
           
           <View style={styles.productInfo}>
             <Text style={styles.productCode} numberOfLines={2}>
-             {product.code}
+              {product.code}
             </Text>
-            <Text style={styles.productName}> {product.name}</Text>
+            <Text style={styles.productName}>{product.name}</Text>
             <Text style={styles.productCategory}>
               {product.category?.description || 'Sin categoría'}
             </Text>
@@ -361,7 +561,7 @@ export default function ProductsScreen(): JSX.Element {
               styles.selectionButtonText,
               selectionMode && styles.selectionButtonTextActive
             ]}>
-              {selectionMode ? 'Cancelar' : 'Seleccionar \n productos'}
+              {selectionMode ? 'Cancelar' : 'Seleccionar'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -369,7 +569,7 @@ export default function ProductsScreen(): JSX.Element {
 
       {/* Filtros de categoría */}
       <View style={styles.filtersContainer}>
-            <Text style={{marginLeft:30}}>Departamento:</Text>
+        <Text style={styles.filterLabel}>Departamento:</Text>
       </View>
       <View style={styles.filtersContainer}>
         <CategoryFilter
@@ -379,24 +579,34 @@ export default function ProductsScreen(): JSX.Element {
         />
       </View>
 
-      {/* Buscador */}
+      {/* Buscador con Escáner */}
       <View style={styles.searchContainer}>
-        <Input
-          placeholder="Buscar por nombre, código o departamento..."
-          onChangeText={debouncedSearch}
-          leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
-          rightIcon={
-            (selectedCategory || searchText) ? (
-              <TouchableOpacity onPress={() => {
-                setSearchText('');
-                setSelectedCategory(null);
-              }}>
-                <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
-              </TouchableOpacity>
-            ) : undefined
-          }
-          style={{ marginBottom: 0 }}
-        />
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputContainer}>
+            <Input
+              placeholder="Buscar por nombre, código..."
+              onChangeText={debouncedSearch}
+              leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+              rightIcon={
+                (selectedCategory || searchText) ? (
+                  <TouchableOpacity onPress={() => {
+                    setSearchText('');
+                    setSelectedCategory(null);
+                  }}>
+                    <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                ) : undefined
+              }
+              style={{ marginBottom: 0 }}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={handleOpenScanner}
+          >
+            <Ionicons name="barcode" size={24} color={colors.text.inverse} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Lista de productos */}
@@ -427,6 +637,52 @@ export default function ProductsScreen(): JSX.Element {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Modal de Escáner */}
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Escanear Código de Barras</Text>
+            <TouchableOpacity
+              style={styles.closeScannerButton}
+              onPress={() => setShowScanner(false)}
+            >
+              <Ionicons name="close" size={28} color={colors.text.inverse} />
+            </TouchableOpacity>
+          </View>
+
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39'],
+            }}
+          >
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scannerFrame} />
+              <Text style={styles.scannerInstructions}>
+                Apunta la cámara al código de barras
+              </Text>
+            </View>
+          </CameraView>
+        </View>
+      </Modal>
+
+      {/* Modal de Selector de Cantidad */}
+      <QuantitySelector
+        visible={showQuantitySelector}
+        product={selectedProductForQuantity}
+        onConfirm={handleQuantityConfirm}
+        onClose={() => {
+          setShowQuantitySelector(false);
+          setSelectedProductForQuantity(null);
+        }}
+      />
     </View>
   );
 }
@@ -492,6 +748,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
+  filterLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+    marginLeft: spacing.lg,
+  },
   categoriesScrollContainer: {
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
@@ -521,17 +783,34 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
   },
+  searchRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  searchInputContainer: {
+    flex: 1,
+  },
+  scanButton: {
+    width: 50,
+    height: 48,
+    backgroundColor: colors.primary[500],
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   productsList: {
     padding: spacing.lg,
-  },
-  row: {
-    justifyContent: 'space-between',
   },
   productCard: {
     marginBottom: 0,
   },
   productCardSelected: {
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.primary[500],
     backgroundColor: colors.primary[50],
   },
@@ -560,20 +839,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'center',
     marginBottom: spacing.md,
-  },
-  productImage: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.lg,
-    resizeMode: 'cover',
-  },
-  productImagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.gray[100],
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   lowStockBadge: {
     position: 'absolute',
@@ -710,7 +975,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
-    marginBottom: 40
+    marginBottom: 40,
   },
   generateQuoteButtonText: {
     fontSize: typography.fontSize.base,
@@ -720,5 +985,174 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: spacing.sm,
-  }
+  },
+  // Estilos del Escáner
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: colors.gray[900],
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingTop: spacing['2xl'],
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  scannerTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.inverse,
+  },
+  closeScannerButton: {
+    padding: spacing.sm,
+  },
+  camera: {
+    flex: 1,
+  },
+  scannerOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'transparent',
+  },
+  scannerInstructions: {
+    marginTop: spacing.xl,
+    fontSize: typography.fontSize.base,
+    color: colors.text.inverse,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    textAlign: 'center',
+  },
+  // Estilos del Selector de Cantidad
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  quantityModal: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 400,
+  },
+  quantityModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  quantityModalTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  productPreview: {
+    backgroundColor: colors.gray[50],
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+  },
+  productPreviewName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  productPreviewCode: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+  },
+  productPreviewPrice: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.success,
+  },
+  quantitySelector: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    gap: spacing.lg,
+  },
+  quantityButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary[200],
+  },
+  quantityButtonDisabled: {
+    backgroundColor: colors.gray[100],
+    borderColor: colors.gray[200],
+  },
+  quantityDisplay: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  quantityValue: {
+    fontSize: typography.fontSize['3xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  quantityLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+  stockInfo: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  stockInfoText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginLeft: spacing.sm,
+  },
+  totalInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.primary[50],
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+  },
+  totalLabel: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  totalValue: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
+  },
+  quantityModalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+
 });
