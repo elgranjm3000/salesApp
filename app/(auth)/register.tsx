@@ -88,12 +88,12 @@ export default function RegisterScreen(): JSX.Element {
     }
     
     if (!rifType) {
-      setErrors({ rif: 'Seleccione el tipo de RIF' });
+      setErrors({ rif: 'Seleccione el tipo de Rif' });
       return;
     }
     
     if (!rifNumber.trim()) {
-      setErrors({ rif: 'Ingrese el número de RIF' });
+      setErrors({ rif: 'Ingrese el número de Rif' });
       return;
     }
 
@@ -285,7 +285,7 @@ export default function RegisterScreen(): JSX.Element {
       >
         <View style={styles.pickerContainer}>
           <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Seleccione tipo de RIF</Text>
+            <Text style={styles.pickerTitle}>Seleccione tipo de Rif</Text>
             <TouchableOpacity onPress={() => setShowRifPicker(false)}>
               <Ionicons name="close" size={24} color={colors.text.secondary} />
             </TouchableOpacity>
@@ -317,7 +317,7 @@ export default function RegisterScreen(): JSX.Element {
   const renderStep1 = () => (
     <View style={styles.formContent}>
       <Text style={styles.sectionSubtitle}>
-        Ingrese su email y RIF para validar que su empresa esté registrada en el sistema
+        Ingrese su email y Rif para validar que su empresa esté registrada en el sistema
       </Text>
       
       <Input
@@ -332,7 +332,7 @@ export default function RegisterScreen(): JSX.Element {
       />
 
       <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>RIF *</Text>
+        <Text style={styles.inputLabel}>Rif *</Text>
         
         <View style={styles.rifContainer}>
           <TouchableOpacity
@@ -377,7 +377,7 @@ export default function RegisterScreen(): JSX.Element {
         <View style={styles.infoRowColumn}>
           <View style={styles.infoHeader}>
             <Ionicons name="business" size={20} color={colors.text.secondary} />
-            <Text style={styles.infoLabel}>Nombre:</Text>
+            <Text style={styles.infoLabel}>Nombre de la empresa:</Text>
           </View>
           <Text style={styles.infoValue}>{companyData.name}</Text>
         </View>
@@ -409,7 +409,7 @@ export default function RegisterScreen(): JSX.Element {
         <View style={styles.infoRowColumn}>
           <View style={styles.infoHeader}>
             <Ionicons name="card" size={20} color={colors.text.secondary} />
-            <Text style={styles.infoLabel}>RIF:</Text>
+            <Text style={styles.infoLabel}>Rif:</Text>
           </View>
           <Text style={styles.infoValue}>{companyData.rif}</Text>
         </View>
@@ -542,7 +542,7 @@ export default function RegisterScreen(): JSX.Element {
       case 1: return 'Validar Empresa';
       case 2: return 'Confirmar Datos';
       case 3: return 'Código de Validación';
-      case 4: return 'Crear Usuario';
+      case 4: return 'Crear Contraseña';
       default: return 'Registro';
     }
   };
@@ -553,7 +553,7 @@ export default function RegisterScreen(): JSX.Element {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.back()}
@@ -610,9 +610,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backButton: {
+    paddingTop: 25,
+    paddingLeft: 15,
     alignSelf: 'flex-start',
     padding: spacing.xs,
-    marginBottom: spacing.md,
+    
   },
   headerContent: {
     alignItems: 'center',
@@ -627,7 +629,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize['2xl'],
     color: colors.text.secondary,
   },
   content: {
@@ -755,6 +757,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    paddingBottom: 50,
   },
   pickerContainer: {
     backgroundColor: colors.surface,
@@ -782,6 +785,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
+    
   },
   pickerItemText: {
     fontSize: typography.fontSize.base,
@@ -789,9 +793,9 @@ const styles = StyleSheet.create({
   },
   companyInfo: {
     backgroundColor: colors.gray[50],
-    padding: spacing.lg,
+    padding: spacing.xs,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.lg,
+   
   },
   infoRowColumn: {
     marginBottom: spacing.md,

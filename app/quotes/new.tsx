@@ -25,7 +25,7 @@ import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function NewQuoteScreen(): JSX.Element {
-  const { customer_id, preselected_products } = useLocalSearchParams();
+  const { customer_id, preselected_products, quantity } = useLocalSearchParams();
 
   // Estados principales
   const [loading, setLoading] = useState(false);
@@ -203,17 +203,22 @@ export default function NewQuoteScreen(): JSX.Element {
   useEffect(() => {
     if (preselected_products && products.length > 0) {
       const productIds = preselected_products.split(',').map(id => Number(id.trim()));
+      const quatityProducts = quantity.split(',').map(id => Number(id.trim()));
       const selectedProducts = products.filter(p => productIds.includes(p.id));
+      console.log('cantidad Preselected products:', quatityProducts);
       
-      const newItems = selectedProducts.map(product => ({
-        id: `pre_${product.id}`,
-        product_id: product.id,
-        product,
-        quantity: 1,
-        unit_price: product.price,
-        discount: 0,
-        total_price: product.price,
-      }));
+      const newItems = selectedProducts.map((product, index) => {
+        const quantity = quatityProducts[index] || 1;
+        return {
+          id: `pre_${product.id}`,
+          product_id: product.id,
+          product,
+          quantity,
+          unit_price: product.price,
+          discount: 0,
+          total_price: product.price * quantity,
+        };
+      });
       
       setQuoteItems(newItems);
     }
@@ -239,7 +244,7 @@ export default function NewQuoteScreen(): JSX.Element {
       
       // Fecha por defecto (30 días)
       const validUntil = new Date();
-      validUntil.setDate(validUntil.getDate() + 30);
+      validUntil.setDate(validUntil.getDate() + 1);
       setFormData(prev => ({
         ...prev,
         valid_until: validUntil.toISOString().split('T')[0]

@@ -265,7 +265,7 @@ export default function LoginScreen(): JSX.Element {
           <View style={styles.registerContainerPassword}>
             <Text style={styles.registerText}>¿Olvidaste tu contraseña? </Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-              <Text style={styles.registerLink}>Haz clic aquí</Text>
+              <Text style={styles.registerLink}>Toque aquí</Text>
             </TouchableOpacity>
           </View>
 
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: 30,
   },
   header: {
     alignItems: 'center',
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 5,
     marginTop: spacing.sm,
   },
   title: {
@@ -323,14 +323,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
     marginBottom: spacing.xs,
-    marginTop: spacing.xs,
+    marginTop: 2,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: typography.fontSize.lg,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.sm,
   },
   biometricCard: {
     marginBottom: spacing.lg,

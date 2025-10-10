@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+
 import {
   Alert,
   FlatList,
@@ -13,7 +15,6 @@ import {
   View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
@@ -28,22 +29,29 @@ export default function CustomersScreen(): JSX.Element {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [searchText, setSearchText] = useState<string>('');
+  const [searchByName, setSearchByName] = useState<string>('');
+  const [searchByDocument, setSearchByDocument] = useState<string>('');
 
   useEffect(() => {
     loadCustomers();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadCustomers();
+    }, [])
+  );
+
   useEffect(() => {
     filterCustomers();
-  }, [searchText, customers]);
+  }, [searchByName, searchByDocument, customers]);
 
   const loadCustomers = async (): Promise<void> => {
     try {
       setLoading(true);
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
-      let response
+      let response;
       if (company) {
         response = await api.getCustomers({ company_id: company.id });
       } else {
@@ -58,24 +66,38 @@ export default function CustomersScreen(): JSX.Element {
   };
 
   const filterCustomers = (): void => {
-    if (!searchText) {
-      setFilteredCustomers(customers);
-      return;
+    let filtered = customers;
+
+    // Filtrar por nombre
+    if (searchByName) {
+      filtered = filtered.filter(customer =>
+        customer.name.toLowerCase().includes(searchByName.toLowerCase()) ||
+        customer.email?.toLowerCase().includes(searchByName.toLowerCase())
+      );
     }
 
-    const filtered = customers.filter(customer =>
-      customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      customer.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-      customer.phone?.includes(searchText) ||
-      customer.document_number?.includes(searchText)
-    );
+    // Filtrar por documento
+    if (searchByDocument) {
+      filtered = filtered.filter(customer =>
+        customer.document_number?.toLowerCase().includes(searchByDocument.toLowerCase())
+      );
+    }
     
     setFilteredCustomers(filtered);
   };
 
-  const debouncedSearch = debounce((text: string) => {
-    setSearchText(text);
+  const debouncedSearchName = debounce((text: string) => {
+    setSearchByName(text);
   }, 300);
+
+  const debouncedSearchDocument = debounce((text: string) => {
+    setSearchByDocument(text);
+  }, 300);
+
+  const clearFilters = (): void => {
+    setSearchByName('');
+    setSearchByDocument('');
+  };
 
   const deleteCustomer = async (customerId: number): Promise<void> => {
     Alert.alert(
@@ -99,91 +121,135 @@ export default function CustomersScreen(): JSX.Element {
     );
   };
 
-  const CustomerItem: React.FC<CustomerItemProps> = ({ customer }) => {
+  const CustomerRow: React.FC<CustomerItemProps> = ({ customer }) => {
     return (
-      <Card style={styles.customerCard}>
-        <TouchableOpacity
-          style={styles.customerContent}
-          onPress={() => router.push(`/customers/${customer.id}`)}
-          activeOpacity={0.8}
-        >         
-          
+      <TouchableOpacity
+        style={styles.customerRow}
+        onPress={() => router.push(`/customers/${customer.id}`)}
+        activeOpacity={0.7}
+      >
+        {/* Avatar y datos del cliente */}
+        <View style={styles.customerLeft}>
+          <View style={styles.customerAvatar}>
+            <Text style={styles.customerAvatarText}>
+              {customer.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>{customer.name}</Text>
-            {customer.email && (
-              <View style={styles.contactRow}>
-                <Ionicons name="mail" size={14} color={colors.text.secondary} />
-                <Text style={styles.contactText}>{customer.email}</Text>
-              </View>
-            )}
-            {customer.phone && (
-              <View style={styles.contactRow}>
-                <Ionicons name="call" size={14} color={colors.text.secondary} />
-                <Text style={styles.contactText}>{customer.phone}</Text>
-              </View>
-            )}
+            {/* Nombre */}
+            <Text style={styles.customerName} numberOfLines={1}>
+              {customer.name}
+            </Text>
+            
+            {/* Documento */}
             {customer.document_number && (
-              <View style={styles.contactRow}>
-                <Ionicons name="card" size={14} color={colors.text.secondary} />
-                <Text style={styles.contactText}>
+              <View style={styles.infoRow}>
+                <Ionicons name="card-outline" size={14} color={colors.text.secondary} />
+                <Text style={styles.infoText} numberOfLines={1}>
                   {customer.document_type} {customer.document_number}
                 </Text>
               </View>
             )}
-          </View>
-
-          <View style={styles.customerActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push(`/quotes/new?customer_id=${customer.id}`)}
-            >
-              <Text style={{ color: colors.primary[500] }}>Crear{'\n'}presupuesto</Text>
-            </TouchableOpacity>
             
+            {/* Email */}
+            {customer.email && (
+              <View style={styles.infoRow}>
+                <Ionicons name="mail-outline" size={14} color={colors.text.secondary} />
+                <Text style={styles.infoText} numberOfLines={1}>
+                  {customer.email}
+                </Text>
+              </View>
+            )}
           </View>
-        </TouchableOpacity>
-      </Card>
+        </View>
+
+        {/* Acción y flecha */}
+        <View style={styles.customerRight}>
+          <TouchableOpacity
+            style={styles.quoteButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`/quotes/new?customer_id=${customer.id}`);
+            }}
+          >
+            <Ionicons name="document-text-outline" size={20} color={colors.primary[500]} />
+          </TouchableOpacity>
+          <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+        </View>
+      </TouchableOpacity>
     );
   };
 
   const renderItem: ListRenderItem<Customer> = ({ item }) => (
-    <CustomerItem customer={item} />
+    <CustomerRow customer={item} />
   );
 
   const renderEmpty = (): JSX.Element => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="people" size={64} color={colors.text.tertiary} />
+      <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
       <Text style={styles.emptyText}>No hay clientes</Text>
-      <Button
-        title="Agregar Cliente"
-        variant="outline"
-        onPress={() => router.push('/customers/new')}
-        style={{ marginTop: spacing.lg }}
-      />
+      <Text style={styles.emptySubtext}>
+        {searchByName || searchByDocument
+          ? 'No se encontraron clientes con los filtros aplicados'
+          : 'No hay clientes registrados en este momento'}
+      </Text>
+      {(searchByName || searchByDocument) && (
+        <Button
+          title="Limpiar filtros"
+          variant="outline"
+          onPress={clearFilters}
+          style={{ marginTop: spacing.lg }}
+        />
+      )}
     </View>
   );
+
+  const hasActiveFilters = searchByName || searchByDocument;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
+        <View style={styles.headerTop}>
           <View>
             <Text style={styles.title}>Clientes</Text>
-            <Text style={styles.subtitle}>{filteredCustomers.length} clientes</Text>
+            <Text style={styles.subtitle}>
+              {filteredCustomers.length} de {customers.length} cliente{customers.length !== 1 ? 's' : ''}
+            </Text>
           </View>
-         
         </View>
       </View>
 
-      {/* Buscador */}
-      <View style={styles.searchContainer}>
-        <Input
-          placeholder="Buscar clientes..."
-          onChangeText={debouncedSearch}
-          leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
-          style={{ marginBottom: 0 }}
-        />
+      {/* Filtros de búsqueda - En una sola fila */}
+      <View style={styles.filtersContainer}>
+        <View style={styles.filtersRow}>
+          <View style={styles.filterInputWrapper}>
+            <Input
+              placeholder="Nombre"
+              onChangeText={debouncedSearchName}
+              leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
+              style={styles.filterInput}
+            />
+          </View>
+          <View style={styles.filterInputWrapper}>
+            <Input
+              placeholder="Doc"
+              onChangeText={debouncedSearchDocument}
+              leftIcon={<Ionicons name="card-outline" size={18} color={colors.text.tertiary} />}
+              style={styles.filterInput}
+            />
+          </View>
+        </View>
+        
+        {hasActiveFilters && (
+          <TouchableOpacity 
+            style={styles.clearFiltersButton}
+            onPress={clearFilters}
+          >
+            <Ionicons name="close-circle" size={16} color={colors.primary[500]} />
+            <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Lista de clientes */}
@@ -197,6 +263,7 @@ export default function CustomersScreen(): JSX.Element {
         contentContainerStyle={styles.customersList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
   );
@@ -210,11 +277,12 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -227,86 +295,126 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
-  addButton: {
-    backgroundColor: colors.primary[500],
-    borderRadius: 24,
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  searchContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+  // Contenedor de filtros separado del header
+  filtersContainer: {
     backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
   },
-  customersList: {
-    padding: spacing.md,
+  filtersRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
   },
-  customerCard: {
-    marginBottom: spacing.sm,
+  filterInputWrapper: {
+    flex: 1,
   },
-  customerContent: {
+  filterInput: {
+    marginBottom: 0,
+  },
+  clearFiltersButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  clearFiltersText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[500],
+    fontWeight: typography.fontWeight.medium,
+  },
+  customersList: {
+    flexGrow: 1,
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 88,
+  },
+  customerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.md,
   },
   customerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary[50],
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary[100],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
+  customerAvatarText: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
+  },
   customerInfo: {
     flex: 1,
+    gap: spacing.xs,
   },
   customerName: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
-  contactRow: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xs,    
+    gap: spacing.xs,
   },
-  contactText: {
+  infoText: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginLeft: spacing.sm,
+    flex: 1,
   },
-  customerActions: {
-    flexDirection: 'column',
-    marginLeft: spacing.md,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  customerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  actionButton: {
+  quoteButton: {
     padding: spacing.sm,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.gray[50],
+    backgroundColor: colors.primary[50],
+  },
+  separator: {
+    height: 1,
+    backgroundColor: colors.gray[100],
+    marginHorizontal: spacing.lg,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing['2xl'],
+    paddingVertical: spacing['3xl'],
+    paddingHorizontal: spacing.lg,
   },
   emptyText: {
     fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text.secondary,
     marginTop: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.base * 1.5,
+    maxWidth: 280,
   },
 });

@@ -1,10 +1,10 @@
-
-// app/(tabs)/products.tsx - Con escaneo de código de barras
+// app/(tabs)/products.tsx - Versión con controles horizontales
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -29,8 +30,8 @@ interface ProductItemProps {
   product: Product;
   isSelected: boolean;
   onToggleSelect: (product: Product) => void;
-  selectionMode: boolean;
-  onCreateQuote: (product: Product) => void;
+  quantity: number;
+  onQuantityChange: (product: Product, quantity: number) => void;
 }
 
 interface CategoryFilterProps {
@@ -39,162 +40,58 @@ interface CategoryFilterProps {
   onSelectCategory: (category: Category | null) => void;
 }
 
-interface QuantitySelectorProps {
-  visible: boolean;
-  product: Product | null;
-  onConfirm: (product: Product, quantity: number) => void;
-  onClose: () => void;
-}
-
 const CategoryFilter: React.FC<CategoryFilterProps> = ({
   categories,
   selectedCategory,
   onSelectCategory,
-}) => (
-  <ScrollView 
-    horizontal 
-    showsHorizontalScrollIndicator={false}
-    contentContainerStyle={styles.categoriesScrollContainer}
-  >
-    <TouchableOpacity
-      style={[
-        styles.categoryChip,
-        !selectedCategory && styles.categoryChipActive
-      ]}
-      onPress={() => onSelectCategory(null)}
-    >
-      <Text style={[
-        styles.categoryChipText,
-        !selectedCategory && styles.categoryChipActiveText
-      ]}>
-        Todos
-      </Text>
-    </TouchableOpacity>
-    
-    {categories.map((category) => (
-      <TouchableOpacity
-        key={category.id}
-        style={[
-          styles.categoryChip,
-          selectedCategory?.id === category.id && styles.categoryChipActive
-        ]}
-        onPress={() => onSelectCategory(category)}
-      >
-        <Text style={[
-          styles.categoryChipText,
-          selectedCategory?.id === category.id && styles.categoryChipActiveText
-        ]}>
-          {category.description}
-        </Text>
-      </TouchableOpacity>
-    ))}
-  </ScrollView>
-);
-
-const QuantitySelector: React.FC<QuantitySelectorProps> = ({
-  visible,
-  product,
-  onConfirm,
-  onClose,
 }) => {
-  const [quantity, setQuantity] = useState(1);
-
-  const incrementQuantity = () => {
-    if (product && quantity < product.stock) {
-      setQuantity(quantity + 1);
-    }
-  };
-
-  const decrementQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
-    }
-  };
-
-  const handleConfirm = () => {
-    if (product) {
-      onConfirm(product, quantity);
-      setQuantity(1);
-    }
-  };
-
-  if (!product) return null;
+  // Ordenar categorías alfabéticamente
+  const sortedCategories = [...categories].sort((a, b) => 
+    a.description.localeCompare(b.description)
+  );
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.quantityModal}>
-          <View style={styles.quantityModalHeader}>
-            <Text style={styles.quantityModalTitle}>Seleccionar Cantidad</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.productPreview}>
-            <Text style={styles.productPreviewName}>{product.name}</Text>
-            <Text style={styles.productPreviewCode}>{product.code}</Text>
-            <Text style={styles.productPreviewPrice}>{formatCurrency(product.price)}</Text>
-          </View>
-
-          <View style={styles.quantitySelector}>
-            <TouchableOpacity
-              style={[styles.quantityButton, quantity <= 1 && styles.quantityButtonDisabled]}
-              onPress={decrementQuantity}
-              disabled={quantity <= 1}
-            >
-              <Ionicons name="remove" size={24} color={quantity <= 1 ? colors.text.tertiary : colors.primary[500]} />
-            </TouchableOpacity>
-
-            <View style={styles.quantityDisplay}>
-              <Text style={styles.quantityValue}>{quantity}</Text>
-              <Text style={styles.quantityLabel}>unidades</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.quantityButton, quantity >= product.stock && styles.quantityButtonDisabled]}
-              onPress={incrementQuantity}
-              disabled={quantity >= product.stock}
-            >
-              <Ionicons name="add" size={24} color={quantity >= product.stock ? colors.text.tertiary : colors.primary[500]} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.stockInfo}>
-            <Ionicons name="layers" size={16} color={colors.text.secondary} />
-            <Text style={styles.stockInfoText}>
-              Stock disponible: {product.stock} unidades
+    <View style={styles.categoriesSection}>
+      <Text style={styles.departmentsTitle}>DEPARTAMENTOS</Text>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesScrollContainer}
+      >
+        <TouchableOpacity
+          style={[
+            styles.categoryChip,
+            !selectedCategory && styles.categoryChipActive
+          ]}
+          onPress={() => onSelectCategory(null)}
+        >
+          <Text style={[
+            styles.categoryChipText,
+            !selectedCategory && styles.categoryChipActiveText
+          ]}>
+            Todos
+          </Text>
+        </TouchableOpacity>
+        
+        {sortedCategories.map((category) => (
+          <TouchableOpacity
+            key={category.id}
+            style={[
+              styles.categoryChip,
+              selectedCategory?.id === category.id && styles.categoryChipActive
+            ]}
+            onPress={() => onSelectCategory(category)}
+          >
+            <Text style={[
+              styles.categoryChipText,
+              selectedCategory?.id === category.id && styles.categoryChipActiveText
+            ]}>
+              {category.description}
             </Text>
-          </View>
-
-          <View style={styles.totalInfo}>
-            <Text style={styles.totalLabel}>Total:</Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(product.price * quantity)}
-            </Text>
-          </View>
-
-          <View style={styles.quantityModalActions}>
-            <Button
-              title="Cancelar"
-              variant="outline"
-              onPress={onClose}
-              style={{ flex: 1, marginRight: spacing.sm }}
-            />
-            <Button
-              title="Confirmar"
-              onPress={handleConfirm}
-              style={{ flex: 1, marginLeft: spacing.sm }}
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -206,22 +103,28 @@ export default function ProductsScreen(): JSX.Element {
   const [searchText, setSearchText] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
-  // Estados para selección múltiple
-  const [selectionMode, setSelectionMode] = useState<boolean>(false);
-  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  // Estados para cantidades de productos
+  const [productQuantities, setProductQuantities] = useState<Record<number, number>>({});
+  const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
 
   // Estados para escáner
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  // Estados para selector de cantidad
-  const [showQuantitySelector, setShowQuantitySelector] = useState(false);
-  const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<Product | null>(null);
-
   useEffect(() => {
     loadData();
   }, []);
+
+   useFocusEffect(
+    useCallback(() => {
+      loadData();
+      setSelectedProducts(new Set());
+      setProductQuantities({});      
+      setSearchText('');
+      setSelectedCategory(null);
+    }, [])
+  );
 
   useEffect(() => {
     filterProducts();
@@ -272,22 +175,77 @@ export default function ProductsScreen(): JSX.Element {
     setSearchText(text);
   }, 300);
 
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-    if (selectionMode) {
-      setSelectedProducts([]);
+  const toggleProductSelection = (product: Product) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(product.id)) {
+        newSet.delete(product.id);
+        // Limpiar cantidad al deseleccionar
+        setProductQuantities(prevQty => {
+          const newQty = { ...prevQty };
+          delete newQty[product.id];
+          return newQty;
+        });
+      } else {
+        newSet.add(product.id);
+        // Establecer cantidad inicial en 1
+        setProductQuantities(prevQty => ({
+          ...prevQty,
+          [product.id]: 1
+        }));
+      }
+      return newSet;
+    });
+  };
+
+  const handleQuantityChange = (product: Product, change: number) => {
+    const currentQty = productQuantities[product.id] || 0;
+    const newQty = Math.max(0, Math.min(product.stock, currentQty + change));
+    
+    if (newQty > 0) {
+      setProductQuantities(prev => ({
+        ...prev,
+        [product.id]: newQty
+      }));
+      // Asegurar que el producto esté seleccionado
+      setSelectedProducts(prev => new Set(prev).add(product.id));
+    } else {
+      // Si la cantidad llega a 0, deseleccionar
+      setProductQuantities(prev => {
+        const newQty = { ...prev };
+        delete newQty[product.id];
+        return newQty;
+      });
+      setSelectedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id);
+        return newSet;
+      });
     }
   };
 
-  const toggleProductSelection = (product: Product) => {
-    setSelectedProducts(prev => {
-      const isSelected = prev.find(p => p.id === product.id);
-      if (isSelected) {
-        return prev.filter(p => p.id !== product.id);
-      } else {
-        return [...prev, product];
-      }
-    });
+  const handleQuantityInputChange = (product: Product, value: string) => {
+    const numValue = parseInt(value) || 0;
+    const clampedValue = Math.max(0, Math.min(product.stock, numValue));
+    
+    if (clampedValue > 0) {
+      setProductQuantities(prev => ({
+        ...prev,
+        [product.id]: clampedValue
+      }));
+      setSelectedProducts(prev => new Set(prev).add(product.id));
+    } else {
+      setProductQuantities(prev => {
+        const newQty = { ...prev };
+        delete newQty[product.id];
+        return newQty;
+      });
+      setSelectedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id);
+        return newSet;
+      });
+    }
   };
 
   const handleOpenScanner = async () => {
@@ -310,7 +268,6 @@ export default function ProductsScreen(): JSX.Element {
     
     setScanned(true);
     
-    // Buscar producto por código
     const foundProduct = products.find(p => 
       p.code.toLowerCase() === data.toLowerCase() ||
       p.barcode?.toLowerCase() === data.toLowerCase()
@@ -318,8 +275,16 @@ export default function ProductsScreen(): JSX.Element {
 
     if (foundProduct) {
       setShowScanner(false);
-      setSelectedProductForQuantity(foundProduct);
-      setShowQuantitySelector(true);
+      // Agregar producto con cantidad 1
+      setSelectedProducts(prev => new Set(prev).add(foundProduct.id));
+      setProductQuantities(prev => ({
+        ...prev,
+        [foundProduct.id]: (prev[foundProduct.id] || 0) + 1
+      }));
+      Alert.alert(
+        'Producto Agregado',
+        `${foundProduct.name} agregado al presupuesto`
+      );
     } else {
       Alert.alert(
         'Producto No Encontrado',
@@ -338,74 +303,69 @@ export default function ProductsScreen(): JSX.Element {
     }
   };
 
-  const handleQuantityConfirm = (product: Product, quantity: number) => {
-    setShowQuantitySelector(false);
-    setSelectedProductForQuantity(null);
-    
-    // Agregar producto con cantidad a la selección
-    const productWithQuantity = { ...product, selectedQuantity: quantity };
-    
-    if (selectionMode) {
-      // Agregar a productos seleccionados
-      setSelectedProducts(prev => {
-        const exists = prev.find(p => p.id === product.id);
-        if (exists) {
-          return prev.map(p => 
-            p.id === product.id ? productWithQuantity : p
-          );
-        }
-        return [...prev, productWithQuantity];
-      });
-      
-      Alert.alert(
-        'Producto Agregado',
-        `${product.name} (${quantity} unidades) agregado a la selección`
-      );
-    } else {
-      // Crear presupuesto directamente con cantidad
-      router.push(`/quotes/new?preselected_products=${product.id}&quantity=${quantity}`);
-    }
-  };
-
   const generateQuote = () => {
-    if (selectedProducts.length === 0) {
+    const selectedProductsArray = Array.from(selectedProducts)
+      .map(id => {
+        const product = products.find(p => p.id === id);
+        if (!product) return null;
+        
+        return {
+          product_id: product.id,
+          quantity: productQuantities[id] || 1,
+          unit_price: product.price,
+        };
+      })
+      .filter(p => p !== null);
+
+    if (selectedProductsArray.length === 0) {
       Alert.alert('Error', 'Selecciona al menos un producto para generar el presupuesto');
       return;
     }
 
-    const productsData = selectedProducts.map(p => ({
-      id: p.id,
-      quantity: (p as any).selectedQuantity || 1
-    }));
-    
-    const params = new URLSearchParams({
-      products: JSON.stringify(productsData)
-    });
-
-    router.push(`/quotes/new?${params.toString()}`);
+    const selectedProductIds = selectedProductsArray.map(p => p.product_id).join(',');
+    const quantity = selectedProductsArray.map(p => p.quantity).join(',');
+    console.log('Selected Product IDs:', quantity);
+    router.push(`/quotes/new?preselected_products=${selectedProductIds}&quantity=${quantity}`);
   };
 
-  const createQuoteFromProduct = (product: Product) => {
-    setSelectedProductForQuantity(product);
-    setShowQuantitySelector(true);
+  const createQuoteFromSingleProduct = (product: Product) => {
+    const quantity = productQuantities[product.id] || 1;
+    
+    const productData = [{
+      product_id: product.id,
+      quantity: quantity,
+      unit_price: product.price,
+    }];
+    
+    console.log('Navigating to quote creation with:', productData);
+    
+    router.push(`/quotes/new?preselected_products=${productData[0].product_id}&quantity=${productData[0].quantity}`);
   };
 
   const ProductItem: React.FC<ProductItemProps> = ({ 
     product, 
-    isSelected, 
-    onToggleSelect, 
-    selectionMode,
-    onCreateQuote 
+    isSelected,
+    onToggleSelect,
+    quantity,
+    onQuantityChange
   }) => {
     const isLowStock = product.stock <= (product.min_stock || 0);
     const hasWholesalePrice = product.cost && product.cost > 0;
-    
-    const handlePress = () => {
-      if (selectionMode) {
-        onToggleSelect(product);
-      } else {
-        router.push(`/products/${product.id}`);
-      }
+    const [inputValue, setInputValue] = useState(quantity > 0 ? quantity.toString() : '');
+
+    // Actualizar el valor del input cuando cambie la cantidad externa
+    useEffect(() => {
+      setInputValue(quantity > 0 ? quantity.toString() : '');
+    }, [quantity]);
+
+    const handleInputChange = (text: string) => {
+      // Permitir solo números
+      const numericValue = text.replace(/[^0-9]/g, '');
+      setInputValue(numericValue);
+    };
+
+    const handleInputBlur = () => {
+      handleQuantityInputChange(product, inputValue);
     };
 
     return (
@@ -414,34 +374,25 @@ export default function ProductsScreen(): JSX.Element {
         isSelected && styles.productCardSelected,
         isLowStock && styles.productCardLowStock
       ]}>
-        <TouchableOpacity
-          style={styles.productContent}
-          onPress={handlePress}
-          activeOpacity={0.8}
-        >
-          {selectionMode && (
-            <View style={styles.selectionIndicator}>
-              <Ionicons 
-                name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-                size={24} 
-                color={isSelected ? colors.primary[500] : colors.gray[400]} 
-              />
-            </View>
-          )}
+        <View style={styles.productContent}>
+          {/* Checkbox de selección */}
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => onToggleSelect(product)}
+          >
+            <Ionicons 
+              name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+              size={24} 
+              color={isSelected ? colors.primary[500] : colors.gray[400]} 
+            />
+          </TouchableOpacity>
 
-          <View style={styles.productImageContainer}>
-            {isLowStock && (
-              <View style={styles.lowStockBadge}>
-                <Ionicons name="warning" size={12} color={colors.text.inverse} />
-              </View>
-            )}
-          </View>
-          
+          {/* Información del producto */}
           <View style={styles.productInfo}>
-            <Text style={styles.productCode} numberOfLines={2}>
+            <Text style={styles.productCode} numberOfLines={1}>
               {product.code}
             </Text>
-            <Text style={styles.productName}>{product.name}</Text>
+            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
             <Text style={styles.productCategory}>
               {product.category?.description || 'Sin categoría'}
             </Text>
@@ -463,39 +414,88 @@ export default function ProductsScreen(): JSX.Element {
               </View>
             </View>
 
-            <View style={styles.productFooter}>
-              <View style={[
-                styles.stockContainer,
-                isLowStock && styles.lowStockContainer
+            {/* Disponibilidad */}
+            <View style={[
+              styles.stockContainer,
+              isLowStock && styles.lowStockContainer
+            ]}>
+              <Ionicons 
+                name="layers" 
+                size={12} 
+                color={isLowStock ? colors.warning : colors.text.secondary} 
+              />
+              <Text style={[
+                styles.stockText,
+                isLowStock && styles.lowStockText
               ]}>
-                <Ionicons 
-                  name="layers" 
-                  size={14} 
-                  color={isLowStock ? colors.warning : colors.text.secondary} 
-                />
-                <Text style={[
-                  styles.stockText,
-                  isLowStock && styles.lowStockText
-                ]}>
-                  Stock: {product.stock}
-                </Text>
-              </View>
-
-              {!selectionMode && (
-                <TouchableOpacity
-                  style={styles.quoteButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    onCreateQuote(product);
-                  }}
-                >
-                  <Ionicons name="document-text" size={16} color={colors.primary[500]} />
-                  <Text style={styles.quoteButtonText}>Cotizar</Text>
-                </TouchableOpacity>
-              )}
+                Disponibilidad: {product.stock}
+              </Text>
             </View>
-          </View>          
-        </TouchableOpacity>
+          </View>
+
+          {/* Controles de cantidad - AHORA HORIZONTALES */}
+          <View style={styles.quantityControls}>
+            {/* Fila de controles +/- y cantidad */}
+          
+            {/* Botón "Lo quiero" debajo */}
+            <TouchableOpacity
+              style={styles.wantItButton}
+              onPress={() => createQuoteFromSingleProduct(product)}
+            >
+              <Text style={styles.wantItButtonText}>Lo quiero</Text>
+            </TouchableOpacity>
+
+          <View style={styles.quantityRow}>
+              <TouchableOpacity
+                style={[
+                  styles.quantityControlButton,
+                  quantity === 0 && styles.quantityControlButtonDisabled
+                ]}
+                onPress={() => onQuantityChange(product, -1)}
+                disabled={quantity === 0}
+              >
+                <Ionicons 
+                  name="remove" 
+                  size={16}
+                  color={quantity === 0 ? colors.gray[300] : colors.primary[500]} 
+                />
+              </TouchableOpacity>
+
+              <TextInput
+                style={styles.quantityInput}
+                value={inputValue}
+                onChangeText={handleInputChange}
+                onBlur={handleInputBlur}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.text.tertiary}
+                maxLength={4}
+                selectTextOnFocus={true}
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.quantityControlButton,
+                  quantity >= product.stock && styles.quantityControlButtonDisabled
+                ]}
+                onPress={() => onQuantityChange(product, 1)}
+                disabled={quantity >= product.stock}
+              >
+                <Ionicons 
+                  name="add" 
+                  size={16}
+                  color={quantity >= product.stock ? colors.gray[300] : colors.primary[500]} 
+                />
+              </TouchableOpacity>
+            </View>
+
+
+
+
+
+
+          </View>
+        </View>
       </Card>
     );
   };
@@ -503,10 +503,10 @@ export default function ProductsScreen(): JSX.Element {
   const renderItem: ListRenderItem<Product> = ({ item }) => (
     <ProductItem 
       product={item} 
-      isSelected={selectedProducts.some(p => p.id === item.id)}
+      isSelected={selectedProducts.has(item.id)}
       onToggleSelect={toggleProductSelection}
-      selectionMode={selectionMode}
-      onCreateQuote={createQuoteFromProduct}
+      quantity={productQuantities[item.id] || 0}
+      onQuantityChange={handleQuantityChange}
     />
   );
 
@@ -533,58 +533,22 @@ export default function ProductsScreen(): JSX.Element {
     </View>
   );
 
+  const selectedCount = selectedProducts.size;
+  const totalItems = Array.from(selectedProducts).reduce((sum, productId) => {
+    return sum + (productQuantities[productId] || 0);
+  }, 0);
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header con buscador */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Catálogo de Productos</Text>
-            <Text style={styles.subtitle}>
-              {filteredProducts.length} productos
-              {selectedProducts.length > 0 && ` • ${selectedProducts.length} seleccionados`}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.selectionButton,
-              selectionMode && styles.selectionButtonActive
-            ]}
-            onPress={toggleSelectionMode}
-          >
-            <Ionicons 
-              name={selectionMode ? "close" : "checkmark-circle-outline"} 
-              size={20} 
-              color={selectionMode ? colors.text.inverse : colors.primary[500]} 
-            />
-            <Text style={[
-              styles.selectionButtonText,
-              selectionMode && styles.selectionButtonTextActive
-            ]}>
-              {selectionMode ? 'Cancelar' : 'Seleccionar'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Filtros de categoría */}
-      <View style={styles.filtersContainer}>
-        <Text style={styles.filterLabel}>Departamento:</Text>
-      </View>
-      <View style={styles.filtersContainer}>
-        <CategoryFilter
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-        />
-      </View>
-
-      {/* Buscador con Escáner */}
-      <View style={styles.searchContainer}>
+        <Text style={styles.title}>Catálogo de Productos</Text>
+        
+        {/* Buscador con Escáner */}
         <View style={styles.searchRow}>
           <View style={styles.searchInputContainer}>
             <Input
-              placeholder="Buscar por nombre, código..."
+              placeholder="Buscar por nombre, código o documento..."
               onChangeText={debouncedSearch}
               leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
               rightIcon={
@@ -609,6 +573,28 @@ export default function ProductsScreen(): JSX.Element {
         </View>
       </View>
 
+      {/* Barra de selección (cuando hay productos seleccionados) */}
+      {selectedCount > 0 && (
+        <View style={styles.selectionBar}>
+          <View style={styles.selectionInfo}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+            <Text style={styles.selectionText}>
+              {totalItems} {totalItems === 1 ? 'ítem' : 'ítems'} seleccionado{totalItems !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.createQuoteButton}
+            onPress={generateQuote}
+          >
+            <Ionicons name="document-text" size={18} color={colors.text.inverse} />
+            <Text style={styles.createQuoteButtonText}>Crear presupuesto</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Departamentos antes de la lista */}
+     
+
       {/* Lista de productos */}
       <FlatList
         data={filteredProducts}
@@ -623,20 +609,11 @@ export default function ProductsScreen(): JSX.Element {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
-      {/* Botón flotante para generar presupuesto */}
-      {selectionMode && selectedProducts.length > 0 && (
-        <View style={styles.floatingButtonContainer}>
-          <TouchableOpacity
-            style={styles.generateQuoteButton}
-            onPress={generateQuote}
-          >
-            <Ionicons name="document-text" size={24} color={colors.text.inverse} />
-            <Text style={styles.generateQuoteButtonText}>
-              Generar Presupuesto ({selectedProducts.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+       <CategoryFilter
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+      />
 
       {/* Modal de Escáner */}
       <Modal
@@ -672,17 +649,6 @@ export default function ProductsScreen(): JSX.Element {
           </CameraView>
         </View>
       </Modal>
-
-      {/* Modal de Selector de Cantidad */}
-      <QuantitySelector
-        visible={showQuantitySelector}
-        product={selectedProductForQuantity}
-        onConfirm={handleQuantityConfirm}
-        onClose={() => {
-          setShowQuantitySelector(false);
-          setSelectedProductForQuantity(null);
-        }}
-      />
     </View>
   );
 }
@@ -695,64 +661,86 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing['2xl'],
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  headerContent: {
+  title: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  searchInputContainer: {
+    flex: 1,
+  },
+  scanButton: {
+    width: 48,
+    height: 48,
+    backgroundColor: colors.primary[500],
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  selectionBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing['2xl'],
+    backgroundColor: colors.primary[50],
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary[200],
   },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
-    fontSize: typography.fontSize['2xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  subtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  selectionButton: {
+  selectionInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary[50],
+    gap: spacing.sm,
+  },
+  selectionText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  createQuoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary[500],
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.primary[200],
+    gap: spacing.xs,
   },
-  selectionButtonActive: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
-  },
-  selectionButtonText: {
+  createQuoteButtonText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.primary[500],
-    marginLeft: spacing.xs,
-  },
-  selectionButtonTextActive: {
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text.inverse,
   },
-  filtersContainer: {
+  categoriesSection: {
     backgroundColor: colors.surface,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
+    paddingBottom: 120,
   },
-  filterLabel: {
+  departmentsTitle: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.secondary,
-    marginLeft: spacing.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    letterSpacing: 1,
   },
   categoriesScrollContainer: {
     paddingHorizontal: spacing.lg,
@@ -778,112 +766,61 @@ const styles = StyleSheet.create({
   categoryChipActiveText: {
     color: colors.text.inverse,
   },
-  searchContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  searchInputContainer: {
-    flex: 1,
-  },
-  scanButton: {
-    width: 50,
-    height: 48,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   productsList: {
-    padding: spacing.lg,
+    padding: spacing.md,
+    paddingBottom: 150,
   },
   productCard: {
     marginBottom: 0,
+    padding: 0,
   },
   productCardSelected: {
     borderWidth: 2,
     borderColor: colors.primary[500],
-    backgroundColor: colors.primary[50],
+    backgroundColor: colors.primary[25],
   },
   productCardLowStock: {
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     borderLeftColor: colors.warning,
   },
   productContent: {
-    padding: spacing.md,
+    flexDirection: 'row',
+    padding: spacing.sm,
+    gap: spacing.sm,
   },
-  selectionIndicator: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    zIndex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  productImageContainer: {
-    position: 'relative',
-    alignSelf: 'center',
-    marginBottom: spacing.md,
-  },
-  lowStockBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: colors.warning,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  checkboxContainer: {
+    padding: spacing.xs,
+    justifyContent: 'flex-start',
   },
   productInfo: {
-    alignItems: 'center',
+    flex: 1,
   },
   productName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-    minHeight: 40,
+    marginBottom: 2,
   },
   productCode: {
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
     fontFamily: 'monospace',
   },
   productCategory: {
     fontSize: typography.fontSize.xs,
     color: colors.primary[500],
     fontWeight: typography.fontWeight.medium,
-    marginBottom: spacing.md,
-    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   priceContainer: {
-    width: '100%',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   priceLabel: {
     fontSize: typography.fontSize.xs,
@@ -891,56 +828,82 @@ const styles = StyleSheet.create({
   },
   wholesalePrice: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.info,
   },
   retailPrice: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.success,
-  },
-  productFooter: {
-    width: '100%',
-    gap: spacing.sm,
   },
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.gray[50],
-    borderRadius: borderRadius.sm,
+    gap: spacing.xs,
   },
   lowStockContainer: {
-    backgroundColor: colors.warning + '20',
+    backgroundColor: 'transparent',
   },
   stockText: {
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.medium,
   },
   lowStockText: {
     color: colors.warning,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.semibold,
   },
-  quoteButton: {
-    flexDirection: 'row',
+  // CONTROLES DE CANTIDAD - CONTENEDOR VERTICAL
+  quantityControls: {
+    gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.primary[50],
+  },
+  // FILA HORIZONTAL PARA +, INPUT, -
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 60,
+  },
+  quantityControlButton: {
+    width: 28,
+    height: 28,
     borderRadius: borderRadius.sm,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.primary[200],
   },
-  quoteButtonText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.primary[500],
-    marginLeft: spacing.xs,
+  quantityControlButtonDisabled: {
+    backgroundColor: colors.gray[100],
+    borderColor: colors.gray[200],
+  },
+  quantityInput: {
+    width: 40,
+    height: 28,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.sm,
+    textAlign: 'center',
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    backgroundColor: colors.surface,
+    paddingVertical: 0,
+  },
+  wantItButton: {
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  wantItButtonText: {
+    fontSize: 13,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.inverse,
   },
   emptyContainer: {
     flex: 1,
@@ -950,38 +913,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   emptyText: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.base,
     color: colors.text.secondary,
     marginTop: spacing.md,
     textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  floatingButtonContainer: {
-    position: 'absolute',
-    bottom: 80,
-    left: spacing.lg,
-    right: spacing.lg,
-  },
-  generateQuoteButton: {
-    backgroundColor: colors.primary[500],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 40,
-  },
-  generateQuoteButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.inverse,
-    marginLeft: spacing.sm,
   },
   separator: {
     height: spacing.sm,
@@ -1035,124 +970,4 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     textAlign: 'center',
   },
-  // Estilos del Selector de Cantidad
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  quantityModal: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    width: '100%',
-    maxWidth: 400,
-  },
-  quantityModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  quantityModalTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  productPreview: {
-    backgroundColor: colors.gray[50],
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.lg,
-    alignItems: 'center',
-  },
-  productPreviewName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  productPreviewCode: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: spacing.sm,
-  },
-  productPreviewPrice: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.success,
-  },
-  quantitySelector: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    gap: spacing.lg,
-  },
-  quantityButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.primary[50],
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary[200],
-  },
-  quantityButtonDisabled: {
-    backgroundColor: colors.gray[100],
-    borderColor: colors.gray[200],
-  },
-  quantityDisplay: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  quantityValue: {
-    fontSize: typography.fontSize['3xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  quantityLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  stockInfo: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  stockInfoText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  totalInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.primary[50],
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.lg,
-  },
-  totalLabel: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  totalValue: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary[500],
-  },
-  quantityModalActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-
 });

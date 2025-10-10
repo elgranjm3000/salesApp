@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
@@ -49,7 +48,8 @@ export default function SellersScreen(): JSX.Element {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [filteredSellers, setFilteredSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [searchText, setSearchText] = useState<string>('');
+  const [searchByDescription, setSearchByDescription] = useState<string>('');
+  const [searchByCode, setSearchByCode] = useState<string>('');
 
   useEffect(() => {
     loadSellers();
@@ -57,17 +57,16 @@ export default function SellersScreen(): JSX.Element {
 
   useEffect(() => {
     filterSellers();
-  }, [searchText, sellers]);
+  }, [searchByDescription, searchByCode, sellers]);
 
   const loadSellers = async (): Promise<void> => {
     console.log('Loading sellers...');
     try {
       setLoading(true);
-       const storedCompany = await AsyncStorage.getItem('selectedCompany');
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
       console.log('Selected Company:', company.id);
       const response = await api.getSellers({ company_id: company.id });
-      // Corregir la estructura de respuesta - a veces viene en data.data, a veces solo en data
       const sellersData = response.data?.data || response.data || [];
       setSellers(sellersData);
     } catch (error) {
@@ -79,23 +78,38 @@ export default function SellersScreen(): JSX.Element {
   };
 
   const filterSellers = (): void => {
-    if (!searchText) {
-      setFilteredSellers(sellers);
-      return;
+    let filtered = sellers;
+
+    // Filtrar por descripción
+    if (searchByDescription) {
+      filtered = filtered.filter(seller =>
+        seller.description?.toLowerCase().includes(searchByDescription.toLowerCase()) ||
+        seller.user?.name.toLowerCase().includes(searchByDescription.toLowerCase())
+      );
     }
 
-    const filtered = sellers.filter(seller =>
-      seller.user?.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      seller.code.toLowerCase().includes(searchText.toLowerCase()) ||
-      seller.company?.name.toLowerCase().includes(searchText.toLowerCase())
-    );
+    // Filtrar por código
+    if (searchByCode) {
+      filtered = filtered.filter(seller =>
+        seller.code.toLowerCase().includes(searchByCode.toLowerCase())
+      );
+    }
     
     setFilteredSellers(filtered);
   };
 
-  const debouncedSearch = debounce((text: string) => {
-    setSearchText(text);
+  const debouncedSearchDescription = debounce((text: string) => {
+    setSearchByDescription(text);
   }, 300);
+
+  const debouncedSearchCode = debounce((text: string) => {
+    setSearchByCode(text);
+  }, 300);
+
+  const clearFilters = (): void => {
+    setSearchByDescription('');
+    setSearchByCode('');
+  };
 
   const deleteSeller = async (sellerId: number): Promise<void> => {
     Alert.alert(
@@ -120,172 +134,119 @@ export default function SellersScreen(): JSX.Element {
     );
   };
 
-  const SellerItem: React.FC<SellerItemProps> = ({ seller }) => {
+  const SellerRow: React.FC<SellerItemProps> = ({ seller }) => {
     return (
-      <Card style={styles.sellerCard}>
-        <TouchableOpacity
-          style={styles.sellerContent}
-          onPress={() => router.push(`/sellers/${seller.id}`)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.sellerHeader}>
-            <View style={styles.sellerAvatar}>
-              <Text style={styles.sellerAvatarText}>
-                {seller.user?.name.charAt(0).toUpperCase() || 'S'}
-              </Text>
-            </View>
-            <View style={styles.sellerMainInfo}>
-              <Text style={styles.sellerName}>{seller.user?.name || 'Sin nombre'}</Text>
-              <Text style={styles.sellerCode}>#{seller.code}</Text>
-              <Text style={styles.sellerCompany}>{seller.company?.name || 'Sin empresa'}</Text>
-            </View>
-            <View style={styles.sellerStatus}>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: seller.seller_status === 'active' ? colors.success + '20' : colors.error + '20' }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: seller.seller_status === 'active' ? colors.success : colors.error }
-                ]}>
-                  {seller.seller_status === 'active' ? 'Activo' : 'Inactivo'}
-                </Text>
-              </View>
-            </View>
+      <TouchableOpacity
+        style={styles.sellerRow}
+        onPress={() => router.push(`/sellers/${seller.id}`)}
+        activeOpacity={0.7}
+      >
+        {/* Avatar y nombre */}
+        <View style={styles.sellerLeft}>
+          <View style={styles.sellerAvatar}>
+            <Text style={styles.sellerAvatarText}>
+              {seller.user?.name.charAt(0).toUpperCase() || 'S'}
+            </Text>
           </View>
-
-          <View style={styles.sellerDetails}>
-            <View style={styles.sellerDetailItem}>
-              <Ionicons name="mail" size={14} color={colors.text.secondary} />
-              <Text style={styles.sellerDetailText}>
-                {seller.user?.email || 'Sin email'}
-              </Text>
-            </View>
-            {seller.user?.phone && (
-              <View style={styles.sellerDetailItem}>
-                <Ionicons name="call" size={14} color={colors.text.secondary} />
-                <Text style={styles.sellerDetailText}>{seller.user.phone}</Text>
-              </View>
-            )}
+          <View style={styles.sellerInfo}>
+            <Text style={styles.sellerName} numberOfLines={1}>
+              {seller.user?.name || 'Sin nombre'}
+            </Text>
+            <Text style={styles.sellerDescription} numberOfLines={1}>
+              {seller.description || 'Sin descripción'}
+            </Text>
           </View>
+        </View>
 
-          <View style={styles.sellerCommissions}>
-            <View style={styles.commissionItem}>
-              <Text style={styles.commissionLabel}>Comisión Ventas:</Text>
-              <Text style={styles.commissionValue}>{seller.percent_sales}%</Text>
-            </View>
-            <View style={styles.commissionItem}>
-              <Text style={styles.commissionLabel}>Comisión Cobranza:</Text>
-              <Text style={styles.commissionValue}>{seller.percent_receivable}%</Text>
-            </View>
-            {seller.inkeeper && (
-              <View style={styles.inkeeperBadge}>
-                <Ionicons name="key" size={12} color={colors.warning} />
-                <Text style={styles.inkeeperText}>Encargado</Text>
-              </View>
-            )}
+        {/* Código */}
+        <View style={styles.sellerCenter}>
+          <View style={styles.codeBadge}>
+            <Text style={styles.codeText}>{seller.code}</Text>
           </View>
+        </View>
 
-          {/* <View style={styles.sellerActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                router.push(`/sellers/${seller.id}/edit`);
-              }}
-            >
-              <Ionicons name="create" size={18} color={colors.primary[500]} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                router.push(`/sellers/${seller.id}`);
-              }}
-            >
-              <Ionicons name="eye" size={18} color={colors.info} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                deleteSeller(seller.id);
-              }}
-            >
-              <Ionicons name="trash" size={18} color={colors.error} />
-            </TouchableOpacity>
-          </View>*/}
-        </TouchableOpacity>
-      </Card>
+        {/* Estado y acciones */}
+        <View style={styles.sellerRight}>
+          <View style={[
+            styles.statusDot,
+            { backgroundColor: seller.seller_status === 'active' ? colors.success : colors.error }
+          ]} />
+          <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+        </View>
+      </TouchableOpacity>
     );
   };
 
   const renderItem: ListRenderItem<Seller> = ({ item }) => (
-    <SellerItem seller={item} />
+    <SellerRow seller={item} />
   );
 
   const renderEmpty = (): JSX.Element => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="people" size={64} color={colors.text.tertiary} />
-      <Text style={styles.emptyText}>No hay vendedores registrados</Text>
+      <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
+      <Text style={styles.emptyText}>No hay vendedores</Text>
       <Text style={styles.emptySubtext}>
-        Comienza creando tu primer vendedor para gestionar las ventas
+        {searchByDescription || searchByCode
+          ? 'No se encontraron vendedores con los filtros aplicados'
+          : 'Comienza creando tu primer vendedor para gestionar las ventas'}
       </Text>
-      <Button
-        title="Crear Vendedor"
-        variant="outline"
-        onPress={() => router.push('/sellers/new')}
-        style={{ marginTop: spacing.lg }}
-      />
+      {(searchByDescription || searchByCode) && (
+        <Button
+          title="Limpiar filtros"
+          variant="outline"
+          onPress={clearFilters}
+          style={{ marginTop: spacing.lg }}
+        />
+      )}
     </View>
   );
+
+  const hasActiveFilters = searchByDescription || searchByCode;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
+        <View style={styles.headerTop}>
           <View>
             <Text style={styles.title}>Vendedores</Text>
             <Text style={styles.subtitle}>
-              {filteredSellers.length} vendedor{filteredSellers.length !== 1 ? 'es' : ''}
+              {filteredSellers.length} de {sellers.length} vendedor{sellers.length !== 1 ? 'es' : ''}
             </Text>
           </View>
-         {/* <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/sellers/new')}
-          >
-            <Ionicons name="add" size={24} color={colors.text.inverse} />
-          </TouchableOpacity> */}
         </View>
       </View>
 
-      {/* Filtros rápidos */}
+      {/* Filtros de búsqueda - En una sola fila */}
       <View style={styles.filtersContainer}>
-        <View style={styles.filtersContent}>
-          <TouchableOpacity style={styles.filterChip}>
-            <Ionicons name="people" size={16} color={colors.text.secondary} />
-            <Text style={styles.filterChipText}>Todos</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterChip}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-            <Text style={styles.filterChipText}>Activos</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterChip}>
-            <Ionicons name="key" size={16} color={colors.warning} />
-            <Text style={styles.filterChipText}>Encargados</Text>
-          </TouchableOpacity>
+        <View style={styles.filtersRow}>
+          <View style={styles.filterInputWrapper}>
+            <Input
+              placeholder="Descripción..."
+              onChangeText={debouncedSearchDescription}
+              leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
+              style={styles.filterInput}
+            />
+          </View>
+          <View style={styles.filterInputWrapper}>
+            <Input
+              placeholder="Código..."
+              onChangeText={debouncedSearchCode}
+              leftIcon={<Ionicons name="keypad-outline" size={18} color={colors.text.tertiary} />}
+              style={styles.filterInput}
+            />
+          </View>
         </View>
-      </View>
-
-      {/* Buscador */}
-      <View style={styles.searchContainer}>
-        <Input
-          placeholder="Buscar vendedores..."
-          onChangeText={debouncedSearch}
-          leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
-          style={{ marginBottom: 0 }}
-        />
+        
+        {hasActiveFilters && (
+          <TouchableOpacity 
+            style={styles.clearFiltersButton}
+            onPress={clearFilters}
+          >
+            <Ionicons name="close-circle" size={16} color={colors.primary[500]} />
+            <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Lista de vendedores */}
@@ -299,6 +260,7 @@ export default function SellersScreen(): JSX.Element {
         contentContainerStyle={styles.sellersList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmpty}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
   );
@@ -312,11 +274,12 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -329,80 +292,72 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
-  addButton: {
-    backgroundColor: colors.primary[500],
-    borderRadius: 24,
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
+  // Contenedor de filtros separado del header
   filtersContainer: {
     backgroundColor: colors.surface,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  filtersContent: {
+  filtersRow: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  filterChip: {
+  filterInputWrapper: {
+    flex: 1,
+  },
+  filterInput: {
+    marginBottom: 0,
+  },
+  clearFiltersButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.gray[100],
-    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
     gap: spacing.xs,
   },
-  filterChipText: {
+  clearFiltersText: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    color: colors.primary[500],
     fontWeight: typography.fontWeight.medium,
   },
-  searchContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-  },
   sellersList: {
-    padding: spacing.lg,
+    flexGrow: 1,
   },
-  sellerCard: {
-    marginBottom: spacing.md,
-  },
-  sellerContent: {
-    padding: spacing.md,
-  },
-  sellerHeader: {
+  sellerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 72,
+  },
+  sellerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.sm,
   },
   sellerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary[100],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
   sellerAvatarText: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
     color: colors.primary[500],
   },
-  sellerMainInfo: {
+  sellerInfo: {
     flex: 1,
   },
   sellerName: {
@@ -411,94 +366,46 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
-  sellerCode: {
+  sellerDescription: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginBottom: spacing.xs,
   },
-  sellerCompany: {
-    fontSize: typography.fontSize.sm,
-    color: colors.primary[500],
-    fontWeight: typography.fontWeight.medium,
+  sellerCenter: {
+    marginRight: spacing.md,
   },
-  sellerStatus: {
-    alignItems: 'flex-end',
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  codeBadge: {
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
-  },
-  statusText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-  },
-  sellerDetails: {
-    marginBottom: spacing.md,
-  },
-  sellerDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  sellerDetailText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  sellerCommissions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.gray[50],
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-  },
-  commissionItem: {
-    alignItems: 'center',
-  },
-  commissionLabel: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-  },
-  commissionValue: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.success,
-  },
-  inkeeperBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  inkeeperText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.medium,
-  },
-  sellerActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-  },
-  actionButton: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.gray[50],
     borderWidth: 1,
     borderColor: colors.gray[200],
+  },
+  codeText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  sellerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: colors.gray[100],
+    marginHorizontal: spacing.lg,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing['2xl'],
+    paddingVertical: spacing['3xl'],
     paddingHorizontal: spacing.lg,
   },
   emptyText: {
@@ -514,6 +421,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.fontSize.base * 1.5,
-    marginBottom: spacing.lg,
+    maxWidth: 280,
   },
 });

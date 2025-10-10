@@ -1,6 +1,7 @@
-// app/(tabs)/index.tsx - Dashboard Optimizado
+// app/(tabs)/index.tsx - Dashboard con selector de empresas CORREGIDO
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -100,6 +101,7 @@ export default function DashboardScreen(): JSX.Element {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [showRecentQuotes, setShowRecentQuotes] = useState<boolean>(false);
+  const [showCompanySelector, setShowCompanySelector] = useState<boolean>(false);
   const { user, logout } = useAuth();
 
   const handleAutoLogout = useCallback(async () => {
@@ -122,51 +124,75 @@ export default function DashboardScreen(): JSX.Element {
     loadInitialData();
   }, [user, handleAutoLogout]);
 
-  useEffect(() => {
-    const loadSelectedCompany = async () => {
-      const storedCompany = await AsyncStorage.getItem('selectedCompany');
-      if (storedCompany) {
-        setSelectedCompany(JSON.parse(storedCompany));
-      } else {
-        setSelectedCompany(null);
-      }
-    };
-    loadSelectedCompany();
-  }, [user]);
+  useFocusEffect(
+    useCallback(() => {
+      loadInitialData();
+      
+    }, [])
+  );
 
   const loadInitialData = async (): Promise<void> => {
-    try {
-      setLoading(true);
-      await Promise.all([loadDashboardData(), loadCompanies()]);
-    } catch (error) {
-      console.log('Error loading initial data:', error);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    
+    // 1️⃣ Cargar empresa guardada
+    const storedCompany = await AsyncStorage.getItem('selectedCompany');
+    let companyToUse: Company | null = null;
+    
+    if (storedCompany) {
+      companyToUse = JSON.parse(storedCompany);
+      setSelectedCompany(companyToUse);
+      console.log('✅ Empresa cargada desde AsyncStorage:', companyToUse.name);
     }
-  };
+    
+    // 2️⃣ Cargar datos pasando la empresa como parámetro
+    await Promise.all([
+      loadDashboardData(companyToUse), // ✅ Pasar empresa directamente
+      loadCompanies(storedCompany)
+    ]);
+  } catch (error) {
+    console.log('Error loading initial data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const loadDashboardData = async (): Promise<void> => {
-    try {
-      const data = await api.getDashboard();
-      setDashboardData(data);
-    } catch (error) {
-      console.log('Error loading dashboard:', error);
-    }
-  };
+const loadDashboardData = async (company?: Company | null): Promise<void> => {
+  try {
+    const companyId = company?.id || selectedCompany?.id;
+    console.log('Cargando datos del dashboard para la empresa ID:', companyId);
+    const data = await api.getDashboard({ company_id: companyId });
+    setDashboardData(data);
+  } catch (error) {
+    console.log('Error loading dashboard:', error);
+  }
+};
 
-  const loadCompanies = async (): Promise<void> => {
+  const loadCompanies = async (storedCompanyJson?: string | null): Promise<void> => {
     try {
       const response = await api.getCompanies({ per_page: 100 });
       setCompanies(response.data);
       
-      if (response.data.length > 0 && !selectedCompany) {
-        setSelectedCompany(response.data[0]);
-        await AsyncStorage.setItem('selectedCompany', JSON.stringify(response.data[0]));
+      // Solo establecer la primera empresa si NO hay ninguna guardada
+      if (response.data.length > 0 && !storedCompanyJson) {
+        const firstCompany = response.data[0];
+        setSelectedCompany(firstCompany);
+        await AsyncStorage.setItem('selectedCompany', JSON.stringify(firstCompany));
+        console.log('✅ Primera empresa establecida por defecto:', firstCompany.name);
       }
     } catch (error) {
       console.log('Error loading companies:', error);
     }
   };
+
+const handleSelectCompany = async (company: Company) => {
+  setSelectedCompany(company);
+  await AsyncStorage.setItem('selectedCompany', JSON.stringify(company));
+  console.log('✅ Empresa seleccionada y guardada:', company.name);
+  setShowCompanySelector(false);
+  // ✅ Pasar la empresa directamente
+  loadDashboardData(company);
+};
 
   const getStatusText = (status: Quote['status']) => {
     switch (status) {
@@ -196,9 +222,9 @@ export default function DashboardScreen(): JSX.Element {
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Buenos días';
-    if (hour < 18) return 'Buenas tardes';
-    return 'Buenas noches';
+    if (hour < 12) return 'Buenos días, ';
+    if (hour < 18) return 'Buenas tardes, ';
+    return 'Buenas noches, ';
   };
 
   const QuickAction: React.FC<QuickActionProps> = ({ 
@@ -280,8 +306,18 @@ export default function DashboardScreen(): JSX.Element {
           <View style={styles.userInfo}>
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
+            
+            {/* Selector de Empresa */}
             {selectedCompany && (
-              <Text style={styles.companyName}>{selectedCompany.name}</Text>
+              <TouchableOpacity
+                style={styles.companySelector}
+                onPress={() => setShowCompanySelector(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="business" size={14} color={colors.primary[500]} />
+                <Text style={styles.companyName}>{selectedCompany.name}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
+              </TouchableOpacity>
             )}
           </View>
           <TouchableOpacity 
@@ -296,7 +332,7 @@ export default function DashboardScreen(): JSX.Element {
       </View>
 
       <View style={styles.content}>
-        {/* Acciones Rápidas - Primera Sección */}
+        {/* Acciones Rápidas */}
         <View style={styles.quickActionsContainer}>
           <QuickAction
             title="Crear Presupuesto"
@@ -315,7 +351,7 @@ export default function DashboardScreen(): JSX.Element {
           />
         </View>
 
-        {/* Métricas - Segunda Sección */}
+        {/* Métricas */}
         <View style={styles.metricsContainer}>
           <View style={styles.metricsGrid}>
             <TouchableOpacity 
@@ -364,6 +400,66 @@ export default function DashboardScreen(): JSX.Element {
           </View>
         </View>
       </View>
+
+      {/* Modal Selector de Empresas */}
+      <Modal
+        visible={showCompanySelector}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCompanySelector(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Seleccionar Empresa</Text>
+            <TouchableOpacity onPress={() => setShowCompanySelector(false)}>
+              <Ionicons name="close" size={24} color={colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {companies.map((company) => (
+              <TouchableOpacity
+                key={company.id}
+                style={[
+                  styles.companyItem,
+                  selectedCompany?.id === company.id && styles.companyItemSelected
+                ]}
+                onPress={() => handleSelectCompany(company)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.companyItemLeft}>
+                  <View style={[
+                    styles.companyIcon,
+                    selectedCompany?.id === company.id && styles.companyIconSelected
+                  ]}>
+                    <Ionicons 
+                      name="business" 
+                      size={20} 
+                      color={selectedCompany?.id === company.id ? colors.text.inverse : colors.primary[500]} 
+                    />
+                  </View>
+                  <View style={styles.companyInfo}>
+                    <Text style={[
+                      styles.companyItemName,
+                      selectedCompany?.id === company.id && styles.companyItemNameSelected
+                    ]}>
+                      {company.name}
+                    </Text>
+                    {company.description && (
+                      <Text style={styles.companyItemDescription}>
+                        {company.description}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                {selectedCompany?.id === company.id && (
+                  <Ionicons name="checkmark-circle" size={24} color={colors.primary[500]} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Modal de Presupuestos Recientes */}
       <Modal
@@ -444,6 +540,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    paddingTop: spacing['2xl'],
   },
   userName: {
     fontSize: typography.fontSize.xl,
@@ -451,10 +548,21 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginTop: spacing.xs,
   },
+  companySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.md,
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+  },
   companyName: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
+    color: colors.primary[700],
+    fontWeight: typography.fontWeight.semibold,
   },
   profileButton: {
     padding: spacing.xs,
@@ -546,6 +654,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    paddingTop: spacing['2xl'],
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
@@ -558,6 +667,59 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: spacing.lg,
+  },
+  companyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    borderWidth: 2,
+    borderColor: colors.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  companyItemSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[25],
+  },
+  companyItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.md,
+  },
+  companyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  companyIconSelected: {
+    backgroundColor: colors.primary[500],
+  },
+  companyInfo: {
+    flex: 1,
+  },
+  companyItemName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  companyItemNameSelected: {
+    color: colors.primary[700],
+  },
+  companyItemDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   saleItem: {
     backgroundColor: colors.surface,

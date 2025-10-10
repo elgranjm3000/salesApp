@@ -71,11 +71,14 @@ export default function ProfileScreen(): JSX.Element {
   const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   useEffect(() => {
-    if (user?.role === 'company') {
+    console.log('👤 Usuario actual:', user);
+     if (user?.role === 'company') {
       loadUserCompanies();
-    } else if (user?.role === 'seller') {
+     } else{
       loadSellerCompanies();
-    }
+     }
+   
+   
   }, [user]);
 
   const loadUserCompanies = async () => {
@@ -84,8 +87,9 @@ export default function ProfileScreen(): JSX.Element {
     try {
       setLoadingCompanies(true);
       const response = await api.getCompanies();
+      console.log('✅ Compañías cargadas:', response.data);
       const userCompanies = response.data.filter(company => company.user_id === user.id);
-      setCompanies(userCompanies);
+      setCompanies(user?.companies || []);
     } catch (error) {
       console.error('Error loading companies:', error);
     } finally {
@@ -99,8 +103,10 @@ export default function ProfileScreen(): JSX.Element {
     try {
       setLoadingCompanies(true);
       // Asumiendo que existe un endpoint para obtener las empresas del vendedor
-      const response = await api.getSellerCompanies(user.id);
-      setSellerCompanies(response.data);
+      const response = await api.getCompanies();
+      const userCompanies = response.data.filter(company => company.user_id === user.id);
+      setSellerCompanies(user?.companies || []);
+      console.log('✅ Empresas del vendedor cargadas:', user?.companies);
     } catch (error) {
       console.error('Error loading seller companies:', error);
     } finally {
@@ -142,7 +148,7 @@ export default function ProfileScreen(): JSX.Element {
         </View>
         <View style={[
           styles.statusIndicator,
-          { backgroundColor: company.status === 'active' ? colors.success : colors.error }
+          { backgroundColor:  colors.success  }
         ]} />
       </View>
       
@@ -184,34 +190,16 @@ export default function ProfileScreen(): JSX.Element {
           <Ionicons name="business" size={24} color={colors.primary[500]} />
         </View>
         <View style={styles.companyInfo}>
-          <Text style={styles.companyName}>{seller.company?.name || 'Empresa'}</Text>
-          {seller.company?.description && (
-            <Text style={styles.companyDescription} numberOfLines={2}>
-              {seller.company.description}
-            </Text>
-          )}
-          <Text style={styles.sellerCode}>Código: {seller.code}</Text>
+          <Text style={styles.companyName}>{seller?.name || 'Empresa'}</Text>
+          
         </View>
         <View style={[
           styles.statusIndicator,
-          { backgroundColor: seller.seller_status === 'active' ? colors.success : colors.error }
+          { backgroundColor: colors.success  }
         ]} />
       </View>
       
-      <View style={styles.companyDetails}>
-        <View style={styles.companyDetailRow}>
-          <Ionicons name="trending-up" size={14} color={colors.text.secondary} />
-          <Text style={styles.companyDetailText}>
-            Comisión ventas: {seller.percent_sales}%
-          </Text>
-        </View>
-        <View style={styles.companyDetailRow}>
-          <Ionicons name="cash" size={14} color={colors.text.secondary} />
-          <Text style={styles.companyDetailText}>
-            Comisión cobros: {seller.percent_receivable}%
-          </Text>
-        </View>
-      </View>
+     
     </View>
   );
 
@@ -289,7 +277,7 @@ export default function ProfileScreen(): JSX.Element {
               <View style={styles.statusBadge}>
                 <View style={[
                   styles.statusIndicator,
-                  { backgroundColor: user.status === 'active' ? colors.success : colors.error }
+                  { backgroundColor:  colors.success }
                 ]} />
                 <Text style={styles.statusText}>
                   {user.status === 'active' ? 'Activo' : 'Inactivo'}
@@ -410,6 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
+    marginTop: Platform.OS === 'ios' ? 15: 15,
   },
   headerLeft: {
     flexDirection: 'row',
