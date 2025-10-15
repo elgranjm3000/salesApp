@@ -1178,6 +1178,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize['2xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+    marginTop: spacing.lg
   },
   subtitle: {
     fontSize: typography.fontSize.sm,

@@ -40,6 +40,26 @@ interface CategoryFilterProps {
   onSelectCategory: (category: Category | null) => void;
 }
 
+const QuickAction: React.FC<QuickActionProps> = ({ 
+    title, 
+    icon, 
+    onPress, 
+    color = colors.primary[500],
+    disabled = false
+  }) => (
+    <TouchableOpacity 
+      style={[styles.quickAction, disabled && styles.quickActionDisabled]} 
+      onPress={onPress} 
+      activeOpacity={0.7}
+      disabled={disabled}
+    >
+      <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
+        <Ionicons name={icon} size={24} color={colors.text.inverse} />
+      </View>
+      <Text style={styles.quickActionText} numberOfLines={2}>{title}</Text>
+    </TouchableOpacity>
+  );
+
 const CategoryFilter: React.FC<CategoryFilterProps> = ({
   categories,
   selectedCategory,
@@ -437,13 +457,7 @@ export default function ProductsScreen(): JSX.Element {
           <View style={styles.quantityControls}>
             {/* Fila de controles +/- y cantidad */}
           
-            {/* Botón "Lo quiero" debajo */}
-            <TouchableOpacity
-              style={styles.wantItButton}
-              onPress={() => createQuoteFromSingleProduct(product)}
-            >
-              <Text style={styles.wantItButtonText}>Lo quiero</Text>
-            </TouchableOpacity>
+          
 
           <View style={styles.quantityRow}>
               <TouchableOpacity
@@ -491,7 +505,13 @@ export default function ProductsScreen(): JSX.Element {
 
 
 
-
+  {/* Botón "Lo quiero" debajo */}
+            <TouchableOpacity
+              style={styles.wantItButton}
+              onPress={() => createQuoteFromSingleProduct(product)}
+            >
+              <Text style={styles.wantItButtonText}>Lo quiero</Text>
+            </TouchableOpacity>
 
 
           </View>
@@ -579,16 +599,22 @@ export default function ProductsScreen(): JSX.Element {
           <View style={styles.selectionInfo}>
             <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
             <Text style={styles.selectionText}>
-              {totalItems} {totalItems === 1 ? 'ítem' : 'ítems'} seleccionado{totalItems !== 1 ? 's' : ''}
+              {totalItems} {totalItems === 1 ? 'ítem' : 'ítems'}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.createQuoteButton}
             onPress={generateQuote}
           >
-            <Ionicons name="document-text" size={18} color={colors.text.inverse} />
+            <Ionicons name="add-circle" size={18} color={colors.text.inverse} />
             <Text style={styles.createQuoteButtonText}>Crear presupuesto</Text>
           </TouchableOpacity>
+                    {/*<QuickAction
+                      title="Crear Presupuesto"
+                      icon="add-circle"
+                      color={colors.primary[500]}
+                      onPress={generateQuote}
+                    />*/}
         </View>
       )}
 
@@ -727,13 +753,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.inverse,
   },
-  categoriesSection: {
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-    paddingBottom: 120,
-  },
+    categoriesSection: {
+      backgroundColor: colors.surface,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.gray[100],
+      paddingBottom: 110,
+    },
   departmentsTitle: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
@@ -777,7 +803,7 @@ const styles = StyleSheet.create({
   productCardSelected: {
     borderWidth: 2,
     borderColor: colors.primary[500],
-    backgroundColor: colors.primary[25],
+    backgroundColor: colors.primary[50],
   },
   productCardLowStock: {
     borderLeftWidth: 3,
@@ -897,7 +923,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
-    minWidth: 70,
+    minWidth: 105,
     alignItems: 'center',
   },
   wantItButtonText: {
@@ -969,5 +995,34 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     textAlign: 'center',
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    shadowColor: '#000',
+  },
+  quickActionDisabled: {
+    opacity: 0.6,
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  quickActionText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    textAlign: 'center',
+    color: colors.text.primary,
   },
 });

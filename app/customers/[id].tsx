@@ -509,6 +509,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+    marginTop: spacing.lg
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,

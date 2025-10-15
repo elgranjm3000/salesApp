@@ -31,6 +31,7 @@ export default function CustomersScreen(): JSX.Element {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchByName, setSearchByName] = useState<string>('');
   const [searchByDocument, setSearchByDocument] = useState<string>('');
+  const [ searchByContact, setSearchByContact ] = useState<string>('');
 
   useEffect(() => {
     loadCustomers();
@@ -44,7 +45,7 @@ export default function CustomersScreen(): JSX.Element {
 
   useEffect(() => {
     filterCustomers();
-  }, [searchByName, searchByDocument, customers]);
+  }, [searchByContact, searchByName, searchByDocument, customers]);
 
   const loadCustomers = async (): Promise<void> => {
     try {
@@ -82,6 +83,15 @@ export default function CustomersScreen(): JSX.Element {
         customer.document_number?.toLowerCase().includes(searchByDocument.toLowerCase())
       );
     }
+
+    if (searchByContact) {
+      filtered = filtered.filter(customer =>
+        customer.contact?.toLowerCase().includes(searchByContact.toLowerCase())
+      );
+    }
+
+
+    
     
     setFilteredCustomers(filtered);
   };
@@ -94,9 +104,14 @@ export default function CustomersScreen(): JSX.Element {
     setSearchByDocument(text);
   }, 300);
 
+    const debouncedSearchContact= debounce((text: string) => {
+    setSearchByContact(text);
+  }, 300);
+
   const clearFilters = (): void => {
     setSearchByName('');
     setSearchByDocument('');
+    setSearchByContact('');
   };
 
   const deleteCustomer = async (customerId: number): Promise<void> => {
@@ -160,6 +175,15 @@ export default function CustomersScreen(): JSX.Element {
                 </Text>
               </View>
             )}
+
+            {customer.contact && (
+              <View style={styles.infoRow}>
+                <Ionicons name="person-circle-outline" size={14} color={colors.text.secondary} />
+                <Text style={styles.infoText} numberOfLines={1}>
+                  {customer.contact}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -172,7 +196,7 @@ export default function CustomersScreen(): JSX.Element {
               router.push(`/quotes/new?customer_id=${customer.id}`);
             }}
           >
-            <Ionicons name="document-text-outline" size={20} color={colors.primary[500]} />
+            <Ionicons name="add-circle" size={20} color={colors.primary[500]} />
           </TouchableOpacity>
           <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
         </View>
@@ -231,11 +255,24 @@ export default function CustomersScreen(): JSX.Element {
               style={styles.filterInput}
             />
           </View>
+        </View>
+        <View style={[styles.filtersRow,{marginTop:20}]}>
           <View style={styles.filterInputWrapper}>
             <Input
               placeholder="Doc"
               onChangeText={debouncedSearchDocument}
               leftIcon={<Ionicons name="card-outline" size={18} color={colors.text.tertiary} />}
+              style={styles.filterInput}
+            />
+          </View>
+        </View>
+
+        <View style={[styles.filtersRow,{marginTop:20}]}>
+          <View style={styles.filterInputWrapper}>
+            <Input
+              placeholder="Contacto"
+              onChangeText={debouncedSearchContact}
+              leftIcon={<Ionicons name="person-circle-outline" size={18} color={colors.text.tertiary} />}
               style={styles.filterInput}
             />
           </View>
@@ -291,6 +328,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize['2xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+    marginTop: spacing.lg
   },
   subtitle: {
     fontSize: typography.fontSize.sm,
@@ -331,6 +369,7 @@ const styles = StyleSheet.create({
   },
   customersList: {
     flexGrow: 1,
+    paddingBottom:100
   },
   customerRow: {
     flexDirection: 'row',

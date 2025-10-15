@@ -47,6 +47,7 @@ export interface Customer {
   id: number;
   name: string;
   email?: string;
+  contact?: string;
   phone?: string;
   document_type?: string;
   document_number?: string;

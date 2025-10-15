@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
-    marginTop: Platform.OS === 'ios' ? 15: 15,
+    marginTop: spacing.lg
   },
   headerLeft: {
     flexDirection: 'row',
@@ -413,6 +413,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+    
   },
   logoutButton: {
     flexDirection: 'row',

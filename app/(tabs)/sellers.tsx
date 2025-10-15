@@ -284,10 +284,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  title: {
+  title: {    
     fontSize: typography.fontSize['2xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+    marginTop: spacing.lg
   },
   subtitle: {
     fontSize: typography.fontSize.sm,

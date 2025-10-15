@@ -930,6 +930,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    
   },
   loadingContainer: {
     flex: 1,
@@ -944,6 +945,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
+    marginTop: spacing.lg
   },
   title: {
     fontSize: typography.fontSize.lg,
