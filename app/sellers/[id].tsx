@@ -242,7 +242,7 @@ export default function SellerDetailsScreen(): JSX.Element {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Estadísticas de comisiones */}
-        <View style={styles.statsContainer}>
+        {/*<View style={styles.statsContainer}>
           {statsData.map((stat, index) => (
             <Card key={index} style={styles.statCard}>
               <View style={styles.statHeader}>
@@ -259,7 +259,7 @@ export default function SellerDetailsScreen(): JSX.Element {
               </View>
             </Card>
           ))}
-        </View>
+        </View>*/}
 
         {/* Información personal */}
         <Card style={styles.infoCard}>
@@ -353,7 +353,7 @@ export default function SellerDetailsScreen(): JSX.Element {
         </Card>
 
         {/* Comisiones detalladas */}
-        <Card style={styles.infoCard}>
+        {/*<Card style={styles.infoCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="analytics" size={24} color={colors.success} />
             <Text style={styles.sectionTitle}>Detalle de Comisiones</Text>
@@ -405,11 +405,11 @@ export default function SellerDetailsScreen(): JSX.Element {
                 <Text style={styles.commissionPercentage}>{seller.percent_returned_check}%</Text>
               </View>
             </View>*/}
-          </View>
-        </Card>
+          {/*</View>
+        </Card> */}
 
         {/* Descripción */}
-        {seller.description && (
+       {/*  {seller.description && (
           <Card style={styles.infoCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="document-text" size={24} color={colors.warning} />
@@ -417,10 +417,10 @@ export default function SellerDetailsScreen(): JSX.Element {
             </View>
             <Text style={styles.descriptionText}>{seller.description}</Text>
           </Card>
-        )}
+       )} */}
 
         {/* Información de fechas */}
-        <Card style={styles.infoCard}>
+       {/* <Card style={styles.infoCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="time" size={24} color={colors.text.secondary} />
             <Text style={styles.sectionTitle}>Historial</Text>
@@ -437,7 +437,7 @@ export default function SellerDetailsScreen(): JSX.Element {
               <Text style={styles.infoValue}>{formatDate(seller.updated_at)}</Text>
             </View>
           </View>
-        </Card>
+        </Card>*/}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

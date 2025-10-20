@@ -249,25 +249,25 @@ export default function CustomersScreen(): JSX.Element {
         <View style={styles.filtersRow}>
           <View style={styles.filterInputWrapper}>
             <Input
-              placeholder="Nombre"
+              placeholder="Descripción"
               onChangeText={debouncedSearchName}
               leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
-              style={styles.filterInput}
+              style={[styles.filterInput,{height: 60, paddingVertical: 2}]}
             />
           </View>
         </View>
         <View style={[styles.filtersRow,{marginTop:20}]}>
           <View style={styles.filterInputWrapper}>
             <Input
-              placeholder="Doc"
+              placeholder="Código"
               onChangeText={debouncedSearchDocument}
               leftIcon={<Ionicons name="card-outline" size={18} color={colors.text.tertiary} />}
-              style={styles.filterInput}
+              style={[styles.filterInput,{height: 60, paddingVertical: 2}]}
             />
           </View>
         </View>
 
-        <View style={[styles.filtersRow,{marginTop:20}]}>
+        {/*<View style={[styles.filtersRow,{marginTop:20}]}>
           <View style={styles.filterInputWrapper}>
             <Input
               placeholder="Contacto"
@@ -276,7 +276,7 @@ export default function CustomersScreen(): JSX.Element {
               style={styles.filterInput}
             />
           </View>
-        </View>
+        </View>*/}
         
         {hasActiveFilters && (
           <TouchableOpacity 
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filterInput: {
-    marginBottom: 0,
+    marginBottom: 0,    
   },
   clearFiltersButton: {
     flexDirection: 'row',

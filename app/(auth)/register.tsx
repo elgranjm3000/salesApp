@@ -38,6 +38,10 @@ interface RifType {
   label: string;
 }
 
+interface StepStatus {
+  [key: number]: 'pending' | 'completed' | 'error';
+}
+
 // Tipos de RIF disponibles
 const RIF_TYPES: RifType[] = [
   { id: 'V', label: 'V - Venezolano' },
@@ -49,6 +53,12 @@ const RIF_TYPES: RifType[] = [
 export default function RegisterScreen(): JSX.Element {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
+  const [stepStatus, setStepStatus] = useState<StepStatus>({
+    1: 'pending',
+    2: 'pending',
+    3: 'pending',
+    4: 'pending'
+  });
   
   // Step 1: Email y RIF
   const [email, setEmail] = useState('');
@@ -79,21 +89,25 @@ export default function RegisterScreen(): JSX.Element {
     
     if (!email.trim()) {
       setErrors({ email: 'El email es requerido' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
     
     if (!/\S+@\S+\.\S+/.test(email)) {
       setErrors({ email: 'Ingresa un email válido' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
     
     if (!rifType) {
       setErrors({ rif: 'Seleccione el tipo de Rif' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
     
     if (!rifNumber.trim()) {
       setErrors({ rif: 'Ingrese el número de Rif' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
 
@@ -105,9 +119,11 @@ export default function RegisterScreen(): JSX.Element {
       
       if (response.success) {
         setCompanyData(response.data);
+        setStepStatus(prev => ({ ...prev, 1: 'completed' }));
         setCurrentStep(2);
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al verificar la información';
       const errorCode = error.response?.data?.code;
       
@@ -139,6 +155,7 @@ export default function RegisterScreen(): JSX.Element {
   // PASO 2: Confirmar registro de empresa
   const handleConfirmRegistration = async (confirm: boolean): Promise<void> => {
     if (!confirm) {
+      setStepStatus(prev => ({ ...prev, 2: 'error' }));
       router.replace('/(auth)/login');
       return;
     }
@@ -151,6 +168,7 @@ export default function RegisterScreen(): JSX.Element {
       });
       
       if (response.success) {
+        setStepStatus(prev => ({ ...prev, 2: 'completed' }));
         Alert.alert(
           'Código enviado',
           `Se ha enviado un código de validación a ${response.data.email}`,
@@ -158,6 +176,7 @@ export default function RegisterScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 2: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al enviar el código';
       Alert.alert('Error', errorMessage);
     } finally {
@@ -171,11 +190,13 @@ export default function RegisterScreen(): JSX.Element {
     
     if (!validationCode.trim()) {
       setErrors({ validationCode: 'El código de validación es requerido' });
+      setStepStatus(prev => ({ ...prev, 3: 'error' }));
       return;
     }
     
     if (validationCode.length !== 6) {
       setErrors({ validationCode: 'El código debe tener exactamente 6 caracteres' });
+      setStepStatus(prev => ({ ...prev, 3: 'error' }));
       return;
     }
 
@@ -189,6 +210,7 @@ export default function RegisterScreen(): JSX.Element {
       
       if (response.success) {
         setUserData(prev => ({ ...prev, validation_token: response.data.validation_token }));
+        setStepStatus(prev => ({ ...prev, 3: 'completed' }));
         Alert.alert(
           'Código validado',
           'Ahora puede crear su clave de acceso',
@@ -196,6 +218,7 @@ export default function RegisterScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 3: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al validar el código';
       const errorCode = error.response?.data?.code;
       
@@ -230,6 +253,7 @@ export default function RegisterScreen(): JSX.Element {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      setStepStatus(prev => ({ ...prev, 4: 'error' }));
       return;
     }
 
@@ -244,6 +268,7 @@ export default function RegisterScreen(): JSX.Element {
       });
       
       if (response.success) {
+        setStepStatus(prev => ({ ...prev, 4: 'completed' }));
         Alert.alert(
           'Registro Exitoso',
           'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.',
@@ -256,6 +281,7 @@ export default function RegisterScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 4: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al completar el registro';
       const errorCode = error.response?.data?.code;
       
@@ -510,30 +536,41 @@ export default function RegisterScreen(): JSX.Element {
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {[1, 2, 3, 4].map((step) => (
-        <View key={step} style={styles.stepContainer}>
-          <View style={[
-            styles.stepCircle,
-            step <= currentStep && styles.stepCircleActive,
-            step < currentStep && styles.stepCircleCompleted
-          ]}>
-            {step < currentStep ? (
-              <Ionicons name="checkmark" size={16} color="white" />
-            ) : (
-              <Text style={[
-                styles.stepNumber,
-                step <= currentStep && styles.stepNumberActive
-              ]}>{step}</Text>
+      {[1, 2, 3, 4].map((step) => {
+        const status = stepStatus[step];
+        const isActive = step === currentStep;
+        const isCompleted = status === 'completed';
+        const isError = status === 'error';
+        
+        return (
+          <View key={step} style={styles.stepContainer}>
+            <View style={[
+              styles.stepCircle,
+              isActive && styles.stepCircleActive,
+              isCompleted && styles.stepCircleCompleted,
+              isError && styles.stepCircleError
+            ]}>
+              {isCompleted ? (
+                <Ionicons name="checkmark" size={16} color="white" />
+              ) : isError ? (
+                <Ionicons name="close" size={16} color="white" />
+              ) : (
+                <Text style={[
+                  styles.stepNumber,
+                  isActive && styles.stepNumberActive
+                ]}>{step}</Text>
+              )}
+            </View>
+            {step < 4 && (
+              <View style={[
+                styles.stepLine,
+                isCompleted && styles.stepLineCompleted,
+                isError && styles.stepLineError
+              ]} />
             )}
           </View>
-          {step < 4 && (
-            <View style={[
-              styles.stepLine,
-              step < currentStep && styles.stepLineCompleted
-            ]} />
-          )}
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 
@@ -666,6 +703,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
     borderColor: colors.success,
   },
+  stepCircleError: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
+  },
   stepNumber: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
@@ -682,6 +723,9 @@ const styles = StyleSheet.create({
   },
   stepLineCompleted: {
     backgroundColor: colors.success,
+  },
+  stepLineError: {
+    backgroundColor: colors.error,
   },
   // Título del paso - sin bordes ni card
   stepTitleContainer: {

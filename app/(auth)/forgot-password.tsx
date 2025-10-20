@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -19,9 +19,18 @@ import { colors, spacing, typography } from '../../theme/design';
 
 type Step = 1 | 2 | 3;
 
+interface StepStatus {
+  [key: number]: 'pending' | 'completed' | 'error';
+}
+
 export default function ForgotPasswordScreen(): JSX.Element {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
+  const [stepStatus, setStepStatus] = useState<StepStatus>({
+    1: 'pending',
+    2: 'pending',
+    3: 'pending'
+  });
   
   // Step 1: Email
   const [email, setEmail] = useState('');
@@ -44,11 +53,13 @@ export default function ForgotPasswordScreen(): JSX.Element {
     
     if (!email.trim()) {
       setErrors({ email: 'El email es requerido' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
     
     if (!/\S+@\S+\.\S+/.test(email)) {
       setErrors({ email: 'Ingresa un email válido' });
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       return;
     }
 
@@ -57,6 +68,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
       const response = await api.forgotPassword({ email: email.trim() });
       
       if (response.success) {
+        setStepStatus(prev => ({ ...prev, 1: 'completed' }));
         Alert.alert(
           'Código enviado',
           `Hemos enviado un código de verificación a ${response.data.email}. El código expira en ${response.data.expires_in_minutes} minutos.`,
@@ -64,6 +76,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 1: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al enviar el código';
       const errorCode = error.response?.data?.code;
       
@@ -85,11 +98,13 @@ export default function ForgotPasswordScreen(): JSX.Element {
     
     if (!verificationCode.trim()) {
       setErrors({ code: 'El código de verificación es requerido' });
+      setStepStatus(prev => ({ ...prev, 2: 'error' }));
       return;
     }
     
     if (verificationCode.length !== 6) {
       setErrors({ code: 'El código debe tener exactamente 6 caracteres' });
+      setStepStatus(prev => ({ ...prev, 2: 'error' }));
       return;
     }
 
@@ -102,6 +117,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
       
       if (response.success) {
         setResetToken(response.data.reset_token);
+        setStepStatus(prev => ({ ...prev, 2: 'completed' }));
         Alert.alert(
           'Código verificado',
           'Código correcto. Ahora puede establecer su nueva contraseña.',
@@ -109,6 +125,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 2: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al verificar el código';
       const errorCode = error.response?.data?.code;
       
@@ -141,6 +158,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      setStepStatus(prev => ({ ...prev, 3: 'error' }));
       return;
     }
 
@@ -154,6 +172,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
       });
       
       if (response.success) {
+        setStepStatus(prev => ({ ...prev, 3: 'completed' }));
         Alert.alert(
           'Contraseña restablecida',
           'Su contraseña ha sido restablecida exitosamente. Ahora puede iniciar sesión con su nueva contraseña.',
@@ -166,6 +185,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
         );
       }
     } catch (error: any) {
+      setStepStatus(prev => ({ ...prev, 3: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al restablecer la contraseña';
       const errorCode = error.response?.data?.code;
       
@@ -174,6 +194,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
         setCurrentStep(1);
         setResetToken('');
         setVerificationCode('');
+        setStepStatus({ 1: 'pending', 2: 'pending', 3: 'pending' });
       } else if (errorCode === 'TOKEN_MISMATCH') {
         Alert.alert('Error', 'Token no válido para este correo electrónico');
       } else {
@@ -260,6 +281,7 @@ export default function ForgotPasswordScreen(): JSX.Element {
         onPress={() => {
           setCurrentStep(1);
           setVerificationCode('');
+          setStepStatus(prev => ({ ...prev, 2: 'pending' }));
         }}
         style={styles.backLink}
       >
@@ -343,27 +365,38 @@ export default function ForgotPasswordScreen(): JSX.Element {
 
           <Text style={styles.title}>{getStepTitle()}</Text>
 
-          {/* Indicador de pasos */}
+          {/* Indicador de pasos con estados */}
           <View style={styles.stepIndicator}>
-            {[1, 2, 3].map((step) => (
-              <React.Fragment key={step}>
-                <View style={[
-                  styles.stepDot,
-                  step === currentStep && styles.stepDotActive,
-                  step < currentStep && styles.stepDotCompleted
-                ]}>
-                  {step < currentStep ? (
-                    <Ionicons name="checkmark" size={12} color="white" />
-                  ) : null}
-                </View>
-                {step < 3 && (
+            {[1, 2, 3].map((step) => {
+              const status = stepStatus[step];
+              const isActive = step === currentStep;
+              const isCompleted = status === 'completed';
+              const isError = status === 'error';
+
+              return (
+                <React.Fragment key={step}>
                   <View style={[
-                    styles.stepLine,
-                    step < currentStep && styles.stepLineCompleted
-                  ]} />
-                )}
-              </React.Fragment>
-            ))}
+                    styles.stepDot,
+                    isActive && styles.stepDotActive,
+                    isCompleted && styles.stepDotCompleted,
+                    isError && styles.stepDotError
+                  ]}>
+                    {isCompleted ? (
+                      <Ionicons name="checkmark" size={12} color="white" />
+                    ) : isError ? (
+                      <Ionicons name="close" size={12} color="white" />
+                    ) : null}
+                  </View>
+                  {step < 3 && (
+                    <View style={[
+                      styles.stepLine,
+                      isCompleted && styles.stepLineCompleted,
+                      isError && styles.stepLineError
+                    ]} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </View>
 
           {/* Contenido del paso actual */}
@@ -446,6 +479,9 @@ const styles = StyleSheet.create({
   stepDotCompleted: {
     backgroundColor: colors.success,
   },
+  stepDotError: {
+    backgroundColor: colors.error,
+  },
   stepLine: {
     width: 40,
     height: 2,
@@ -454,6 +490,9 @@ const styles = StyleSheet.create({
   },
   stepLineCompleted: {
     backgroundColor: colors.success,
+  },
+  stepLineError: {
+    backgroundColor: colors.error,
   },
   card: {
     marginBottom: spacing.lg,
