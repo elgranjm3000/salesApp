@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { useCustomAlert } from '../../components/ui/CustomAlert';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { colors, spacing, typography } from '../../theme/design';
@@ -45,6 +46,8 @@ export default function ForgotPasswordScreen(): JSX.Element {
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const { showAlert, AlertComponent } = useCustomAlert();
+  
   const clearErrors = () => setErrors({});
 
   // PASO 1: Solicitar código de recuperación
@@ -68,12 +71,15 @@ export default function ForgotPasswordScreen(): JSX.Element {
       const response = await api.forgotPassword({ email: email.trim() });
       
       if (response.success) {
-        setStepStatus(prev => ({ ...prev, 1: 'completed' }));
-        Alert.alert(
-          'Código enviado',
-          `Hemos enviado un código de verificación a ${response.data.email}. El código expira en ${response.data.expires_in_minutes} minutos.`,
-          [{ text: 'OK', onPress: () => setCurrentStep(2) }]
-        );
+        setStepStatus(prev => ({ ...prev, 1: 'completed' }));        
+
+        showAlert({
+          title: 'Código enviado',
+          message: `Hemos enviado un código de verificación a ${response.data.email}. El código expira en ${response.data.expires_in_minutes} minutos.`,
+          icon: 'checkmark',
+          iconColor: colors.success,
+          buttons: [{ text: 'OK', onPress: () => setCurrentStep(2) }]
+        });
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 1: 'error' }));
@@ -81,9 +87,23 @@ export default function ForgotPasswordScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorMessage.includes('No existe un usuario')) {
-        Alert.alert('Usuario no encontrado', 'No existe un usuario registrado con este correo electrónico');
+        //Alert.alert('Usuario no encontrado', 'No existe un usuario registrado con este correo electrónico');
+
+      showAlert({
+          title: 'Usuario no encontrado',
+          message: 'No existe un usuario registrado con este correo electrónico',
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
       } else if (errorMessage.includes('inactiva')) {
-        Alert.alert('Cuenta inactiva', 'Esta cuenta está inactiva. Contacte al administrador.');
+        showAlert({
+          title: 'Cuenta inactiva',
+          message: 'Esta cuenta está inactiva. Contacte al administrador',
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
       } else {
         Alert.alert('Error', errorMessage);
       }
@@ -118,11 +138,15 @@ export default function ForgotPasswordScreen(): JSX.Element {
       if (response.success) {
         setResetToken(response.data.reset_token);
         setStepStatus(prev => ({ ...prev, 2: 'completed' }));
-        Alert.alert(
-          'Código verificado',
-          'Código correcto. Ahora puede establecer su nueva contraseña.',
-          [{ text: 'Continuar', onPress: () => setCurrentStep(3) }]
-        );
+   
+
+         showAlert({
+          title: 'Código verificado',
+          message: `Código correcto. Ahora puede establecer su nueva contraseña.`,
+          icon: 'checkmark',
+          iconColor: colors.error,
+          buttons: [{ text: 'Continuar', onPress: () => setCurrentStep(3) }]
+        });
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 2: 'error' }));
@@ -130,7 +154,15 @@ export default function ForgotPasswordScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'INVALID_CODE') {
-        Alert.alert('Código inválido', 'El código de verificación es inválido o ha expirado');
+        //Alert.alert('Código inválido', 'El código de verificación es inválido o ha expirado');
+
+        showAlert({
+          title: 'Código inválido',
+          message: `El código de verificación es inválido o ha expirado.`,
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
       } else {
         Alert.alert('Error', errorMessage);
       }
@@ -172,17 +204,16 @@ export default function ForgotPasswordScreen(): JSX.Element {
       });
       
       if (response.success) {
-        setStepStatus(prev => ({ ...prev, 3: 'completed' }));
-        Alert.alert(
-          'Contraseña restablecida',
-          'Su contraseña ha sido restablecida exitosamente. Ahora puede iniciar sesión con su nueva contraseña.',
-          [
-            {
-              text: 'Ir al Login',
-              onPress: () => router.replace('/(auth)/login'),
-            },
-          ]
-        );
+        setStepStatus(prev => ({ ...prev, 3: 'completed' }));        
+
+        showAlert({
+          title: 'Contraseña restablecida',
+          message: `Su contraseña ha sido restablecida exitosamente. Ahora puede iniciar sesión con su nueva contraseña.`,
+          icon: 'checkmark',
+          iconColor: colors.success,
+          buttons: [{ text: 'Ir al Login', onPress: () => router.replace('/(auth)/login') }]
+        });
+        
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 3: 'error' }));
@@ -190,13 +221,28 @@ export default function ForgotPasswordScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'INVALID_TOKEN') {
-        Alert.alert('Sesión expirada', 'El token ha expirado. Inicie el proceso nuevamente.');
+        
+        showAlert({
+          title: 'Sesión expirada',
+          message: `El token ha expirado. Inicie el proceso nuevamente.`,
+          icon: 'checkmark',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
+        
         setCurrentStep(1);
         setResetToken('');
         setVerificationCode('');
         setStepStatus({ 1: 'pending', 2: 'pending', 3: 'pending' });
       } else if (errorCode === 'TOKEN_MISMATCH') {
-        Alert.alert('Error', 'Token no válido para este correo electrónico');
+
+         showAlert({
+          title: 'Error de token',
+          message: `Token no válido para este correo electrónico`,
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
       } else {
         Alert.alert('Error', errorMessage);
       }
@@ -349,6 +395,9 @@ export default function ForgotPasswordScreen(): JSX.Element {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+            {/* Custom Alert Component */}
+      <AlertComponent />
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Header */}

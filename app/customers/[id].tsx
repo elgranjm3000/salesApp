@@ -308,34 +308,7 @@ export default function CustomerDetailScreen(): JSX.Element {
           <Text style={styles.sectionTitle}>Documento de Identidad</Text>
           
           {/* Selector de tipo de documento */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Tipo de Documento</Text>
-            {editing ? (
-              <View style={styles.documentTypeSelector}>
-                {DOCUMENT_TYPES.map((docType) => (
-                  <TouchableOpacity
-                    key={docType.value}
-                    style={[
-                      styles.documentTypeOption,
-                      formData.document_type === docType.value && styles.documentTypeOptionSelected
-                    ]}
-                    onPress={() => updateFormData('document_type', docType.value)}
-                  >
-                    <Text style={[
-                      styles.documentTypeOptionText,
-                      formData.document_type === docType.value && styles.documentTypeOptionTextSelected
-                    ]}>
-                      {docType.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.readOnlyValue}>
-                {DOCUMENT_TYPES.find(doc => doc.value === customer?.document_type)?.label || 'No especificado'}
-              </Text>
-            )}
-          </View>
+          
 
           <Input
             label="Número de Documento"
@@ -400,51 +373,7 @@ export default function CustomerDetailScreen(): JSX.Element {
         </Card>
 
         {/* Estadísticas del cliente (solo en modo vista) */}
-        {customer && !editing && (
-          <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.sectionTitle}>Estadísticas</Text>
-            
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <Ionicons name="receipt" size={20} color={colors.primary[500]} />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statValue}>{customer.sales_count || 0}</Text>
-                  <Text style={styles.statLabel}>Ventas</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <Ionicons name="calendar" size={20} color={colors.success} />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statValue}>
-                    {customer.created_at ? new Date(customer.created_at).getFullYear() : 'N/A'}
-                  </Text>
-                  <Text style={styles.statLabel}>Desde</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <Ionicons 
-                    name={customer.status === 'active' ? 'checkmark-circle' : 'close-circle'} 
-                    size={20} 
-                    color={customer.status === 'active' ? colors.success : colors.error} 
-                  />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statValue}>
-                    {customer.status === 'active' ? 'Activo' : 'Inactivo'}
-                  </Text>
-                  <Text style={styles.statLabel}>Estado</Text>
-                </View>
-              </View>
-            </View>
-          </Card>
-        )}
+   
 
         {editing && (
           <View style={styles.actions}>

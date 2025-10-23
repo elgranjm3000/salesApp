@@ -301,35 +301,37 @@ const handleSelectCompany = async (company: Company) => {
       showsVerticalScrollIndicator={false}
     >
       {/* Header Compacto */}
-      <View style={styles.header}>
-        <View style={styles.headerMain}>
-          <View style={styles.userInfo}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{user?.name}</Text>
-            
-            {/* Selector de Empresa */}
-            {selectedCompany && (
-              <TouchableOpacity
-                style={styles.companySelector}
-                onPress={() => setShowCompanySelector(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="business" size={14} color={colors.primary[500]} />
-                <Text style={styles.companyName}>{selectedCompany.name}</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity 
-            style={styles.profileButton}
-            onPress={() => router.push('/profile')}
-          >
-            <View style={styles.avatarContainer}>
-              <Ionicons name="person" size={20} color={colors.primary[500]} />
-            </View>
-          </TouchableOpacity>
-        </View>
+   <View style={styles.header}>
+  <View style={styles.headerMain}>
+    <View style={styles.userInfo}>
+      <View style={styles.greetingRow}>
+        <Text style={styles.greeting}>{getGreeting()}</Text>
+         <TouchableOpacity 
+      style={styles.profileButton}
+      onPress={() => router.push('/profile')}
+    >
+      <View style={styles.avatarContainer}>
+        <Ionicons name="person" size={20} color={colors.primary[500]} />
       </View>
+    </TouchableOpacity>
+        
+      </View>
+      <Text style={styles.userName}>{user?.name}</Text>
+      {selectedCompany && (
+          <TouchableOpacity
+            style={styles.companySelector}
+            onPress={() => setShowCompanySelector(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="business" size={14} color={colors.primary[500]} />
+            <Text style={styles.companyName}>{selectedCompany.name}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
+          </TouchableOpacity>
+        )}
+    </View>
+   
+  </View>
+</View>
 
       <View style={styles.content}>
         {/* Acciones Rápidas */}
@@ -366,7 +368,7 @@ const handleSelectCompany = async (company: Company) => {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.metricCard, { borderLeftColor: colors.primary[500] }]}
+              style={[styles.metricCard, { borderLeftColor: colors.primary[100] }]}
               onPress={() => router.push('/quotes')}
               activeOpacity={0.7}
             >
@@ -377,7 +379,7 @@ const handleSelectCompany = async (company: Company) => {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.metricCard, { borderLeftColor: colors.warning }]}
+              style={[styles.metricCard, { borderLeftColor: colors.info }]}
               onPress={() => router.push('/products')}
               activeOpacity={0.7}
             >
@@ -388,7 +390,7 @@ const handleSelectCompany = async (company: Company) => {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.metricCard, { borderLeftColor: colors.info }]}
+              style={[styles.metricCard, { borderLeftColor: colors.primary[500] }]}
               onPress={() => router.push('/customers')}
               activeOpacity={0.7}
             >
@@ -525,7 +527,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xs,
     paddingBottom: spacing.md,
     marginBottom: spacing.sm,
   },
@@ -550,14 +552,12 @@ const styles = StyleSheet.create({
   },
   companySelector: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.primary[50],
-    borderRadius: borderRadius.md,
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
+  alignItems: 'center',
+  backgroundColor: colors.primary[50],
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 12,
+  gap: 4,
   },
   companyName: {
     fontSize: typography.fontSize.sm,
@@ -565,7 +565,11 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
   },
   profileButton: {
-    padding: spacing.xs,
+    padding: 1,
+    marginTop: 35,
+    paddingLeft: 160,     // Espacio a la izquierda si lo necesitas
+    paddingRight: 0,      // Elimina el espacio derecho
+    alignSelf: 'flex-end' // Lo alinea al borde derecho del contenedor
   },
   avatarContainer: {
     width: 40,
@@ -674,7 +678,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
     marginBottom: spacing.md,
     borderWidth: 2,
     borderColor: colors.gray[200],
@@ -799,5 +802,9 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
     marginTop: spacing.md,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
 });

@@ -23,6 +23,9 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { borderRadius, colors, spacing, typography } from '../theme/design';
 
+// Constante de versión
+const APP_VERSION = 'v1.0.0';
+
 interface Company {
   id: number;
   user_id: number;
@@ -378,6 +381,11 @@ export default function ProfileScreen(): JSX.Element {
           </Card>
         )}
 
+        {/* Versión de la App */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>{APP_VERSION}</Text>
+        </View>
+
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -559,6 +567,16 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    marginTop: spacing.md,
+  },
+  versionText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[400],
+    opacity: 0.6,
   },
   bottomSpacer: {
     height: spacing.xl,

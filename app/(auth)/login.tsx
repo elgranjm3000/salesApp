@@ -4,7 +4,6 @@ import * as Device from 'expo-device';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
 import { ActiveSessionModal } from '../../components/ActiveSessionModal'; // NUEVO
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { useCustomAlert } from '../../components/ui/CustomAlert';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../theme/design';
@@ -48,6 +48,7 @@ export default function LoginScreen(): JSX.Element {
   const [showActiveSessionModal, setShowActiveSessionModal] = useState(false);
   const [activeSessionInfo, setActiveSessionInfo] = useState<ActiveSessionInfo | null>(null);
   const [forceLogoutLoading, setForceLogoutLoading] = useState(false);
+  const { showAlert, AlertComponent } = useCustomAlert();
 
   // Auto-login con biometría si está habilitada
   useEffect(() => {
@@ -119,7 +120,15 @@ export default function LoginScreen(): JSX.Element {
       setShowActiveSessionModal(false);
       router.replace('/(tabs)');
     } else {
-      Alert.alert('Error de acceso', result.message || 'Error desconocido');
+      //Alert.alert('Error de acceso', result.message || 'Error desconocido');
+
+    showAlert({
+              title: 'Error de acceso',
+              message: result.message || 'Error desconocido',
+              icon: 'close',
+              iconColor: colors.error,
+              buttons: [{ text: 'Entendido' }]
+      });
     }
   };
 
@@ -152,11 +161,23 @@ export default function LoginScreen(): JSX.Element {
       router.replace('/(tabs)');
     } else {
       if (result.message && !result.message.includes('cancelada') && !result.message.includes('fallida')) {
-        Alert.alert(
+        /*Alert.alert(
           'Error de acceso biométrico', 
           result.message,
           [{ text: 'OK' }]
-        );
+        );*/
+
+
+        showAlert({
+              title: 'Error de acceso biométrico',
+              message: result.message || 'Error desconocido',
+              icon: 'close',
+              iconColor: colors.error,
+              buttons: [{ text: 'Ok' }]
+      });
+
+
+        
       }
     }
     
@@ -168,6 +189,8 @@ export default function LoginScreen(): JSX.Element {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <AlertComponent />
+
       <ScrollView>
         <View style={styles.content}>
           {/* Header */}

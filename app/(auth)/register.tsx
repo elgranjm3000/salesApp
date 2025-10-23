@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Linking,
@@ -16,6 +15,7 @@ import {
   View
 } from 'react-native';
 import { Button } from '../../components/ui/Button';
+import { useCustomAlert } from '../../components/ui/CustomAlert';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
@@ -42,7 +42,6 @@ interface StepStatus {
   [key: number]: 'pending' | 'completed' | 'error';
 }
 
-// Tipos de RIF disponibles
 const RIF_TYPES: RifType[] = [
   { id: 'V', label: 'V - Venezolano' },
   { id: 'E', label: 'E - Extranjero' },
@@ -60,19 +59,14 @@ export default function RegisterScreen(): JSX.Element {
     4: 'pending'
   });
   
-  // Step 1: Email y RIF
   const [email, setEmail] = useState('');
   const [rifType, setRifType] = useState('');
   const [rifNumber, setRifNumber] = useState('');
   const [showRifPicker, setShowRifPicker] = useState(false);
   
-  // Step 2: Datos de la empresa encontrada
   const [companyData, setCompanyData] = useState<CompanyData>({});
-  
-  // Step 3: Código de validación
   const [validationCode, setValidationCode] = useState('');
   
-  // Step 4: Datos del usuario
   const [userData, setUserData] = useState({
     password: '',
     password_confirmation: '',
@@ -80,6 +74,9 @@ export default function RegisterScreen(): JSX.Element {
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Hook para custom alerts
+  const { showAlert, AlertComponent } = useCustomAlert();
 
   const clearErrors = () => setErrors({});
 
@@ -128,24 +125,38 @@ export default function RegisterScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'COMPANY_NOT_FOUND') {
-        Alert.alert(
-          'Empresa no encontrada',
-          'Comuníquese con el call center para registrar su empresa',
-          [
+        showAlert({
+          title: 'Empresa no encontrada',
+          message: 'Comuníquese con el call center para registrar su empresa',
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [
             {
               text: 'Cancelar',
               style: 'cancel',
-            },    
+            },
             {
               text: 'WhatsApp',
               onPress: () => Linking.openURL('https://wa.me/584142441226')
             }
           ]
-        );
+        });
       } else if (errorCode === 'COMPANY_ALREADY_HAS_USER') {
-        Alert.alert('Empresa ya registrada', 'Esta empresa ya tiene un usuario registrado en el sistema');
+        showAlert({
+          title: 'Empresa ya registrada',
+          message: 'Esta empresa ya tiene un usuario registrado en el sistema',
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'Entendido' }]
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        showAlert({
+          title: 'Error',
+          message: errorMessage,
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'OK' }]
+        });
       }
     } finally {
       setLoading(false);
@@ -169,16 +180,27 @@ export default function RegisterScreen(): JSX.Element {
       
       if (response.success) {
         setStepStatus(prev => ({ ...prev, 2: 'completed' }));
-        Alert.alert(
-          'Código enviado',
-          `Se ha enviado un código de validación a ${response.data.email}`,
-          [{ text: 'OK', onPress: () => setCurrentStep(3) }]
-        );
+        showAlert({
+          title: 'Código enviado',
+          message: `Se ha enviado un código de validación a ${response.data.email}`,
+          icon: 'mail',
+          iconColor: colors.success,
+          buttons: [{
+            text: 'Continuar',
+            onPress: () => setCurrentStep(3)
+          }]
+        });
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 2: 'error' }));
       const errorMessage = error.response?.data?.message || 'Error al enviar el código';
-      Alert.alert('Error', errorMessage);
+      showAlert({
+        title: 'Error',
+        message: errorMessage,
+        icon: 'close-circle',
+        iconColor: colors.error,
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setLoading(false);
     }
@@ -211,11 +233,16 @@ export default function RegisterScreen(): JSX.Element {
       if (response.success) {
         setUserData(prev => ({ ...prev, validation_token: response.data.validation_token }));
         setStepStatus(prev => ({ ...prev, 3: 'completed' }));
-        Alert.alert(
-          'Código validado',
-          'Ahora puede crear su clave de acceso',
-          [{ text: 'Continuar', onPress: () => setCurrentStep(4) }]
-        );
+        showAlert({
+          title: 'Código validado',
+          message: 'Ahora puede crear su clave de acceso',
+          icon: 'checkmark-circle',
+          iconColor: colors.success,
+          buttons: [{
+            text: 'Continuar',
+            onPress: () => setCurrentStep(4)
+          }]
+        });
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 3: 'error' }));
@@ -223,11 +250,29 @@ export default function RegisterScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'EMAIL_MISMATCH') {
-        Alert.alert('Error', 'El correo no coincide con el de la empresa');
+        showAlert({
+          title: 'Error de validación',
+          message: 'El correo no coincide con el de la empresa',
+          icon: 'mail-unread',
+          iconColor: colors.error,
+          buttons: [{ text: 'OK' }]
+        });
       } else if (errorCode === 'INVALID_CODE') {
-        Alert.alert('Código inválido', 'El código de validación es inválido o ha expirado');
+        showAlert({
+          title: 'Código inválido',
+          message: 'El código de validación es inválido o ha expirado',
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'OK' }]
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        showAlert({
+          title: 'Error',
+          message: errorMessage,
+          icon: 'close',
+          iconColor: colors.error,
+          buttons: [{ text: 'OK' }]
+        });
       }
     } finally {
       setLoading(false);
@@ -269,16 +314,16 @@ export default function RegisterScreen(): JSX.Element {
       
       if (response.success) {
         setStepStatus(prev => ({ ...prev, 4: 'completed' }));
-        Alert.alert(
-          'Registro Exitoso',
-          'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.',
-          [
-            {
-              text: 'Iniciar Sesión',
-              onPress: () => router.replace('/(auth)/login'),
-            },
-          ]
-        );
+        showAlert({
+          title: 'Registro Exitoso',
+          message: 'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.',
+          icon: 'checkmark-done-circle',
+          iconColor: colors.success,
+          buttons: [{
+            text: 'Iniciar Sesión',
+            onPress: () => router.replace('/(auth)/login'),
+          }]
+        });
       }
     } catch (error: any) {
       setStepStatus(prev => ({ ...prev, 4: 'error' }));
@@ -286,17 +331,30 @@ export default function RegisterScreen(): JSX.Element {
       const errorCode = error.response?.data?.code;
       
       if (errorCode === 'INVALID_TOKEN') {
-        Alert.alert('Sesión expirada', 'El token de validación ha expirado. Inicie el proceso nuevamente.');
-        setCurrentStep(1);
+        showAlert({
+          title: 'Sesión expirada',
+          message: 'El token de validación ha expirado. Inicie el proceso nuevamente.',
+          icon: 'time-outline',
+          iconColor: colors.warning,
+          buttons: [{
+            text: 'Reiniciar',
+            onPress: () => setCurrentStep(1)
+          }]
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        showAlert({
+          title: 'Error',
+          message: errorMessage,
+          icon: 'close-circle',
+          iconColor: colors.error,
+          buttons: [{ text: 'OK' }]
+        });
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Componente para selector de tipo de RIF
   const renderRifPicker = () => (
     <Modal
       visible={showRifPicker}
@@ -589,6 +647,9 @@ export default function RegisterScreen(): JSX.Element {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Custom Alert Component */}
+      <AlertComponent />
+
       {/* Header */}
       <View>
         <TouchableOpacity 
@@ -612,7 +673,6 @@ export default function RegisterScreen(): JSX.Element {
       >
         {renderStepIndicator()}
         
-        {/* Título del paso - SIN bordes/card */}
         <View style={styles.stepTitleContainer}>
           <Text style={styles.stepTitle}>{getStepTitle()}</Text>
         </View>
@@ -633,25 +693,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-    borderBottomLeftRadius: borderRadius.xl,
-    borderBottomRightRadius: borderRadius.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
   backButton: {
     paddingTop: 25,
     paddingLeft: 15,
     alignSelf: 'flex-start',
     padding: spacing.xs,
-    
   },
   headerContent: {
     alignItems: 'center',
@@ -727,7 +773,6 @@ const styles = StyleSheet.create({
   stepLineError: {
     backgroundColor: colors.error,
   },
-  // Título del paso - sin bordes ni card
   stepTitleContainer: {
     marginBottom: spacing.md,
     paddingHorizontal: spacing.xs,
@@ -738,9 +783,7 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlign: 'center',
   },
-  formContent: {
-    // Sin card, sin bordes, sin padding extra
-  },
+  formContent: {},
   sectionSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
@@ -762,7 +805,6 @@ const styles = StyleSheet.create({
     color: colors.error,
     marginTop: spacing.xs,
   },
-  // Estilos para el selector de RIF
   rifContainer: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -796,7 +838,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 0, 
   },
-  // Modal para selector de RIF
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -829,7 +870,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
-    
   },
   pickerItemText: {
     fontSize: typography.fontSize.base,
@@ -839,7 +879,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray[50],
     padding: spacing.xs,
     borderRadius: borderRadius.md,
-   
   },
   infoRowColumn: {
     marginBottom: spacing.md,
