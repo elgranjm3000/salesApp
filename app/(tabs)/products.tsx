@@ -87,6 +87,8 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
     setSearchText('');
   };
 
+  
+
   return (
     <View style={styles.categoriesSection}>
       <Text style={styles.departmentsTitle}>DEPARTAMENTOS</Text>
@@ -270,6 +272,7 @@ export default function ProductsScreen(): JSX.Element {
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'price' | 'higher_price'>>({});
 
   useEffect(() => {
     loadData();
@@ -463,201 +466,254 @@ export default function ProductsScreen(): JSX.Element {
   };
 
   const generateQuote = () => {
-    const selectedProductsArray = Array.from(selectedProducts)
-      .map(id => {
-        const product = products.find(p => p.id === id);
-        if (!product) return null;
-        
-        return {
-          product_id: product.id,
-          quantity: productQuantities[id] || 1,
-          unit_price: product.price,
-        };
-      })
-      .filter(p => p !== null);
+  const selectedProductsArray = Array.from(selectedProducts)
+    .map(id => {
+      const product = products.find(p => p.id === id);
+      if (!product) return null;
+      
+      const priceType = selectedPrices[id] || 'price';
+      const unitPrice = priceType === 'cost' ? product.cost : 
+                       priceType === 'higher_price' ? product.higher_price : 
+                       product.price;
+      
+      return {
+        product_id: product.id,
+        quantity: productQuantities[id] || 1,
+        unit_price: unitPrice,
+      };
+    })
+    .filter(p => p !== null);
 
-    if (selectedProductsArray.length === 0) {
-      Alert.alert('Error', 'Selecciona al menos un producto para generar el presupuesto');
-      return;
+  if (selectedProductsArray.length === 0) {
+    Alert.alert('Error', 'Selecciona al menos un producto para generar el presupuesto');
+    return;
+  }
+
+  const selectedProductIds = selectedProductsArray.map(p => p.product_id).join(',');
+  const quantity = selectedProductsArray.map(p => p.quantity).join(',');
+  const prices = selectedProductsArray.map(p => p.unit_price).join(',');
+  
+  router.push(`/quotes/new?preselected_products=${selectedProductIds}&quantity=${quantity}&prices=${prices}`);
+};
+
+const createQuoteFromSingleProduct = (product: Product) => {
+  const quantity = productQuantities[product.id] || 1;
+  const priceType = selectedPrices[product.id] || 'price';
+  const unitPrice = priceType === 'cost' ? product.cost : 
+                   priceType === 'higher_price' ? product.higher_price : 
+                   product.price;
+  
+  router.push(`/quotes/new?preselected_products=${product.id}&quantity=${quantity}&prices=${unitPrice}`);
+};
+
+ const ProductItem: React.FC<ProductItemProps> = ({ 
+  product, 
+  isSelected,
+  onToggleSelect,
+  quantity,
+  onQuantityChange
+}) => {
+  const isLowStock = product.stock <= (product.min_stock || 0);
+  const [inputValue, setInputValue] = useState(quantity > 0 ? quantity.toString() : '');
+  const selectedPrice = selectedPrices[product.id] || 'price'; // default 'oferta'
+
+  const handleSelectPrice = (priceType: 'cost' | 'price' | 'higher_price') => {
+    setSelectedPrices(prev => ({
+      ...prev,
+      [product.id]: priceType
+    }));
+    // Asegurar que el producto esté seleccionado
+    if (!isSelected) {
+      onToggleSelect(product);
     }
-
-    const selectedProductIds = selectedProductsArray.map(p => p.product_id).join(',');
-    const quantity = selectedProductsArray.map(p => p.quantity).join(',');
-    console.log('Selected Product IDs:', quantity);
-    router.push(`/quotes/new?preselected_products=${selectedProductIds}&quantity=${quantity}`);
   };
 
-  const createQuoteFromSingleProduct = (product: Product) => {
-    const quantity = productQuantities[product.id] || 1;
-    
-    const productData = [{
-      product_id: product.id,
-      quantity: quantity,
-      unit_price: product.price,
-    }];
-    
-    console.log('Navigating to quote creation with:', productData);
-    
-    router.push(`/quotes/new?preselected_products=${productData[0].product_id}&quantity=${productData[0].quantity}`);
+  useEffect(() => {
+    setInputValue(quantity > 0 ? quantity.toString() : '');
+  }, [quantity]);
+
+  const handleInputChange = (text: string) => {
+    const numericValue = text.replace(/[^0-9]/g, '');
+    setInputValue(numericValue);
   };
 
-  const ProductItem: React.FC<ProductItemProps> = ({ 
-    product, 
-    isSelected,
-    onToggleSelect,
-    quantity,
-    onQuantityChange
-  }) => {
-    const isLowStock = product.stock <= (product.min_stock || 0);
-    const hasWholesalePrice = product.cost && product.cost > 0;
-    const [inputValue, setInputValue] = useState(quantity > 0 ? quantity.toString() : '');
+  const handleInputBlur = () => {
+    handleQuantityInputChange(product, inputValue);
+  };
 
-    // Actualizar el valor del input cuando cambie la cantidad externa
-    useEffect(() => {
-      setInputValue(quantity > 0 ? quantity.toString() : '');
-    }, [quantity]);
+  const getSelectedPriceValue = () => {
+    if (selectedPrice === 'cost') return product.cost;
+    if (selectedPrice === 'higher_price') return product.higher_price;
+    return product.price;
+  };
 
-    const handleInputChange = (text: string) => {
-      // Permitir solo números
-      const numericValue = text.replace(/[^0-9]/g, '');
-      setInputValue(numericValue);
-    };
+  return (
+    <Card style={[
+      styles.productCard,
+      isSelected && styles.productCardSelected,
+      isLowStock && styles.productCardLowStock
+    ]}>
+      <View style={styles.productContent}>
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => onToggleSelect(product)}
+        >
+          <Ionicons 
+            name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+            size={24} 
+            color={isSelected ? colors.primary[500] : colors.gray[400]} 
+          />
+        </TouchableOpacity>
 
-    const handleInputBlur = () => {
-      handleQuantityInputChange(product, inputValue);
-    };
-
-    return (
-      <Card style={[
-        styles.productCard,
-        isSelected && styles.productCardSelected,
-        isLowStock && styles.productCardLowStock
-      ]}>
-        <View style={styles.productContent}>
-          {/* Checkbox de selección */}
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => onToggleSelect(product)}
-          >
-            <Ionicons 
-              name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-              size={24} 
-              color={isSelected ? colors.primary[500] : colors.gray[400]} 
-            />
-          </TouchableOpacity>
-
-          {/* Información del producto */}
-          <View style={styles.productInfo}>
-            <Text style={styles.productCode} numberOfLines={1}>
-              {product.code}
-            </Text>
-            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-            <Text style={styles.productCategory}>
-              {product.category?.description || 'Sin categoría'}
-            </Text>
-            
-            <View style={styles.priceContainer}>
-              {hasWholesalePrice && (
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Mayor:</Text>
-                  <Text style={styles.wholesalePrice}>
-                    {formatCurrency(product.cost)}
-                  </Text>
-                </View>
-              )}
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Oferta:</Text>
-                <Text style={styles.retailPrice}>
-                  {formatCurrency(product.price)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Disponibilidad */}
-            <View style={[
-              styles.stockContainer,
-              isLowStock && styles.lowStockContainer
-            ]}>
-              <Ionicons 
-                name="layers" 
-                size={12} 
-                color={isLowStock ? colors.warning : colors.text.secondary} 
-              />
-              <Text style={[
-                styles.stockText,
-                isLowStock && styles.lowStockText
-              ]}>
-                Disponibilidad: {product.stock}
-              </Text>
-            </View>
-          </View>
-
-          {/* Controles de cantidad - AHORA HORIZONTALES */}
-          <View style={styles.quantityControls}>
-            {/* Fila de controles +/- y cantidad */}
+        <View style={styles.productInfo}>
+          <Text style={styles.productCode} numberOfLines={1}>
+            {product.code}
+          </Text>
+          <Text style={styles.productName} numberOfLines={2}>{product.description}</Text>
+          <Text style={styles.productCategory}>
+            {product.category?.description || 'Sin categoría'}
+          </Text>
           
-          
-
-          <View style={styles.quantityRow}>
-              <TouchableOpacity
-                style={[
-                  styles.quantityControlButton,
-                  quantity === 0 && styles.quantityControlButtonDisabled
-                ]}
-                onPress={() => onQuantityChange(product, -1)}
-                disabled={quantity === 0}
-              >
-                <Ionicons 
-                  name="remove" 
-                  size={16}
-                  color={quantity === 0 ? colors.gray[300] : colors.primary[500]} 
-                />
-              </TouchableOpacity>
-
-              <TextInput
-                style={styles.quantityInput}
-                value={inputValue}
-                onChangeText={handleInputChange}
-                onBlur={handleInputBlur}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={colors.text.tertiary}
-                maxLength={4}
-                selectTextOnFocus={true}
-              />
-
-              <TouchableOpacity
-                style={[
-                  styles.quantityControlButton,
-                  quantity >= product.stock && styles.quantityControlButtonDisabled
-                ]}
-                onPress={() => onQuantityChange(product, 1)}
-                disabled={quantity >= product.stock}
-              >
-                <Ionicons 
-                  name="add" 
-                  size={16}
-                  color={quantity >= product.stock ? colors.gray[300] : colors.primary[500]} 
-                />
-              </TouchableOpacity>
-            </View>
-
-
-
-  {/* Botón "Lo quiero" debajo */}
+          {/* PRECIOS COMO BOTONES SELECCIONABLES */}
+          <View style={styles.priceSelectContainer}>
             <TouchableOpacity
-              style={styles.wantItButton}
-              onPress={() => createQuoteFromSingleProduct(product)}
+              style={[
+                styles.priceButton,
+                selectedPrice === 'cost' && styles.priceButtonSelected
+              ]}
+              onPress={() => handleSelectPrice('cost')}
             >
-              <Text style={styles.wantItButtonText}>Lo quiero</Text>
+              <Text style={[
+                styles.priceButtonLabel,
+                selectedPrice === 'cost' && styles.priceButtonLabelSelected
+              ]}>
+                Máximo
+              </Text>
+              <Text style={[
+                styles.priceButtonValue,
+                selectedPrice === 'cost' && styles.priceButtonValueSelected
+              ]}>
+                {formatCurrency(product.cost)}
+              </Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[
+                styles.priceButton,
+                selectedPrice === 'price' && styles.priceButtonSelected
+              ]}
+              onPress={() => handleSelectPrice('price')}
+            >
+              <Text style={[
+                styles.priceButtonLabel,
+                selectedPrice === 'price' && styles.priceButtonLabelSelected
+              ]}>
+                Oferta
+              </Text>
+              <Text style={[
+                styles.priceButtonValue,
+                selectedPrice === 'price' && styles.priceButtonValueSelected
+              ]}>
+                {formatCurrency(product.price)}
+              </Text>
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[
+                styles.priceButton,
+                selectedPrice === 'higher_price' && styles.priceButtonSelected
+              ]}
+              onPress={() => handleSelectPrice('higher_price')}
+            >
+              <Text style={[
+                styles.priceButtonLabel,
+                selectedPrice === 'higher_price' && styles.priceButtonLabelSelected
+              ]}>
+                Mayor
+              </Text>
+              <Text style={[
+                styles.priceButtonValue,
+                selectedPrice === 'higher_price' && styles.priceButtonValueSelected
+              ]}>
+                {formatCurrency(product.higher_price)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[
+            styles.stockContainer,
+            isLowStock && styles.lowStockContainer
+          ]}>
+            <Ionicons 
+              name="layers" 
+              size={12} 
+              color={isLowStock ? colors.warning : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.stockText,
+              isLowStock && styles.lowStockText
+            ]}>
+              Disponibilidad: {product.stock}
+            </Text>
           </View>
         </View>
-      </Card>
-    );
-  };
+
+        <View style={styles.quantityControls}>
+          <View style={styles.quantityRow}>
+            <TouchableOpacity
+              style={[
+                styles.quantityControlButton,
+                quantity === 0 && styles.quantityControlButtonDisabled
+              ]}
+              onPress={() => onQuantityChange(product, -1)}
+              disabled={quantity === 0}
+            >
+              <Ionicons 
+                name="remove" 
+                size={16}
+                color={quantity === 0 ? colors.gray[300] : colors.primary[500]} 
+              />
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.quantityInput}
+              value={inputValue}
+              onChangeText={handleInputChange}
+              onBlur={handleInputBlur}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor={colors.text.tertiary}
+              maxLength={4}
+              selectTextOnFocus={true}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.quantityControlButton,
+                quantity >= product.stock && styles.quantityControlButtonDisabled
+              ]}
+              onPress={() => onQuantityChange(product, 1)}
+              disabled={quantity >= product.stock}
+            >
+              <Ionicons 
+                name="add" 
+                size={16}
+                color={quantity >= product.stock ? colors.gray[300] : colors.primary[500]} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.wantItButton}
+            onPress={() => createQuoteFromSingleProduct(product)}
+          >
+            <Text style={styles.wantItButtonText}>Lo quiero</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Card>
+  );
+};
 
   const renderItem: ListRenderItem<Product> = ({ item }) => (
     <ProductItem 
@@ -1259,4 +1315,43 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     opacity: 0.5,
   },
+
+  priceSelectContainer: {
+  flexDirection: 'row',
+  gap: spacing.xs,
+  marginBottom: spacing.xs,
+  justifyContent: 'space-between',
+},
+priceButton: {
+  flex: 1,
+  borderWidth: 1,
+  borderColor: colors.gray[200],
+  borderRadius: borderRadius.sm,
+  paddingHorizontal: spacing.xs,
+  paddingVertical: spacing.xs,
+  alignItems: 'center',
+  backgroundColor: colors.gray[50],
+},
+priceButtonSelected: {
+  borderColor: colors.primary[500],
+  backgroundColor: colors.primary[50],
+  borderWidth: 2,
+},
+priceButtonLabel: {
+  fontSize: typography.fontSize.xs,
+  color: colors.text.secondary,
+  fontWeight: typography.fontWeight.medium,
+},
+priceButtonLabelSelected: {
+  color: colors.primary[500],
+},
+priceButtonValue: {
+  fontSize: typography.fontSize.sm,
+  fontWeight: typography.fontWeight.bold,
+  color: colors.text.primary,
+  marginTop: 2,
+},
+priceButtonValueSelected: {
+  color: colors.primary[500],
+},
 });

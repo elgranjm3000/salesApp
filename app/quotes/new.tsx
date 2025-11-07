@@ -175,12 +175,11 @@ export default function NewQuoteScreen(): JSX.Element {
   // Función para mostrar solo BCV
   const formatBCV = (amount: number) => {
     if (bcvRate) {
-      return (amount * bcvRate).toLocaleString('es-VE', {
-        style: 'currency',
-        currency: 'VES',
+      const value = amount * bcvRate;
+      return `Bs. ${value.toLocaleString('es-VE', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      });
+      })}`;
     }
     return 'N/A';
   };
@@ -603,40 +602,7 @@ export default function NewQuoteScreen(): JSX.Element {
           {errors.items && <Text style={styles.error}>{errors.items}</Text>}
         </Card>
 
-        {/* Configuración */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Configuración</Text>
-          
-          <Input
-            label="Válido hasta"
-            value={formData.valid_until}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, valid_until: value }))}
-            error={errors.valid_until}
-            editable={false}
-          />
-
-          <Input
-            label="Descuento general (%)"
-            value={formData.discount}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, discount: value }))}
-            keyboardType="numeric"
-          />
-
-          <Input
-            label="Términos y condiciones"
-            value={formData.terms_conditions}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, terms_conditions: value }))}
-            multiline
-            numberOfLines={3}
-          />
-
-          <Input
-            label="Observaciones"
-            value={formData.notes}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, notes: value }))}
-            multiline
-          />
-        </Card>
+      
 
         {/* Resumen */}
         {quoteItems.length > 0 && (
@@ -690,6 +656,41 @@ export default function NewQuoteScreen(): JSX.Element {
             </View>
           </Card>
         )}
+
+          {/* Configuración */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Configuración</Text>
+          
+          <Input
+            label="Válido hasta"
+            value={formData.valid_until}
+            onChangeText={(value) => setFormData(prev => ({ ...prev, valid_until: value }))}
+            error={errors.valid_until}
+            editable={false}
+          />
+
+          <Input
+            label="Descuento general (%)"
+            value={formData.discount}
+            onChangeText={(value) => setFormData(prev => ({ ...prev, discount: value }))}
+            keyboardType="numeric"
+          />
+
+          <Input
+            label="Términos y condiciones"
+            value={formData.terms_conditions}
+            onChangeText={(value) => setFormData(prev => ({ ...prev, terms_conditions: value }))}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Input
+            label="Observaciones"
+            value={formData.notes}
+            onChangeText={(value) => setFormData(prev => ({ ...prev, notes: value }))}
+            multiline
+          />
+        </Card>
 
         {/* Botones */}
         <View style={styles.buttons}>
