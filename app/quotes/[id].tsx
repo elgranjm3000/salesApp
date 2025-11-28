@@ -2,10 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -27,6 +26,92 @@ export default function QuoteDetailScreen(): JSX.Element {
   const [quote, setQuote] = useState<any>(null);
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [rateDate, setRateDate] = useState<string>('');
+
+  // ✨ FUNCIÓN PRINCIPAL: Calcular totales basado en buy_tax
+const calculateCorrectTotals = useMemo(() => {
+  if (!quote || !quote.items) {
+    return {
+      taxableTotal: 0,
+      taxableDiscount: 0,
+      exemptTotal: 0,
+      exemptDiscount: 0,
+      subtotal: 0,
+      totalDiscount: 0,
+      finalTaxableBase: 0,
+      taxAmount: 0,
+      total: 0,
+      hasExemptions: false,
+    };
+  }
+
+  let taxableTotal = 0;
+  let exemptTotal = 0;
+  let taxableDiscount = 0;
+  let exemptDiscount = 0;
+
+  (quote.items || []).forEach((item: any) => {
+    // ✅ VALIDACIÓN: Asegurar que sean números
+    const itemTotal = Number(item.total) || 0;           // ← CONVERTIR A NÚMERO
+    const itemDiscount = Number(item.discount_amount) || 0;  // ← CONVERTIR A NÚMERO
+
+    // ✅ VALIDACIÓN: Verificar que NO sean NaN
+    if (isNaN(itemTotal)) {
+      console.warn('⚠️ item.total es NaN:', item.total);
+      // Reemplazar por 0
+      item.total = 0;
+    }
+    if (isNaN(itemDiscount)) {
+      console.warn('⚠️ item.discount_amount es NaN:', item.discount_amount);
+      item.discount_amount = 0;
+    }
+
+    if (item.buy_tax === 1) {
+      exemptTotal += itemTotal;
+      exemptDiscount += itemDiscount;
+    } else {
+      taxableTotal += itemTotal;
+      taxableDiscount += itemDiscount;
+    }
+  });
+
+  const subtotal = taxableTotal + exemptTotal;
+  const totalDiscount = taxableDiscount + exemptDiscount;
+  
+  // ✅ VALIDACIÓN: Comprobar NaN antes de operaciones
+  if (isNaN(subtotal) || isNaN(totalDiscount)) {
+    console.error('❌ Error en cálculo de subtotal o totalDiscount');
+    return {
+      taxableTotal: 0,
+      taxableDiscount: 0,
+      exemptTotal: 0,
+      exemptDiscount: 0,
+      subtotal: 0,
+      totalDiscount: 0,
+      finalTaxableBase: 0,
+      taxAmount: 0,
+      total: 0,
+      hasExemptions: false,
+    };
+  }
+
+  const finalTaxableBase = Math.max(0, taxableTotal - taxableDiscount);
+  const taxAmount = Math.max(0, finalTaxableBase * 0.16);  // ← Asegurar >= 0
+  
+  const total = subtotal - totalDiscount + taxAmount;
+
+  return {
+    taxableTotal,
+    taxableDiscount,
+    exemptTotal,
+    exemptDiscount,
+    subtotal,
+    totalDiscount,
+    finalTaxableBase,
+    taxAmount,
+    total,
+    hasExemptions: exemptTotal > 0,
+  };
+}, [quote]);
 
   // Función para obtener la tasa BCV
   const fetchBCVRate = async () => {
@@ -90,30 +175,35 @@ export default function QuoteDetailScreen(): JSX.Element {
     setRefreshing(false);
   };
 
-  const formatWithBCV = (amount: number) => {
-    const usdFormatted = formatCurrency(amount);
-    if (bcvRate) {
-      const bcvAmount = (amount * bcvRate).toLocaleString('es-VE', {
-        style: 'currency',
-        currency: 'VES',
-        minimumFractionDigits: 2
-      });
-      return `${usdFormatted} / ${bcvAmount}`;
-    }
-    return usdFormatted;
-  };
+const formatWithBCV = (amount: number) => {
+  const usdFormatted = formatCurrency(amount);
+  if (bcvRate) {
+    const bcvAmount = `Bs. ${(amount * bcvRate).toLocaleString('es-VE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+    return `${usdFormatted} / ${bcvAmount}`;
+  }
+  return usdFormatted;
+};
 
   // Generar HTML para el PDF
   const generatePDFHTML = () => {
-    const itemsHTML = quote.items?.map((item: any, index: number) => `
+    const itemsHTML = quote.items?.map((item: any, index: number) => {
+      const isExempt = item.buy_tax === 1;
+      return `
       <tr style="border-bottom: 1px solid #e5e7eb;">
         <td style="padding: 12px; text-align: left;">${index + 1}</td>
-        <td style="padding: 12px; text-align: left;">${item.product?.name || item.name || 'Producto sin nombre'}</td>
+        <td style="padding: 12px; text-align: left;">
+          ${item.product?.name || item.name || 'Producto sin nombre'}
+          ${isExempt ? '<br><span style="color: #10b981; font-size: 12px; font-weight: bold;">✓ IVA Exento</span>' : ''}
+        </td>
         <td style="padding: 12px; text-align: center;">${item.quantity || 0}</td>
         <td style="padding: 12px; text-align: right;">${formatCurrency(item.unit_price || 0)}</td>
         <td style="padding: 12px; text-align: right; font-weight: bold;">${formatCurrency(item.total || 0)}</td>
       </tr>
-    `).join('') || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #6b7280;">No hay productos agregados</td></tr>';
+    `;
+    }).join('') || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #6b7280;">No hay productos agregados</td></tr>';
 
     return `
       <!DOCTYPE html>
@@ -340,21 +430,21 @@ export default function QuoteDetailScreen(): JSX.Element {
             <h3>Resumen Financiero</h3>
             <div class="summary-row">
               <span>Subtotal:</span>
-              <span>${formatCurrency(quote.subtotal || 0)}</span>
+              <span>${formatCurrency(calculateCorrectTotals.subtotal)}</span>
             </div>
             <div class="summary-row">
               <span>Descuento:</span>
-              <span class="discount">-${formatCurrency(quote.discount_amount || 0)}</span>
+              <span class="discount">-${formatCurrency(calculateCorrectTotals.discountAmount)}</span>
             </div>
             <div class="summary-row">
               <span>IVA:</span>
-              <span>${formatCurrency(quote.tax_amount || 0)}</span>
+              <span>${formatCurrency(calculateCorrectTotals.taxAmount)}</span>
             </div>
             <div class="summary-row total">
               <span>TOTAL:</span>
               <div>
-                <div>${formatCurrency(quote.total || 0)}</div>
-                ${bcvRate ? `<div style="font-size: 14px; color: #6b7280; margin-top: 4px;">${((quote.total || 0) * bcvRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</div>` : ''}
+                <div>${formatCurrency(calculateCorrectTotals.total)}</div>
+                ${bcvRate ? `<div style="font-size: 14px; color: #6b7280; margin-top: 4px;">${(calculateCorrectTotals.total * bcvRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</div>` : ''}
               </div>
             </div>
           </div>
@@ -401,8 +491,8 @@ export default function QuoteDetailScreen(): JSX.Element {
       const { uri } = await Print.printToFileAsync({
         html,
         base64: false,
-        width: 612, // Ancho A4 en puntos
-        height: 792, // Alto A4 en puntos
+        width: 612,
+        height: 792,
       });
 
       return uri;
@@ -435,58 +525,16 @@ export default function QuoteDetailScreen(): JSX.Element {
     }
   };
 
-  // Función para enviar por WhatsApp
-  const shareToWhatsApp = async () => {
-    const pdfUri = await generatePDF();
-    if (pdfUri) {
-      try {
-        // Primero intentar abrir WhatsApp con mensaje
-        const message = `Hola! Te envío el presupuesto #${quote.id} de ${quote.company?.name || 'nuestra empresa'}. Total: ${formatCurrency(quote.total || 0)}`;
-        const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
-        
-        const canOpen = await Linking.canOpenURL(whatsappUrl);
-        if (canOpen) {
-          await Linking.openURL(whatsappUrl);
-          // Luego mostrar opciones para compartir el PDF
-          setTimeout(() => {
-            Alert.alert(
-              'Compartir PDF',
-              'Ahora puedes adjuntar el PDF desde tu galería o usar la opción de compartir.',
-              [
-                { text: 'Entendido' },
-                { 
-                  text: 'Compartir PDF', 
-                  onPress: () => sharePDF() 
-                }
-              ]
-            );
-          }, 1000);
-        } else {
-          // WhatsApp no está instalado, compartir directamente
-          await sharePDF();
-        }
-      } catch (error) {
-        console.error('Error opening WhatsApp:', error);
-        // Si falla, usar compartir normal
-        await sharePDF();
-      }
-    }
-  };
-
   // Función para previsualizar PDF
   const previewPDF = async () => {
     const pdfUri = await generatePDF();
     if (pdfUri) {
       try {
-        // Copiar a un directorio accesible
-        //setGeneratingPDF(true);
         const html = generatePDFHTML();
-    
-        // Compartir para previsualizar
         await Print.printAsync({
           html,
-          width: 612, // Ancho A4 en puntos
-          height: 792, // Alto A4 en puntos
+          width: 612,
+          height: 792,
         });
       } catch (error) {
         console.error('Error previewing PDF:', error);
@@ -536,9 +584,6 @@ export default function QuoteDetailScreen(): JSX.Element {
           Representate legal: {quote.company?.name || 'Sin empresa asignada'}
         </Text>
         <Text style={styles.subtitle}>
-           Correo electronico: {quote.customer?.email || 'sin email asignado'}
-        </Text>
-        <Text style={styles.subtitle}>
           Dirección: {quote.customer?.address || 'sin direccion asignada'}
         </Text>
         <Text style={styles.subtitle}>
@@ -566,7 +611,7 @@ export default function QuoteDetailScreen(): JSX.Element {
           >
             <Ionicons name="eye" size={20} color={colors.info} />
             <Text style={[styles.actionButtonText, { color: colors.info }]}>
-              {generatingPDF ? 'Ver PDF' : 'Ver PDF'}
+              Ver PDF
             </Text>
           </TouchableOpacity>
           
@@ -580,8 +625,6 @@ export default function QuoteDetailScreen(): JSX.Element {
               Compartir
             </Text>
           </TouchableOpacity>
-          
-          
         </View>
       </View>
 
@@ -640,7 +683,11 @@ export default function QuoteDetailScreen(): JSX.Element {
           </View>
         ) : (
           <View style={styles.itemsList}>
-            {quote.items.map((item: any, index: number) => (
+            {quote.items.map((item: any, index: number) => {
+              // ✨ buy_tax: 1 = exento, 0 = no exento
+              const isExempt = item.buy_tax === 1;
+              
+              return (
               <View key={item.id || index} style={styles.quoteItem}>
                 <View style={styles.itemHeader}>
                   <Text style={styles.itemName}>
@@ -650,10 +697,21 @@ export default function QuoteDetailScreen(): JSX.Element {
                     <Text style={styles.itemBadgeText}>#{index + 1}</Text>
                   </View>
                 </View>
+                
+                {/* ✨ NUEVO: Mostrar IVA exento si buy_tax = 1 */}
+                {isExempt && (
+                  <View style={styles.exemptionContainer}>
+                    <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                    <Text style={styles.exemptionText}>
+                      IVA Exento
+                    </Text>
+                  </View>
+                )}
+                
                 <View style={styles.itemDetails}>
                   <View style={styles.itemDetailRow}>
                     <Text style={styles.itemDetailLabel}>Cantidad:</Text>
-                    <Text style={styles.itemDetailValue}>{item.quantity || 0}</Text>
+                    <Text style={styles.itemDetailValue}>{parseInt(item.quantity) || 0}</Text>
                   </View>
                   <View style={styles.itemDetailRow}>
                     <Text style={styles.itemDetailLabel}>Precio unitario:</Text>
@@ -677,30 +735,58 @@ export default function QuoteDetailScreen(): JSX.Element {
                   </Text>
                 </View>
               </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </Card>
 
-      {/* Resumen Financiero */}
+      {/* Resumen Financiero - CON CÁLCULOS CORRECTOS */}
       <Card style={styles.summaryCard}>
         <Text style={styles.sectionTitle}>Resumen Financiero</Text>
+        
+        {/* ✨ DESGLOSE: Mostrar solo si hay productos exentos */}
+        {calculateCorrectTotals.hasExemptions && (
+          <View style={styles.taxBreakdownContainer}>
+            <Text style={styles.taxBreakdownTitle}>Desglose de Impuestos:</Text>
+            
+            {/* Productos gravables */}
+            <View style={styles.taxBreakdownRow}>
+              <Text style={styles.taxBreakdownLabel}>Base gravable (no exenta):</Text>
+              <Text style={styles.taxBreakdownValue}>
+                {formatCurrency(calculateCorrectTotals.finalTaxableBase)}
+              </Text>
+            </View>
+            
+            {/* Productos exentos */}
+            <View style={styles.taxBreakdownRow}>
+              <Text style={styles.taxBreakdownLabel}>Base exenta:</Text>
+              <Text style={[styles.taxBreakdownValue, { color: colors.success }]}>
+                {formatCurrency(calculateCorrectTotals.exemptTotal)}
+              </Text>
+            </View>
+            
+            <View style={styles.taxBreakdownDivider} />
+          </View>
+        )}
+        
+        {/* RESUMEN: Usando valores RECALCULADOS */}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal:</Text>
           <Text style={styles.summaryValue}>
-            {formatWithBCV(quote.subtotal || 0)}
+            {formatWithBCV(calculateCorrectTotals.subtotal)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Descuento:</Text>
           <Text style={[styles.summaryValue, styles.discountText]}>
-            -{formatWithBCV(quote.discount_amount || 0)}
+            -{formatWithBCV(calculateCorrectTotals.totalDiscount)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>IVA:</Text>
+          <Text style={styles.summaryLabel}>IVA (16%):</Text>
           <Text style={styles.summaryValue}>
-            {formatWithBCV(quote.tax_amount || 0)}
+            {formatWithBCV(calculateCorrectTotals.taxAmount)}
           </Text>
         </View>
         <View style={styles.divider} />
@@ -708,15 +794,14 @@ export default function QuoteDetailScreen(): JSX.Element {
           <Text style={styles.totalLabel}>TOTAL:</Text>
           <View>
             <Text style={styles.totalValueUSD}>
-              {formatCurrency(quote.total || 0)}
+              {formatCurrency(calculateCorrectTotals.total)}
             </Text>
             {bcvRate && (
               <Text style={styles.totalValueBCV}>
-                {((quote.total || 0) * bcvRate).toLocaleString('es-VE', {
-                  style: 'currency',
-                  currency: 'VES',
-                  minimumFractionDigits: 2
-                })}
+                Bs. {(calculateCorrectTotals.total * bcvRate).toLocaleString('es-VE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
               </Text>
             )}
           </View>
@@ -805,10 +890,6 @@ const styles = StyleSheet.create({
   shareButton: {
     backgroundColor: colors.primary[50],
     borderColor: colors.primary[200],
-  },
-  whatsappButton: {
-    backgroundColor: colors.success + '10',
-    borderColor: colors.success + '30',
   },
   actionButtonText: {
     fontSize: typography.fontSize.sm,
@@ -987,6 +1068,44 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary[200],
   },
+  
+  // ✨ Estilos para desglose de impuestos
+  taxBreakdownContainer: {
+    marginBottom: spacing.lg,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.success + '10',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.success,
+  },
+  taxBreakdownTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.success,
+    marginBottom: spacing.md,
+  },
+  taxBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  taxBreakdownLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  taxBreakdownValue: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  taxBreakdownDivider: {
+    height: 1,
+    backgroundColor: colors.success + '30',
+    marginTop: spacing.md,
+  },
+
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1032,5 +1151,24 @@ const styles = StyleSheet.create({
   },
   discountText: {
     color: colors.error,
+  },
+
+  // ✨ Estilos para IVA Exento
+  exemptionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.success + '15',
+    borderRadius: borderRadius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.success,
+  },
+  exemptionText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    fontWeight: typography.fontWeight.medium,
   },
 });

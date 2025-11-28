@@ -13,8 +13,8 @@ import {
 //ssh -R 80:localhost:80 ssh.serveo.net hace la ip publica
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
-//const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
-const BASE_URL = 'https://suburban-geo-bryant-languages.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
+//const BASE_URL = 'https://maritime-buyers-network-singh.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;
@@ -231,6 +231,7 @@ interface QuoteItem {
     name: string;
     code: string;
     price: number;
+    buy_tax: number;
   };
   quantity: number;
   unit_price: number;
@@ -247,6 +248,7 @@ interface CreateQuoteData {
     unit_price: number;
     discount?: number;
     name?: string;
+    buy_tax?: number;
   }[];
   discount?: number;
   valid_until: string;
@@ -255,6 +257,7 @@ interface CreateQuoteData {
   metadata?: Record<string, any>;
   bcv_rate?: number;
   bcv_date?: string;
+  status?: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
 }
 
 
@@ -847,8 +850,7 @@ class ApiService {
     return response.data;
   }
 
-  async createQuote(data: CreateQuoteData): Promise<Quote> {
-    console.log("quote data", data);
+  async createQuote(data: CreateQuoteData): Promise<Quote> {    
     const response: AxiosResponse<Quote> = await this.client.post('/quotes', data);
     return response.data;
   }

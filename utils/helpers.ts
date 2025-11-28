@@ -18,20 +18,29 @@ export const formatBcvRate = (rate: any, decimals: number = 2): string => {
 };
 
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  if (currency === 'VEF') {
+    return `Bs. ${amount.toLocaleString('es-VE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  const formatted = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: currency,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(amount);
+
+return `$ ${formatted.replace('$', '')}`;
 };
 
 export const formatCurrencyCompact = (amount: number): string => {
   if (amount >= 1000000) {
-    return `$${(amount / 1000000).toFixed(1)}M`;
+    return `$ ${(amount / 1000000).toFixed(1)}M`;
   }
   if (amount >= 1000) {
-    return `$${(amount / 1000).toFixed(1)}K`;
+    return `$ ${(amount / 1000).toFixed(1)}K`;
   }
   return formatCurrency(amount);
 };

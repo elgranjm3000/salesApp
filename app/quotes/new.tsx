@@ -1,10 +1,8 @@
-// app/quotes/new.tsx - Versión con integración BCV
-
+// app/quotes/new.tsx
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-//import DateTimePicker from '@react-native-community/datetimepicker';
 
 import {
   Alert,
@@ -13,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -25,7 +24,7 @@ import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function NewQuoteScreen(): JSX.Element {
-  const { customer_id, preselected_products, quantity } = useLocalSearchParams();
+  const { customer_id, preselected_products, quantity, prices } = useLocalSearchParams();
 
   // Estados principales
   const [loading, setLoading] = useState(false);
@@ -51,6 +50,8 @@ export default function NewQuoteScreen(): JSX.Element {
   // Búsqueda
   const [customerSearch, setCustomerSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   
   // Formulario
   const [formData, setFormData] = useState({
@@ -61,26 +62,86 @@ export default function NewQuoteScreen(): JSX.Element {
   });
   
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [itemData, setItemData] = useState({
-    quantity: '1',
-    unit_price: '0',
-    discount: '0',
-  });
+  
+  // ✨ CAMBIO PRINCIPAL: Tracking individual de datos por producto (NO global)
+  const [productInputs, setProductInputs] = useState<
+    Record<number, { quantity: string; unit_price: string | null; discount: string }>
+  >({});
+  
+  // ✨ Track de precio seleccionado por tipo (cost, price, higher_price)
+  const [selectedPriceType, setSelectedPriceType] = useState<'cost' | 'price' | 'higher_price'>('price');
   
   const [errors, setErrors] = useState({});
   const [editingItemId, setEditingItemId] = useState(null);
 
-  // Función para obtener la tasa BCV
+  // ✨ NUEVO: Track para descuentos por IVA exento
+  const [itemExemptions, setItemExemptions] = useState<Record<number, { 
+    is_exempt: boolean; 
+    discount_percent: number 
+  }>>({});
+
+  // ============================================================
+  // FUNCIONES AUXILIARES PARA productInputs
+  // ============================================================
+
+  // ✨ Obtener datos de un producto específico
+  // ✨ maxPrice: permite preseleccionar el máximo al inicializar
+  const getProductInput = (productId: number, maxPrice?: number | string) => {
+    if (!productInputs[productId]) {
+      const priceValue = maxPrice ? maxPrice.toString() : null;
+      setProductInputs(prev => ({
+        ...prev,
+        [productId]: {
+          quantity: '1',
+          unit_price: priceValue,  // ✨ MÁXIMO PRESELECCIONADO
+          discount: '0',
+        }
+      }));
+      return {
+        quantity: '1',
+        unit_price: priceValue,
+        discount: '0',
+      };
+    }
+    return productInputs[productId];
+  };
+
+  // ✨ Actualizar datos de un producto específico
+  const updateProductInput = (productId: number, field: string, value: any) => {
+    setProductInputs(prev => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId] || { quantity: '1', unit_price: null, discount: '0' },
+        [field]: value,
+      }
+    }));
+  };
+
+  // ✨ NUEVO: Actualizar exención de IVA para un producto
+  const updateItemExemption = (productId: number, isExempt: boolean, discountPercent: number = 0) => {
+    setItemExemptions(prev => ({
+      ...prev,
+      [productId]: { is_exempt: isExempt, discount_percent: discountPercent }
+    }));
+  };
+
+  // ✨ NUEVO: Obtener datos de exención
+  const getItemExemption = (productId: number) => {
+    return itemExemptions[productId] || { is_exempt: false, discount_percent: 0 };
+  };
+
+  // ============================================================
+  // BCV Y FORMATEO
+  // ============================================================
+
   const fetchBCVRate = async () => {
     try {
       setLoadingRate(true);
       
-      // Intenta múltiples APIs para mayor confiabilidad
       let rate = null;
       let date = '';
 
       try {
-        // API 1: ExchangeRate-API
         const response1 = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
         const data1 = await response1.json();
         if (data1.rates?.VES) {
@@ -91,7 +152,6 @@ export default function NewQuoteScreen(): JSX.Element {
         console.log('API 1 falló:', error);
       }
 
-      // API 2: Fixer.io (alternativa)
       if (!rate) {
         try {
           const response2 = await fetch('https://api.fixer.io/latest?access_key=YOUR_API_KEY&symbols=VES');
@@ -105,7 +165,6 @@ export default function NewQuoteScreen(): JSX.Element {
         }
       }
 
-      // API 3: DolarToday (específica para Venezuela)
       if (!rate) {
         try {
           const response3 = await fetch('https://s3.amazonaws.com/dolartoday/data.json');
@@ -122,34 +181,29 @@ export default function NewQuoteScreen(): JSX.Element {
       if (rate) {
         setBcvRate(rate);
         setRateDate(date);
-        // Guardar en cache local
         await AsyncStorage.setItem('bcv_rate', JSON.stringify({
           rate,
           date,
           timestamp: Date.now()
         }));
       } else {
-        // Intentar cargar desde cache
         const cachedRate = await AsyncStorage.getItem('bcv_rate');
         if (cachedRate) {
           const cached = JSON.parse(cachedRate);
-          // Si el cache es de menos de 24 horas, usarlo
           if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
             setBcvRate(cached.rate);
             setRateDate(`${cached.date} (cache)`);
           }
         }
         
-        // Si no hay cache válido, usar tasa de respaldo
         if (!bcvRate) {
-          setBcvRate(36.5); // Actualizar según necesidad
+          setBcvRate(36.5);
           setRateDate('Tasa aproximada');
         }
       }
       
     } catch (error) {
       console.log('Error al obtener tasa BCV:', error);
-      // Tasa de respaldo
       setBcvRate(36.5);
       setRateDate('Tasa aproximada');
     } finally {
@@ -157,7 +211,6 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
-  // Función para formatear montos con BCV
   const formatWithBCV = (amount: number) => {
     const usdFormatted = formatCurrency(amount);
     if (bcvRate) {
@@ -172,7 +225,6 @@ export default function NewQuoteScreen(): JSX.Element {
     return usdFormatted;
   };
 
-  // Función para mostrar solo BCV
   const formatBCV = (amount: number) => {
     if (bcvRate) {
       const value = amount * bcvRate;
@@ -184,13 +236,22 @@ export default function NewQuoteScreen(): JSX.Element {
     return 'N/A';
   };
 
-  // Cargar datos iniciales
+  // ✨ Obtener precio según tipo
+  const getPriceByType = (product, priceType: 'cost' | 'price' | 'higher_price') => {
+    if (priceType === 'cost') return product.cost;
+    if (priceType === 'higher_price') return product.higher_price;
+    return product.price;
+  };
+
+  // ============================================================
+  // EFECTOS
+  // ============================================================
+
   useEffect(() => {
     loadInitialData();
     fetchBCVRate();
   }, []);
 
-  // Preseleccionar cliente
   useEffect(() => {
     if (customer_id && customers.length > 0) {
       const customer = customers.find(c => c.id === Number(customer_id));
@@ -198,24 +259,25 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   }, [customer_id, customers]);
 
-  // Preseleccionar productos
   useEffect(() => {
     if (preselected_products && products.length > 0) {
       const productIds = preselected_products.split(',').map(id => Number(id.trim()));
-      const quatityProducts = quantity.split(',').map(id => Number(id.trim()));
+      const quantityProducts = quantity.split(',').map(id => Number(id.trim()));
+      const pricesArray = prices ? prices.split(',').map(id => Number(id.trim())) : [];
+      
       const selectedProducts = products.filter(p => productIds.includes(p.id));
-      console.log('cantidad Preselected products:', quatityProducts);
       
       const newItems = selectedProducts.map((product, index) => {
-        const quantity = quatityProducts[index] || 1;
+        const qty = quantityProducts[index] || 1;
+        const unitPrice = pricesArray[index] || product.price;
         return {
           id: `pre_${product.id}`,
           product_id: product.id,
           product,
-          quantity,
-          unit_price: product.price,
+          quantity: qty,
+          unit_price: unitPrice,
           discount: 0,
-          total_price: product.price * quantity,
+          total_price: unitPrice * qty,
         };
       });
       
@@ -223,16 +285,36 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   }, [preselected_products, products]);
 
+  useEffect(() => {
+    const filtered = customers.filter(c => 
+      c.status === 'active' && 
+      c.name.toLowerCase().includes(customerSearch.toLowerCase())
+    );
+    setFilteredCustomers(filtered);
+  }, [customerSearch, customers]);
+
+  useEffect(() => {
+    const filtered = products.filter(p => 
+      (p.status === 'active') && (
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.code.toLowerCase().includes(productSearch.toLowerCase())
+      )
+    );
+    setFilteredProducts(filtered);
+  }, [productSearch, products]);
+
+  // ============================================================
+  // FUNCIONES DE DATOS
+  // ============================================================
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
       
-      // Cargar empresa
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
       setSelectedCompany(company);
       
-      // Cargar datos
       const [customersRes, productsRes] = await Promise.all([
         api.getCustomers({ per_page: 100, company_id: company?.id }),
         api.getProducts({ per_page: 100, company_id: company?.id }),
@@ -241,7 +323,6 @@ export default function NewQuoteScreen(): JSX.Element {
       setCustomers(customersRes.data || []);
       setProducts(productsRes.data || []);
       
-      // Fecha por defecto (30 días)
       const validUntil = new Date();
       validUntil.setDate(validUntil.getDate() + 1);
       setFormData(prev => ({
@@ -257,27 +338,10 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
-  // Filtrar búsquedas
-  const filteredCustomers = customers.filter(c => 
-    c.status === 'active' && 
-    c.name.toLowerCase().includes(customerSearch.toLowerCase())
-  );
+  // ============================================================
+  // CÁLCULOS
+  // ============================================================
 
-  const filteredProducts = products.filter(p => 
-    (p.status === 'active') && 
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.code.toLowerCase().includes(productSearch.toLowerCase())
-  );
-
-  // Función auxiliar para obtener stock disponible
-  const getAvailableStock = (product) => {
-    const existingItem = quoteItems.find(item => 
-      item.product_id === product.id && item.id !== editingItemId
-    );
-    return product.stock - (existingItem ? existingItem.quantity : 0);
-  };
-
-  // Cálculos
   const calculateItemTotal = (quantity, unitPrice, discount) => {
     const subtotal = quantity * unitPrice;
     const discountAmount = subtotal * (discount / 100);
@@ -285,73 +349,82 @@ export default function NewQuoteScreen(): JSX.Element {
   };
 
   const calculateTotals = () => {
-    const subtotal = quoteItems.reduce((sum, item) => sum + Number(item.total_price), 0);
+    let subtotal = 0;
+    let taxableBase = 0; // ✨ Base sobre la cual se cobra IVA
+
+    // Calcular subtotal y qué parte es gravable
+    quoteItems.forEach(item => {
+      const itemSubtotal = item.quantity * item.unit_price;
+      const itemDiscount = itemSubtotal * (item.discount / 100);
+      const itemTotal = itemSubtotal - itemDiscount;
+      
+      subtotal += itemTotal;
+      
+      // ✨ Si NO está exento, suma a la base tributaria
+      const exemption = getItemExemption(item.product_id);
+      if (!exemption.is_exempt) {
+        taxableBase += itemTotal;
+      }
+    });
+
     const discountAmount = subtotal * (Number(formData.discount) / 100);
-    const tax = (subtotal - discountAmount) * 0.16;
-    const total = subtotal - discountAmount + tax;    
+    const finalTaxableBase = taxableBase - discountAmount;
+    
+    // ✨ IVA solo se calcula sobre lo que NO está exento
+    const tax = finalTaxableBase * 0.16;
+    const total = subtotal - discountAmount + tax;
+    
     return { subtotal, discountAmount, tax, total };
   };
 
-  // Agregar producto
-  const selectProduct = (product) => {
-    const availableStock = getAvailableStock(product);
-    
-    if (availableStock <= 0) {
-      Alert.alert(
-        'Sin stock disponible',
-        'Ya has agregado todo el stock disponible de este producto al presupuesto.'
-      );
-      return;
-    }
+  // ============================================================
+  // FUNCIONES DE PRODUCTO
+  // ============================================================
 
+  const selectProduct = (product) => {
     setSelectedProduct(product);
-    setItemData({
-      quantity: '1',
-      unit_price: product.price.toString(),
-      discount: '0',
-    });
+    setSelectedPriceType('price');
+    updateProductInput(product.id, 'quantity', '1');
+    updateProductInput(product.id, 'unit_price', product.price.toString());
+    updateProductInput(product.id, 'discount', '0');
     setShowProductSelector(false);
     setShowItemModal(true);
   };
 
-  // Editar item existente
   const editItem = (item) => {
     setSelectedProduct(item.product);
     setEditingItemId(item.id);
-    setItemData({
-      quantity: item.quantity.toString(),
-      unit_price: item.unit_price.toString(),
-      discount: item.discount.toString(),
-    });
+    updateProductInput(item.product.id, 'quantity', item.quantity.toString());
+    updateProductInput(item.product.id, 'unit_price', item.unit_price.toString());
+    updateProductInput(item.product.id, 'discount', item.discount.toString());
+    
+    // ✨ NUEVO: Cargar exención si existe
+    const exemption = getItemExemption(item.product_id);
+    if (exemption.is_exempt) {
+      updateItemExemption(item.product.id, true, exemption.discount_percent);
+    }
+    
+    const priceType = item.unit_price === item.product.cost ? 'cost' :
+                     item.unit_price === item.product.higher_price ? 'higher_price' :
+                     'price';
+    setSelectedPriceType(priceType);
     setShowItemModal(true);
   };
 
-  // Guardar item
   const saveItem = () => {
-    const quantity = Number(itemData.quantity);
-    const unitPrice = Number(itemData.unit_price);
-    const discount = Number(itemData.discount);
+    const productInput = getProductInput(selectedProduct.id, selectedProduct.price);
+    const quantity = Number(productInput.quantity);
+    const unitPrice = Number(productInput.unit_price);
+    const discount = Number(productInput.discount);
 
     if (quantity <= 0 || unitPrice < 0 || discount < 0 || discount > 100) {
       Alert.alert('Error', 'Revisa los valores ingresados');
       return;
     }
 
-    // Validar stock disponible
-    const availableStock = getAvailableStock(selectedProduct);
-    
-    if (quantity > availableStock) {
-      Alert.alert(
-        'Stock insuficiente', 
-        `Solo hay ${availableStock} unidades disponibles para este producto.`
-      );
-      return;
-    }
-
     const totalPrice = calculateItemTotal(quantity, unitPrice, discount);
 
     if (editingItemId) {
-      // Editando un item existente
       setQuoteItems(prev => prev.map(item => {
         if (item.id === editingItemId) {
           return {
@@ -365,11 +438,9 @@ export default function NewQuoteScreen(): JSX.Element {
         return item;
       }));
     } else {
-      // Verificar si el producto ya existe
       const existingItemIndex = quoteItems.findIndex(item => item.product_id === selectedProduct.id);
       
       if (existingItemIndex >= 0) {
-        // Si el producto ya existe, sumar cantidades
         setQuoteItems(prev => prev.map((item, index) => {
           if (index === existingItemIndex) {
             const newQuantity = item.quantity + quantity;
@@ -385,7 +456,6 @@ export default function NewQuoteScreen(): JSX.Element {
           return item;
         }));
       } else {
-        // Si es un producto nuevo, agregarlo
         const newItem = {
           id: Date.now().toString(),
           product_id: selectedProduct.id,
@@ -399,18 +469,15 @@ export default function NewQuoteScreen(): JSX.Element {
       }
     }
 
-    // Resetear estados
     setShowItemModal(false);
     setSelectedProduct(null);
     setEditingItemId(null);
-    setItemData({
-      quantity: '1',
-      unit_price: '0',
-      discount: '0',
-    });
+    setSelectedPriceType('price');
+    updateProductInput(selectedProduct.id, 'quantity', '1');
+    updateProductInput(selectedProduct.id, 'unit_price', null);
+    updateProductInput(selectedProduct.id, 'discount', '0');
   };
 
-  // Eliminar item
   const removeItem = (itemId) => {
     Alert.alert(
       'Eliminar Producto',
@@ -424,7 +491,6 @@ export default function NewQuoteScreen(): JSX.Element {
     );
   };
 
-  // Validar y guardar presupuesto
   const saveQuote = async () => {
     const newErrors = {};
 
@@ -446,10 +512,11 @@ export default function NewQuoteScreen(): JSX.Element {
         company_id: selectedCompany?.id,
         items: quoteItems.map(item => ({
           product_id: item.product_id,
-          quantity: item.quantity,
+          quantity: item.quantity || 1,
           unit_price: item.unit_price,
           discount: item.discount,
           name: item.product?.name,
+          buy_tax: getItemExemption(item.product_id).is_exempt ? 1 : 0, // ✨ NUEVO: marcar si es exento
         })),
         valid_until: formData.valid_until,
         terms_conditions: formData.terms_conditions.trim(),
@@ -457,8 +524,8 @@ export default function NewQuoteScreen(): JSX.Element {
         discount: Number(formData.discount),
         bcv_rate: bcvRate,
         bcv_date: rateDate,
+        status: 'rejected',
       };
-      
       const quote = await api.createQuote(quoteData);
       
       Alert.alert('Éxito', 'Presupuesto creado correctamente');
@@ -472,16 +539,84 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
-  // Cancelar edición de modal
   const cancelItemModal = () => {
     setShowItemModal(false);
     setSelectedProduct(null);
     setEditingItemId(null);
-    setItemData({
-      quantity: '1',
-      unit_price: '0',
-      discount: '0',
-    });
+    setSelectedPriceType('price');
+    if (selectedProduct) {
+      updateProductInput(selectedProduct.id, 'quantity', '1');
+      updateProductInput(selectedProduct.id, 'unit_price', null);
+      updateProductInput(selectedProduct.id, 'discount', '0');
+    }
+  };
+
+  // ✨ FUNCIÓN MEJORADA: Agregar producto desde modal selector
+  const addProductToQuote = (product: any) => {
+    const productInput = getProductInput(product.id, product.price);
+    
+    const quantity = Number(productInput.quantity) || 1;
+    const unitPrice = Number(productInput.unit_price) || getPriceByType(product, 'price');
+    const discount = Number(productInput.discount) || 0;
+
+    if (quantity <= 0) {
+      Alert.alert('Error', 'La cantidad debe ser mayor a 0');
+      return;
+    }
+
+    if (discount < 0 || discount > 100) {
+      Alert.alert('Error', 'El descuento debe estar entre 0% y 100%');
+      return;
+    }
+
+    const totalPrice = calculateItemTotal(quantity, unitPrice, discount);
+
+    const existingItemIndex = quoteItems.findIndex(
+      i => i.product_id === product.id
+    );
+
+    if (existingItemIndex >= 0) {
+      setQuoteItems(prev => prev.map((existing, index) => {
+        if (index === existingItemIndex) {
+          const newQuantity = existing.quantity + quantity;
+          const newTotalPrice = calculateItemTotal(
+            newQuantity, 
+            unitPrice, 
+            discount
+          );
+          return {
+            ...existing,
+            quantity: newQuantity,
+            unit_price: unitPrice,
+            discount,
+            total_price: newTotalPrice,
+          };
+        }
+        return existing;
+      }));
+    } else {
+      const newItem = {
+        id: Date.now().toString(),
+        product_id: product.id,
+        product: product,
+        quantity,
+        unit_price: unitPrice,
+        discount,
+        total_price: totalPrice,
+      };
+      setQuoteItems(prev => [...prev, newItem]);
+    }
+
+    updateProductInput(product.id, 'quantity', '1');
+    updateProductInput(product.id, 'unit_price', null);
+    updateProductInput(product.id, 'discount', '0');
+    
+    Alert.alert(
+      'Éxito',
+      `${product.name} agregado al presupuesto`,
+      [{ text: 'OK', onPress: () => {} }],
+      { cancelable: false }
+    );
   };
 
   const totals = calculateTotals();
@@ -546,6 +681,15 @@ export default function NewQuoteScreen(): JSX.Element {
             <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
           </TouchableOpacity>
           {errors.customer && <Text style={styles.error}>{errors.customer}</Text>}
+
+          <Input
+            style={{ marginTop: 20 }}
+            label="Válido hasta"
+            value={formData.valid_until}
+            onChangeText={(value) => setFormData(prev => ({ ...prev, valid_until: value }))}
+            error={errors.valid_until}
+            editable={false}
+          />
         </Card>
 
         {/* Productos */}
@@ -563,7 +707,13 @@ export default function NewQuoteScreen(): JSX.Element {
           {quoteItems.length === 0 ? (
             <Text style={styles.emptyText}>No hay productos agregados</Text>
           ) : (
-            quoteItems.map((item) => (
+            quoteItems.map((item) => {
+              // ✨ NUEVO: Calcular descuento por IVA exento
+              const exemption = getItemExemption(item.product_id);
+              const subtotal = item.quantity * item.unit_price;
+              const exemptionDiscount = exemption.is_exempt ? (subtotal * (exemption.discount_percent / 100)) : 0;
+              
+              return (
               <View key={item.id} style={styles.item}>
                 <TouchableOpacity 
                   style={styles.itemInfo}
@@ -574,8 +724,19 @@ export default function NewQuoteScreen(): JSX.Element {
                     Cant: {item.quantity} • Precio: {formatCurrency(item.unit_price)}
                     {item.discount > 0 && ` • Desc: ${item.discount}%`}
                   </Text>
+                  
+                  {/* ✨ NUEVO: Mostrar descuento por IVA exento */}
+                  {exemption.is_exempt && (
+                    <View style={styles.exemptionContainer}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                      <Text style={styles.exemptionText}>
+                        IVA Exento: -{formatCurrency(exemptionDiscount)}
+                      </Text>
+                    </View>
+                  )}
+                  
                   <Text style={styles.itemStock}>
-                    Stock disponible: {getAvailableStock(item.product) + item.quantity}
+                    Stock total: {item.product?.stock}
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.itemActions}>
@@ -597,18 +758,15 @@ export default function NewQuoteScreen(): JSX.Element {
                   </View>
                 </View>
               </View>
-            ))
+              );
+            })
           )}
           {errors.items && <Text style={styles.error}>{errors.items}</Text>}
         </Card>
 
-      
-
         {/* Resumen */}
         {quoteItems.length > 0 && (
           <Card style={[styles.card, styles.summaryCard]}>
-            <Text style={styles.sectionTitle}>Resumen</Text>
-            
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal:</Text>
               <View style={styles.summaryAmounts}>
@@ -657,18 +815,10 @@ export default function NewQuoteScreen(): JSX.Element {
           </Card>
         )}
 
-          {/* Configuración */}
+        {/* Configuración */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Configuración</Text>
           
-          <Input
-            label="Válido hasta"
-            value={formData.valid_until}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, valid_until: value }))}
-            error={errors.valid_until}
-            editable={false}
-          />
-
           <Input
             label="Descuento general (%)"
             value={formData.discount}
@@ -710,218 +860,559 @@ export default function NewQuoteScreen(): JSX.Element {
         </View>
       </ScrollView>
 
-      {/* Modal Selector de Clientes */}
+      {/* ✨ MODAL SELECTOR DE CLIENTES */}
       <Modal visible={showCustomerSelector} animationType="slide">
         <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Seleccionar Cliente</Text>
+          <View style={styles.modalHeaderNew}>
             <TouchableOpacity onPress={() => setShowCustomerSelector(false)}>
-              <Ionicons name="close" size={24} color={colors.text.primary} />
+              <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
             </TouchableOpacity>
+            <View>
+              <Text style={styles.modalTitleNew}>Seleccionar Cliente</Text>
+              <Text style={styles.modalSubtitle}>
+                {filteredCustomers.length} cliente{filteredCustomers.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={{ width: 24 }} />
           </View>
-          
-          <Input
-            placeholder="Buscar cliente..."
-            value={customerSearch}
-            onChangeText={setCustomerSearch}
-            style={styles.searchInput}
-          />
+
+          <View style={styles.modalFiltersContainer}>
+            <View style={styles.filterInputWrapper}>
+              <Input
+                placeholder="Buscar por nombre..."
+                value={customerSearch}
+                onChangeText={setCustomerSearch}
+                leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
+                rightIcon={
+                  customerSearch.length > 0 ? (
+                    <TouchableOpacity onPress={() => setCustomerSearch('')}>
+                      <Ionicons name="close" size={18} color={colors.text.secondary} />
+                    </TouchableOpacity>
+                  ) : null
+                }
+                style={[styles.filterInputModal, { height: 60, paddingVertical: 2 }]}
+              />
+            </View>
+          </View>
 
           <FlatList
             data={filteredCustomers}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={styles.modalItem}
+                style={styles.customerRowModal}
                 onPress={() => {
                   setSelectedCustomer(item);
                   setShowCustomerSelector(false);
                   setErrors(prev => ({ ...prev, customer: '' }));
                 }}
+                activeOpacity={0.7}
               >
-                <Text style={styles.modalItemText}>{item.name}</Text>
-                {item.email && <Text style={styles.modalItemSubtext}>{item.email}</Text>}
+                <View style={styles.customerLeftModal}>
+                  <View style={styles.customerAvatarModal}>
+                    <Text style={styles.customerAvatarTextModal}>
+                      {item.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.customerInfoModal}>
+                    <Text style={styles.customerNameModal} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    
+                    {item.document_number && (
+                      <View style={styles.infoRowModal}>
+                        <Ionicons name="card-outline" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextModal} numberOfLines={1}>
+                          {item.document_type} {item.document_number}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {item.email && (
+                      <View style={styles.infoRowModal}>
+                        <Ionicons name="mail-outline" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextModal} numberOfLines={1}>
+                          {item.email}
+                        </Text>
+                      </View>
+                    )}
+
+                    {item.contact && (
+                      <View style={styles.infoRowModal}>
+                        <Ionicons name="person-circle-outline" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextModal} numberOfLines={1}>
+                          {item.contact}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
               </TouchableOpacity>
             )}
+            contentContainerStyle={styles.customersListModal}
+            ListEmptyComponent={
+              <View style={styles.emptyContainerModal}>
+                <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
+                <Text style={styles.emptyTextModal}>No hay clientes</Text>
+                <Text style={styles.emptySubtextModal}>
+                  {customerSearch
+                    ? 'No se encontraron clientes con ese nombre'
+                    : 'No hay clientes registrados'}
+                </Text>
+              </View>
+            }
+            ItemSeparatorComponent={() => <View style={styles.separatorModal} />}
           />
         </View>
       </Modal>
 
-      {/* Modal Selector de Productos */}
+      {/* ✨ MODAL SELECTOR DE PRODUCTOS */}
       <Modal visible={showProductSelector} animationType="slide">
         <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Seleccionar Producto</Text>
+          <View style={styles.modalHeaderProductNew}>
             <TouchableOpacity onPress={() => setShowProductSelector(false)}>
-              <Ionicons name="close" size={24} color={colors.text.primary} />
+              <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
             </TouchableOpacity>
+            <View>
+              <Text style={styles.modalTitleProductNew}>Seleccionar Producto</Text>
+              <Text style={styles.modalSubtitleProduct}>
+                {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={{ width: 24 }} />
           </View>
-          
-          <Input
-            placeholder="Buscar producto..."
-            value={productSearch}
-            onChangeText={setProductSearch}
-            style={styles.searchInput}
-          />
+
+          <View style={styles.modalFiltersContainerProduct}>
+            <View style={styles.filterInputWrapper}>
+              <Input
+                placeholder="Buscar por código o descripción..."
+                value={productSearch}
+                onChangeText={setProductSearch}
+                leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
+                rightIcon={
+                  productSearch.length > 0 ? (
+                    <TouchableOpacity onPress={() => setProductSearch('')}>
+                      <Ionicons name="close" size={18} color={colors.text.secondary} />
+                    </TouchableOpacity>
+                  ) : null
+                }
+                style={[styles.filterInputModalProduct, { height: 60, paddingVertical: 2 }]}
+              />
+            </View>
+          </View>
 
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => {
-              const availableStock = getAvailableStock(item);
+              // ✨ MÁXIMO PRESELECCIONADO: Pasamos item.price
+              const productInput = getProductInput(item.id, item.price);
+              
               return (
-                <TouchableOpacity
-                  style={[
-                    styles.modalItem,
-                    availableStock <= 0 && styles.modalItemDisabled
-                  ]}
-                  onPress={() => selectProduct(item)}
-                  disabled={availableStock <= 0}
-                >
-                  <View style={styles.productModalItem}>
-                    <View style={styles.productModalInfo}>
-                      <Text style={[
-                        styles.modalItemText,
-                        availableStock <= 0 && styles.modalItemTextDisabled
-                      ]}>
-                        {item.name} 
+                <View style={styles.productRowModalFull}>
+                  <View style={styles.productLeftModalFull}>
+                    <View style={styles.productAvatarModalFull}>
+                      <Text style={styles.productAvatarTextModalFull}>
+                        {item.code.charAt(0).toUpperCase()}
                       </Text>
-                      <Text style={[
-                        styles.modalItemSubtext,
-                        availableStock <= 0 && styles.modalItemTextDisabled
-                      ]}>
-                        Codigo:  {item.code} • Stock total: {item.stock} • Disponible: {availableStock}
-                      </Text>
-                      {availableStock <= 0 && (
-                        <Text style={styles.noStockText}>Sin stock disponible</Text>
-                      )}
                     </View>
-                    <View style={styles.productModalPrice}>
-                      <Text style={styles.modalItemPrice}>
-                        {formatCurrency(item.price)}
+                    <View style={styles.productInfoModalFull}>
+                      <Text style={styles.productNameModalFull} numberOfLines={1}>
+                        {item.name}
                       </Text>
-                      {bcvRate && (
-                        <Text style={styles.modalItemPriceBCV}>
-                          {formatBCV(item.price)}
-                        </Text>
+                      
+                      {item.code && (
+                        <View style={styles.infoRowProductModalFull}>
+                          <Ionicons name="barcode-outline" size={14} color={colors.text.secondary} />
+                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                            {item.code}
+                          </Text>
+                        </View>
                       )}
+                      
+                      {item.category?.description && (
+                        <View style={styles.infoRowProductModalFull}>
+                          <Ionicons name="folder-outline" size={14} color={colors.text.secondary} />
+                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                            {item.category.description}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.infoRowProductModalFull}>
+                        <Ionicons name="layers" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                          Stock: {item.stock}
+                        </Text>
+                      </View>
+
+                      {/* ✨ PRECIOS SELECCIONABLES - INDIVIDUAL POR PRODUCTO */}
+                      <View style={styles.priceSelectContainerModal}>
+                        {/* MÁXIMO */}
+                        <TouchableOpacity
+                          style={[
+                            styles.priceButtonModal,
+                            productInput.unit_price === item.price.toString() && styles.priceButtonModalSelected
+                          ]}
+                          onPress={() => {
+                            updateProductInput(item.id, 'unit_price', item.price.toString());
+                          }}
+                        >
+                          <Text style={[
+                            styles.priceButtonLabelModal,
+                            productInput.unit_price === item.price.toString() && styles.priceButtonLabelModalSelected
+                          ]}>
+                            Máximo
+                          </Text>
+                          <Text style={[
+                            styles.priceButtonValueModal,
+                            productInput.unit_price === item.price.toString() && styles.priceButtonValueModalSelected
+                          ]}>
+                            {formatCurrency(item.price)}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* OFERTA */}
+                        <TouchableOpacity
+                          style={[
+                            styles.priceButtonModal,
+                            productInput.unit_price === item.cost.toString() && styles.priceButtonModalSelected
+                          ]}
+                          onPress={() => {
+                            updateProductInput(item.id, 'unit_price', item.cost.toString());
+                          }}
+                        >
+                          <Text style={[
+                            styles.priceButtonLabelModal,
+                            productInput.unit_price === item.cost.toString() && styles.priceButtonLabelModalSelected
+                          ]}>
+                            Oferta
+                          </Text>
+                          <Text style={[
+                            styles.priceButtonValueModal,
+                            productInput.unit_price === item.cost.toString() && styles.priceButtonValueModalSelected
+                          ]}>
+                            {formatCurrency(item.cost)}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* MAYOR */}
+                        <TouchableOpacity
+                          style={[
+                            styles.priceButtonModal,
+                            productInput.unit_price === item.higher_price.toString() && styles.priceButtonModalSelected
+                          ]}
+                          onPress={() => {
+                            updateProductInput(item.id, 'unit_price', item.higher_price.toString());
+                          }}
+                        >
+                          <Text style={[
+                            styles.priceButtonLabelModal,
+                            productInput.unit_price === item.higher_price.toString() && styles.priceButtonLabelModalSelected
+                          ]}>
+                            Mayor
+                          </Text>
+                          <Text style={[
+                            styles.priceButtonValueModal,
+                            productInput.unit_price === item.higher_price.toString() && styles.priceButtonValueModalSelected
+                          ]}>
+                            {formatCurrency(item.higher_price)}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </TouchableOpacity>
+
+                  {/* Cantidad y botón - INDIVIDUAL POR PRODUCTO */}
+                  <View style={styles.quantityControlsModalFull}>
+                    <View style={styles.quantityRowModal}>
+                      {/* MENOS */}
+                      <TouchableOpacity
+                        style={[
+                          styles.quantityButtonModal,
+                          productInput.quantity === '0' && styles.quantityButtonModalDisabled
+                        ]}
+                        onPress={() => {
+                          const current = parseInt(productInput.quantity) || 0;
+                          updateProductInput(item.id, 'quantity', Math.max(0, current - 1).toString());
+                        }}
+                        disabled={productInput.quantity === '0'}
+                      >
+                        <Ionicons 
+                          name="remove" 
+                          size={16}
+                          color={productInput.quantity === '0' ? colors.gray[300] : colors.primary[500]} 
+                        />
+                      </TouchableOpacity>
+
+                      {/* INPUT CANTIDAD */}
+                      <TextInput
+                        style={styles.quantityInputModal}
+                        value={productInput.quantity}
+                        onChangeText={(value) => {
+                          const numericValue = value.replace(/[^0-9]/g, '');
+                          updateProductInput(item.id, 'quantity', numericValue || '1');
+                        }}
+                        keyboardType="number-pad"
+                        placeholder="1"
+                        placeholderTextColor={colors.text.tertiary}
+                      />
+
+                      {/* MÁS */}
+                      <TouchableOpacity
+                        style={styles.quantityButtonModal}
+                        onPress={() => {
+                          const current = parseInt(productInput.quantity) || 0;
+                          updateProductInput(item.id, 'quantity', (current + 1).toString());
+                        }}
+                      >
+                        <Ionicons 
+                          name="add" 
+                          size={16}
+                          color={colors.primary[500]} 
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* LO QUIERO */}
+                    <TouchableOpacity
+                      style={styles.wantItButtonModal}
+                      onPress={() => addProductToQuote(item)}
+                    >
+                      <Text style={styles.wantItButtonTextModal}>Lo quiero</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               );
             }}
+            contentContainerStyle={styles.productsListModal}
+            ListEmptyComponent={
+              <View style={styles.emptyContainerProductModal}>
+                <Ionicons name="cube-outline" size={64} color={colors.text.tertiary} />
+                <Text style={styles.emptyTextProductModal}>No hay productos</Text>
+                <Text style={styles.emptySubtextProductModal}>
+                  {productSearch
+                    ? 'No se encontraron productos con ese código o descripción'
+                    : 'No hay productos disponibles'}
+                </Text>
+              </View>
+            }
+            ItemSeparatorComponent={() => <View style={styles.separatorProductModal} />}
           />
         </View>
       </Modal>
 
       {/* Modal Configurar Item */}
       <Modal visible={showItemModal} animationType="slide">
-       <ScrollView>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {editingItemId ? 'Editar Producto' : 'Configurar Producto'}
-            </Text>
-            <TouchableOpacity onPress={cancelItemModal}>
-              <Ionicons name="close" size={24} color={colors.text.primary} />
-            </TouchableOpacity>
-          </View>
+        <ScrollView>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingItemId ? 'Editar Producto' : 'Configurar Producto'}
+              </Text>
+              <TouchableOpacity onPress={cancelItemModal}>
+                <Ionicons name="close" size={24} color={colors.text.primary} />
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.modalContent}>
-            {selectedProduct && (
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{selectedProduct.name}</Text>
-                <View style={styles.productPriceInfo}>
-                  <View>
+            <View style={styles.modalContent}>
+              {selectedProduct && (
+                <>
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName}>{selectedProduct.name}</Text>
                     <Text style={styles.productDetails}>
-                      Precio: {formatCurrency(selectedProduct.price)}
+                      Stock total: {selectedProduct.stock}
                     </Text>
-                    {bcvRate && (
-                      <Text style={styles.productDetailsBCV}>
-                        {formatBCV(selectedProduct.price)}
-                      </Text>
-                    )}
+
+                    <View style={styles.priceOptionsContainer}>
+                      <Text style={styles.priceOptionsTitle}>Selecciona un precio:</Text>
+                      
+                      <TouchableOpacity
+                        style={[
+                          styles.priceOption,
+                          selectedPriceType === 'price' && styles.priceOptionSelected
+                        ]}
+                        onPress={() => {
+                          setSelectedPriceType('price');
+                          updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.price.toString());
+                        }}
+                      >
+                        <View style={styles.priceOptionContent}>
+                          <Text style={styles.priceOptionLabel}>Máximo</Text>
+                          <Text style={[
+                            styles.priceOptionValue,
+                            selectedPriceType === 'price' && styles.priceOptionValueSelected
+                          ]}>
+                            {formatCurrency(selectedProduct.price)}
+                          </Text>
+                          {bcvRate && (
+                            <Text style={styles.priceOptionBCV}>
+                              {formatBCV(selectedProduct.price)}
+                            </Text>
+                          )}
+                        </View>
+                        {selectedPriceType === 'price' && (
+                          <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.priceOption,
+                          selectedPriceType === 'cost' && styles.priceOptionSelected
+                        ]}
+                        onPress={() => {
+                          setSelectedPriceType('cost');
+                          updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.cost.toString());
+                        }}
+                      >
+                        <View style={styles.priceOptionContent}>
+                          <Text style={styles.priceOptionLabel}>Oferta</Text>
+                          <Text style={[
+                            styles.priceOptionValue,
+                            selectedPriceType === 'cost' && styles.priceOptionValueSelected
+                          ]}>
+                            {formatCurrency(selectedProduct.cost)}
+                          </Text>
+                          {bcvRate && (
+                            <Text style={styles.priceOptionBCV}>
+                              {formatBCV(selectedProduct.cost)}
+                            </Text>
+                          )}
+                        </View>
+                        {selectedPriceType === 'cost' && (
+                          <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.priceOption,
+                          selectedPriceType === 'higher_price' && styles.priceOptionSelected
+                        ]}
+                        onPress={() => {
+                          setSelectedPriceType('higher_price');
+                          updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.higher_price.toString());
+                        }}
+                      >
+                        <View style={styles.priceOptionContent}>
+                          <Text style={styles.priceOptionLabel}>Mayor</Text>
+                          <Text style={[
+                            styles.priceOptionValue,
+                            selectedPriceType === 'higher_price' && styles.priceOptionValueSelected
+                          ]}>
+                            {formatCurrency(selectedProduct.higher_price)}
+                          </Text>
+                          {bcvRate && (
+                            <Text style={styles.priceOptionBCV}>
+                              {formatBCV(selectedProduct.higher_price)}
+                            </Text>
+                          )}
+                        </View>
+                        {selectedPriceType === 'higher_price' && (
+                          <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text style={styles.productDetails}>
-                    Stock total: {selectedProduct.stock} • Disponible: {getAvailableStock(selectedProduct)}
-                  </Text>
-                </View>
-              </View>
-            )}
 
-            <Input
-              label={`Cantidad (Máx: ${selectedProduct ? getAvailableStock(selectedProduct) : 0})`}
-              value={itemData.quantity}
-              onChangeText={(value) => {
-                setItemData(prev => ({ ...prev, quantity: value }));
-              }}
-              keyboardType="numeric"
-              error={
-                selectedProduct && Number(itemData.quantity) > getAvailableStock(selectedProduct)
-                  ? `Máximo disponible: ${getAvailableStock(selectedProduct)}`
-                  : undefined
-              }
-            />
+                  {/* ✨ NUEVO: Toggle para IVA Exento */}
+                  <View style={styles.exemptionToggleContainer}>
+                    <View style={styles.exemptionToggleLeft}>
+                      <Ionicons name="checkmark-circle-outline" size={20} color={colors.success} />
+                      <View>
+                        <Text style={styles.exemptionToggleLabel}>IVA Exento</Text>
+                        <Text style={styles.exemptionToggleSubtext}>
+                          Aplicar descuento del 16%
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.exemptionToggleButton,
+                        getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleButtonActive
+                      ]}
+                      onPress={() => {
+                        const current = getItemExemption(selectedProduct.id);
+                        updateItemExemption(selectedProduct.id, !current.is_exempt, current.is_exempt ? 0 : 16);
+                      }}
+                    >
+                      <View style={[
+                        styles.exemptionToggleDot,
+                        getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleDotActive
+                      ]} />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
-            <Input
-              label="Precio unitario"
-              value={itemData.unit_price}
-              onChangeText={(value) => setItemData(prev => ({ ...prev, unit_price: value }))}
-              keyboardType="numeric"
-            />
+              <Input
+                label="Cantidad"
+                value={getProductInput(selectedProduct?.id || 0, selectedProduct?.price).quantity}
+                onChangeText={(value) => {
+                  updateProductInput(selectedProduct.id, 'quantity', value);
+                }}
+                keyboardType="numeric"
+              />
 
-            <Input
-              label="Descuento (%)"
-              value={itemData.discount}
-              onChangeText={(value) => setItemData(prev => ({ ...prev, discount: value }))}
-              keyboardType="numeric"
-            />
+              <Input
+                label="Precio unitario (personalizado)"
+                value={getProductInput(selectedProduct?.id || 0, selectedProduct?.price).unit_price || ''}
+                onChangeText={(value) => updateProductInput(selectedProduct.id, 'unit_price', value)}
+                keyboardType="numeric"
+              />
 
-            <View style={styles.itemPreview}>
-              <Text style={styles.previewLabel}>Total del item:</Text>
-              <View style={styles.previewAmounts}>
-                <Text style={styles.previewTotal}>
-                  {formatCurrency(
-                    calculateItemTotal(
-                      Number(itemData.quantity) || 0,
-                      Number(itemData.unit_price) || 0,
-                      Number(itemData.discount) || 0
-                    )
-                  )}
-                </Text>
-                {bcvRate && (
-                  <Text style={styles.previewTotalBCV}>
-                    {formatBCV(
+              <Input
+                label="Descuento (%)"
+                value={getProductInput(selectedProduct?.id || 0, selectedProduct?.price).discount}
+                onChangeText={(value) => updateProductInput(selectedProduct.id, 'discount', value)}
+                keyboardType="numeric"
+              />
+
+              <View style={styles.itemPreview}>
+                <Text style={styles.previewLabel}>Total del item:</Text>
+                <View style={styles.previewAmounts}>
+                  <Text style={styles.previewTotal}>
+                    {formatCurrency(
                       calculateItemTotal(
-                        Number(itemData.quantity) || 0,
-                        Number(itemData.unit_price) || 0,
-                        Number(itemData.discount) || 0
+                        Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).quantity) || 0,
+                        Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).unit_price) || 0,
+                        Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).discount) || 0
                       )
                     )}
                   </Text>
-                )}
+                  {bcvRate && (
+                    <Text style={styles.previewTotalBCV}>
+                      {formatBCV(
+                        calculateItemTotal(
+                          Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).quantity) || 0,
+                          Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).unit_price) || 0,
+                          Number(getProductInput(selectedProduct?.id || 0, selectedProduct?.price).discount) || 0
+                        )
+                      )}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.buttons}>
+                <Button
+                  title="Cancelar"
+                  variant="outline"
+                  onPress={cancelItemModal}
+                  style={styles.button}
+                />
+                <Button
+                  title={editingItemId ? 'Actualizar' : 'Agregar'}
+                  onPress={saveItem}
+                  style={styles.button}
+                />
               </View>
             </View>
-
-            <View style={styles.buttons}>
-              <Button
-                title="Cancelar"
-                variant="outline"
-                onPress={cancelItemModal}
-                style={styles.button}
-              />
-              <Button
-                title={editingItemId ? 'Actualizar' : 'Agregar'}
-                onPress={saveItem}
-                style={styles.button}
-                disabled={
-                  selectedProduct && Number(itemData.quantity) > getAvailableStock(selectedProduct)
-                }
-              />
-            </View>
           </View>
-        </View>
-        </ScrollView> 
+        </ScrollView>
       </Modal>
     </View>
   );
@@ -931,7 +1422,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    
   },
   loadingContainer: {
     flex: 1,
@@ -958,7 +1448,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
 
-  // Exchange Rate Card
   exchangeCard: {
     marginBottom: spacing.md,
     padding: spacing.md,
@@ -1088,7 +1577,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
 
-  // Summary Styles
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1150,7 +1638,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Modal Styles
   modal: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1168,62 +1655,336 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
   },
-  searchInput: {
-    margin: spacing.lg,
-    marginBottom: 0,
-  },
-  modalItem: {
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  modalItemDisabled: {
-    opacity: 0.5,
-  },
-  modalItemText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-  },
-  modalItemTextDisabled: {
-    color: colors.text.secondary,
-  },
-  modalItemSubtext: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  noStockText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.error,
-    marginTop: spacing.xs,
-  },
 
-  // Product Modal Item
-  productModalItem: {
+  modalHeaderNew: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    marginTop: spacing.lg,
   },
-  productModalInfo: {
-    flex: 1,
-    marginRight: spacing.md,
-  },
-  productModalPrice: {
-    alignItems: 'flex-end',
-  },
-  modalItemPrice: {
-    fontSize: typography.fontSize.base,
+  modalTitleNew: {
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
-    color: colors.success,
+    color: colors.text.primary,
   },
-  modalItemPriceBCV: {
+  modalSubtitle: {
     fontSize: typography.fontSize.sm,
-    color: colors.success,
-    opacity: 0.8,
+    color: colors.text.secondary,
     marginTop: spacing.xs,
   },
 
-  // Modal Content
+  modalFiltersContainer: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    height: 80,
+  },
+  filterInputWrapper: {
+    flex: 1,
+  },
+  filterInputModal: {
+    marginBottom: 0,
+  },
+
+  customerRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 88,
+  },
+  customerLeftModal: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  customerAvatarModal: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  customerAvatarTextModal: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
+  },
+  customerInfoModal: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  customerNameModal: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  infoRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  infoTextModal: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    flex: 1,
+  },
+
+  customersListModal: {
+    flexGrow: 1,
+    paddingBottom: 100,
+  },
+  separatorModal: {
+    height: 1,
+    backgroundColor: colors.gray[100],
+    marginHorizontal: spacing.lg,
+  },
+
+  emptyContainerModal: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing['3xl'],
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTextModal: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtextModal: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.base * 1.5,
+    maxWidth: 280,
+  },
+
+  modalHeaderProductNew: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    marginTop: spacing.lg,
+  },
+  modalTitleProductNew: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  modalSubtitleProduct: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+
+  modalFiltersContainerProduct: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    height: 80,
+  },
+  filterInputModalProduct: {
+    marginBottom: 0,
+  },
+
+  productRowModalFull: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 140,
+  },
+  productLeftModalFull: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginRight: spacing.md,
+  },
+  productAvatarModalFull: {
+    width: 50,
+    height: 50,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+    marginTop: spacing.xs,
+  },
+  productAvatarTextModalFull: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary[500],
+    fontFamily: 'monospace',
+  },
+  productInfoModalFull: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  productNameModalFull: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  infoRowProductModalFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  infoTextProductModalFull: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    flex: 1,
+  },
+
+  priceSelectContainerModal: {
+    flexDirection: 'column',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  priceButtonModal: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.gray[50],
+  },
+  priceButtonModalSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
+    borderWidth: 2,
+  },
+  priceButtonLabelModal: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  priceButtonLabelModalSelected: {
+    color: colors.primary[500],
+  },
+  priceButtonValueModal: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+  priceButtonValueModalSelected: {
+    color: colors.primary[500],
+  },
+
+  quantityControlsModalFull: {
+    gap: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 110,
+  },
+  quantityRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  quantityButtonModal: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  quantityButtonModalDisabled: {
+    backgroundColor: colors.gray[100],
+    borderColor: colors.gray[200],
+  },
+  quantityInputModal: {
+    width: 40,
+    height: 28,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.sm,
+    textAlign: 'center',
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    backgroundColor: colors.surface,
+    paddingVertical: 0,
+  },
+  wantItButtonModal: {
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    minWidth: 105,
+    alignItems: 'center',
+  },
+  wantItButtonTextModal: {
+    fontSize: 12,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.inverse,
+  },
+
+  productsListModal: {
+    flexGrow: 1,
+    paddingBottom: 100,
+  },
+  separatorProductModal: {
+    height: 1,
+    backgroundColor: colors.gray[100],
+    marginHorizontal: spacing.lg,
+  },
+
+  emptyContainerProductModal: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing['3xl'],
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTextProductModal: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtextProductModal: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.base * 1.5,
+    maxWidth: 280,
+  },
+
   modalContent: {
     padding: spacing.lg,
   },
@@ -1238,23 +1999,63 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     marginBottom: spacing.md,
   },
-  productPriceInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   productDetails: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },
-  productDetailsBCV: {
+
+  priceOptionsContainer: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  priceOptionsTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  priceOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  priceOptionSelected: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[500],
+    borderWidth: 2,
+  },
+  priceOptionContent: {
+    flex: 1,
+  },
+  priceOptionLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+  },
+  priceOptionValue: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: spacing.xs,
+  },
+  priceOptionValueSelected: {
+    color: colors.primary[500],
+  },
+  priceOptionBCV: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    marginTop: spacing.xs,
     opacity: 0.8,
+    marginTop: spacing.xs,
   },
 
-  // Item Preview
   itemPreview: {
     padding: spacing.lg,
     backgroundColor: colors.gray[50],
@@ -1281,5 +2082,72 @@ const styles = StyleSheet.create({
     color: colors.success,
     opacity: 0.8,
     marginTop: spacing.xs,
+  },
+
+  // ✨ NUEVO: Estilos para IVA Exento
+  exemptionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.success + '15',
+    borderRadius: borderRadius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.success,
+  },
+  exemptionText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    fontWeight: typography.fontWeight.medium,
+  },
+  exemptionToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    backgroundColor: colors.success + '10',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.success + '30',
+    marginBottom: spacing.lg,
+  },
+  exemptionToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  exemptionToggleLabel: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  exemptionToggleSubtext: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  exemptionToggleButton: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.gray[300],
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  exemptionToggleButtonActive: {
+    backgroundColor: colors.success,
+  },
+  exemptionToggleDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    alignSelf: 'flex-start',
+  },
+  exemptionToggleDotActive: {
+    alignSelf: 'flex-end',
   },
 });

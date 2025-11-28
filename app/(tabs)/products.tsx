@@ -1,4 +1,4 @@
-// app/(tabs)/products.tsx - Versión con CategoryFilter mejorado (búsqueda por lupa)
+// app/(tabs)/products.tsx - CON DUAL SEARCH Y PRECIO MÁXIMO POR DEFECTO
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,7 +18,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
@@ -32,12 +31,24 @@ interface ProductItemProps {
   onToggleSelect: (product: Product) => void;
   quantity: number;
   onQuantityChange: (product: Product, quantity: number) => void;
+  selectedPrice: 'cost' | 'price' | 'higher_price';
+  onSelectPrice: (productId: number, priceType: 'cost' | 'price' | 'higher_price') => void;
+  onQuantityInputChange: (product: Product, value: string) => void;
+  onCreateQuote: (product: Product) => void;
 }
 
 interface CategoryFilterProps {
   categories: Category[];
   selectedCategory: Category | null;
   onSelectCategory: (category: Category | null) => void;
+}
+
+interface QuickActionProps {
+  title: string;
+  icon: string;
+  onPress: () => void;
+  color?: string;
+  disabled?: boolean;
 }
 
 const QuickAction: React.FC<QuickActionProps> = ({ 
@@ -60,9 +71,6 @@ const QuickAction: React.FC<QuickActionProps> = ({
     </TouchableOpacity>
   );
 
-// ========================================
-// NUEVO: CategoryFilter con búsqueda
-// ========================================
 const CategoryFilter: React.FC<CategoryFilterProps> = ({
   categories,
   selectedCategory,
@@ -71,12 +79,10 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  // Ordenar categorías alfabéticamente
   const sortedCategories = [...categories].sort((a, b) => 
     a.description.localeCompare(b.description)
   );
 
-  // Filtrar categorías según el texto de búsqueda
   const filteredCategories = sortedCategories.filter(category =>
     category.description.toLowerCase().includes(searchText.toLowerCase())
   );
@@ -87,8 +93,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
     setSearchText('');
   };
 
-  
-
   return (
     <View style={styles.categoriesSection}>
       <Text style={styles.departmentsTitle}>DEPARTAMENTOS</Text>
@@ -97,7 +101,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoriesScrollContainer}
       >
-        {/* Ícono de lupa para búsqueda */}
         <TouchableOpacity
           style={[
             styles.categoryChip,
@@ -108,12 +111,11 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
         >
           <Ionicons 
             name="search" 
-            size={20} 
+            size={15} 
             color={!selectedCategory ? colors.text.inverse : colors.text.primary}
           />
         </TouchableOpacity>
         
-        {/* Chips de categorías */}
         {sortedCategories.map((category) => (
           <TouchableOpacity
             key={category.id}
@@ -133,7 +135,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
         ))}
       </ScrollView>
 
-      {/* Modal de búsqueda */}
       <Modal
         visible={showSearchModal}
         transparent
@@ -142,7 +143,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Header del Modal */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Buscar Departamento</Text>
               <TouchableOpacity 
@@ -160,7 +160,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Campo de búsqueda */}
             <View style={styles.searchInputContainer}>
               <Ionicons 
                 name="search" 
@@ -190,7 +189,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
               )}
             </View>
 
-            {/* Opción "Ver todos" */}
             <TouchableOpacity
               style={styles.allDepartmentsOption}
               onPress={() => handleSelectCategory(null)}
@@ -210,7 +208,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
               )}
             </TouchableOpacity>
 
-            {/* Lista de categorías filtradas */}
             <FlatList
               data={filteredCategories}
               keyExtractor={(item) => item.id.toString()}
@@ -261,18 +258,19 @@ export default function ProductsScreen(): JSX.Element {
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [searchText, setSearchText] = useState<string>('');
+  const [codeSearch, setCodeSearch] = useState<string>('');
+  const [descriptionSearch, setDescriptionSearch] = useState<string>('');
+  const [localCodeSearch, setLocalCodeSearch] = useState<string>('');
+  const [localDescriptionSearch, setLocalDescriptionSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
-  // Estados para cantidades de productos
   const [productQuantities, setProductQuantities] = useState<Record<number, number>>({});
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
 
-  // Estados para escáner
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'price' | 'higher_price'>>({});
+  const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'price' | 'higher_price'>>({});
 
   useEffect(() => {
     loadData();
@@ -283,14 +281,17 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
       loadData();
       setSelectedProducts(new Set());
       setProductQuantities({});      
-      setSearchText('');
+      setCodeSearch('');
+      setLocalCodeSearch('');
+      setDescriptionSearch('');
+      setLocalDescriptionSearch('');
       setSelectedCategory(null);
     }, [])
   );
 
   useEffect(() => {
     filterProducts();
-  }, [searchText, products, selectedCategory]);
+  }, [codeSearch, descriptionSearch, products, selectedCategory]);
 
   const loadData = async (): Promise<void> => {
     try {
@@ -305,6 +306,13 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
 
       setProducts(productsResponse.data || []);
       setCategories(categoriesResponse.data || []);
+      
+      // Inicializar precios por defecto a 'price' (máximo)
+      const defaultPrices: Record<number, 'cost' | 'price' | 'higher_price'> = {};
+      (productsResponse.data || []).forEach(product => {
+        defaultPrices[product.id] = 'cost'; // 'price' es el máximo
+      });
+      setSelectedPrices(defaultPrices);
     } catch (error) {
       console.log('Error loading data:', error);
       Alert.alert('Error', 'No se pudo cargar la información');
@@ -322,27 +330,57 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
       );
     }
 
-    if (searchText) {
+    // Búsqueda por código
+    if (codeSearch) {
       filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        product.code.toLowerCase().includes(searchText.toLowerCase()) ||
-        product.category?.name.toLowerCase().includes(searchText.toLowerCase())
+        product.code.toLowerCase().includes(codeSearch.toLowerCase())
+      );
+    }
+
+    // Búsqueda por descripción
+    if (descriptionSearch) {
+      filtered = filtered.filter(product =>
+        product.description.toLowerCase().includes(descriptionSearch.toLowerCase()) ||
+        product.name.toLowerCase().includes(descriptionSearch.toLowerCase())
       );
     }
     
     setFilteredProducts(filtered);
   };
 
-  const debouncedSearch = debounce((text: string) => {
-    setSearchText(text);
-  }, 300);
+  const debouncedCodeSearch = debounce((text: string) => {
+    setCodeSearch(text);
+  }, 150);
+
+  const debouncedDescriptionSearch = debounce((text: string) => {
+    setDescriptionSearch(text);
+  }, 150);
+
+  const handleCodeSearchChange = (text: string) => {
+    setLocalCodeSearch(text);
+    debouncedCodeSearch(text);
+  };
+
+  const handleDescriptionSearchChange = (text: string) => {
+    setLocalDescriptionSearch(text);
+    debouncedDescriptionSearch(text);
+  };
+
+  const handleClearCodeSearch = () => {
+    setLocalCodeSearch('');
+    setCodeSearch('');
+  };
+
+  const handleClearDescriptionSearch = () => {
+    setLocalDescriptionSearch('');
+    setDescriptionSearch('');
+  };
 
   const toggleProductSelection = (product: Product) => {
     setSelectedProducts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(product.id)) {
         newSet.delete(product.id);
-        // Limpiar cantidad al deseleccionar
         setProductQuantities(prevQty => {
           const newQty = { ...prevQty };
           delete newQty[product.id];
@@ -350,7 +388,6 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
         });
       } else {
         newSet.add(product.id);
-        // Establecer cantidad inicial en 1
         setProductQuantities(prevQty => ({
           ...prevQty,
           [product.id]: 1
@@ -362,17 +399,15 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
 
   const handleQuantityChange = (product: Product, change: number) => {
     const currentQty = productQuantities[product.id] || 0;
-    const newQty = Math.max(0, Math.min(product.stock, currentQty + change));
+    const newQty = Math.max(0, currentQty + change);
     
     if (newQty > 0) {
       setProductQuantities(prev => ({
         ...prev,
         [product.id]: newQty
       }));
-      // Asegurar que el producto esté seleccionado
       setSelectedProducts(prev => new Set(prev).add(product.id));
     } else {
-      // Si la cantidad llega a 0, deseleccionar
       setProductQuantities(prev => {
         const newQty = { ...prev };
         delete newQty[product.id];
@@ -388,7 +423,7 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
 
   const handleQuantityInputChange = (product: Product, value: string) => {
     const numValue = parseInt(value) || 0;
-    const clampedValue = Math.max(0, Math.min(product.stock, numValue));
+    const clampedValue = Math.max(0, numValue);
     
     if (clampedValue > 0) {
       setProductQuantities(prev => ({
@@ -408,6 +443,30 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
         return newSet;
       });
     }
+  };
+
+  const handleSelectPrice = (productId: number, priceType: 'cost' | 'price' | 'higher_price') => {
+    setSelectedPrices(prev => ({
+      ...prev,
+      [productId]: priceType
+    }));
+  };
+
+  const handleCreateQuoteFromProduct = (product: Product) => {
+    const quantity = productQuantities[product.id] || 1;
+    const priceType = selectedPrices[product.id] || 'price';
+    const unitPrice = priceType === 'cost' ? product.cost : 
+                     priceType === 'higher_price' ? product.higher_price : 
+                     product.price;
+    
+    console.log('Creating quote:', {
+      product_id: product.id,
+      quantity,
+      unitPrice,
+      priceType
+    });
+    
+    router.push(`/quotes/new?preselected_products=${product.id}&quantity=${quantity}&prices=${unitPrice}`);
   };
 
   const handleOpenScanner = async () => {
@@ -437,7 +496,6 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
 
     if (foundProduct) {
       setShowScanner(false);
-      // Agregar producto con cantidad 1
       setSelectedProducts(prev => new Set(prev).add(foundProduct.id));
       setProductQuantities(prev => ({
         ...prev,
@@ -496,33 +554,22 @@ const [selectedPrices, setSelectedPrices] = useState<Record<number, 'cost' | 'pr
   router.push(`/quotes/new?preselected_products=${selectedProductIds}&quantity=${quantity}&prices=${prices}`);
 };
 
-const createQuoteFromSingleProduct = (product: Product) => {
-  const quantity = productQuantities[product.id] || 1;
-  const priceType = selectedPrices[product.id] || 'price';
-  const unitPrice = priceType === 'cost' ? product.cost : 
-                   priceType === 'higher_price' ? product.higher_price : 
-                   product.price;
-  
-  router.push(`/quotes/new?preselected_products=${product.id}&quantity=${quantity}&prices=${unitPrice}`);
-};
-
- const ProductItem: React.FC<ProductItemProps> = ({ 
+const ProductItem: React.FC<ProductItemProps> = ({ 
   product, 
   isSelected,
   onToggleSelect,
   quantity,
-  onQuantityChange
+  onQuantityChange,
+  selectedPrice,
+  onSelectPrice,
+  onQuantityInputChange,
+  onCreateQuote
 }) => {
   const isLowStock = product.stock <= (product.min_stock || 0);
   const [inputValue, setInputValue] = useState(quantity > 0 ? quantity.toString() : '');
-  const selectedPrice = selectedPrices[product.id] || 'price'; // default 'oferta'
 
   const handleSelectPrice = (priceType: 'cost' | 'price' | 'higher_price') => {
-    setSelectedPrices(prev => ({
-      ...prev,
-      [product.id]: priceType
-    }));
-    // Asegurar que el producto esté seleccionado
+    onSelectPrice(product.id, priceType);
     if (!isSelected) {
       onToggleSelect(product);
     }
@@ -538,7 +585,7 @@ const createQuoteFromSingleProduct = (product: Product) => {
   };
 
   const handleInputBlur = () => {
-    handleQuantityInputChange(product, inputValue);
+    onQuantityInputChange(product, inputValue);
   };
 
   const getSelectedPriceValue = () => {
@@ -574,7 +621,6 @@ const createQuoteFromSingleProduct = (product: Product) => {
             {product.category?.description || 'Sin categoría'}
           </Text>
           
-          {/* PRECIOS COMO BOTONES SELECCIONABLES */}
           <View style={styles.priceSelectContainer}>
             <TouchableOpacity
               style={[
@@ -593,7 +639,7 @@ const createQuoteFromSingleProduct = (product: Product) => {
                 styles.priceButtonValue,
                 selectedPrice === 'cost' && styles.priceButtonValueSelected
               ]}>
-                {formatCurrency(product.cost)}
+                {formatCurrency(product.price)}
               </Text>
             </TouchableOpacity>
 
@@ -614,7 +660,7 @@ const createQuoteFromSingleProduct = (product: Product) => {
                 styles.priceButtonValue,
                 selectedPrice === 'price' && styles.priceButtonValueSelected
               ]}>
-                {formatCurrency(product.price)}
+                {formatCurrency(product.cost)}
               </Text>
             </TouchableOpacity>
 
@@ -683,29 +729,24 @@ const createQuoteFromSingleProduct = (product: Product) => {
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={colors.text.tertiary}
-              maxLength={4}
               selectTextOnFocus={true}
             />
 
             <TouchableOpacity
-              style={[
-                styles.quantityControlButton,
-                quantity >= product.stock && styles.quantityControlButtonDisabled
-              ]}
+              style={styles.quantityControlButton}
               onPress={() => onQuantityChange(product, 1)}
-              disabled={quantity >= product.stock}
             >
               <Ionicons 
                 name="add" 
                 size={16}
-                color={quantity >= product.stock ? colors.gray[300] : colors.primary[500]} 
+                color={colors.primary[500]} 
               />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
             style={styles.wantItButton}
-            onPress={() => createQuoteFromSingleProduct(product)}
+            onPress={() => onCreateQuote(product)}
           >
             <Text style={styles.wantItButtonText}>Lo quiero</Text>
           </TouchableOpacity>
@@ -722,6 +763,10 @@ const createQuoteFromSingleProduct = (product: Product) => {
       onToggleSelect={toggleProductSelection}
       quantity={productQuantities[item.id] || 0}
       onQuantityChange={handleQuantityChange}
+      selectedPrice={selectedPrices[item.id] || 'price'}
+      onSelectPrice={handleSelectPrice}
+      onQuantityInputChange={handleQuantityInputChange}
+      onCreateQuote={handleCreateQuoteFromProduct}
     />
   );
 
@@ -729,22 +774,11 @@ const createQuoteFromSingleProduct = (product: Product) => {
     <View style={styles.emptyContainer}>
       <Ionicons name="cube" size={64} color={colors.text.tertiary} />
       <Text style={styles.emptyText}>
-        {searchText || selectedCategory 
+        {codeSearch || descriptionSearch || selectedCategory 
           ? 'No se encontraron productos con los filtros aplicados' 
           : 'No hay productos disponibles'
         }
       </Text>
-      {searchText || selectedCategory ? (
-        <Button
-          title="Limpiar Filtros"
-          variant="outline"
-          onPress={() => {
-            setSearchText('');
-            setSelectedCategory(null);
-          }}
-          style={{ marginTop: spacing.lg }}
-        />
-      ) : null}
     </View>
   );
 
@@ -755,28 +789,24 @@ const createQuoteFromSingleProduct = (product: Product) => {
 
   return (
     <View style={styles.container}>
-      {/* Header con buscador */}
       <View style={styles.header}>
         <Text style={styles.title}>Catálogo de Productos</Text>
         
-        {/* Buscador con Escáner */}
         <View style={styles.searchRow}>
           <View style={styles.searchInputContainerSearch}>
             <Input
-              placeholder="Buscar por nombre, código o documento..."
-              onChangeText={debouncedSearch}
-              leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+              placeholder="Buscar por código..."
+              value={localCodeSearch}
+              onChangeText={handleCodeSearchChange}
+              leftIcon={<Ionicons name="barcode-outline" size={20} color={colors.text.tertiary} />}
               rightIcon={
-                (selectedCategory || searchText) ? (
-                  <TouchableOpacity onPress={() => {
-                    setSearchText('');
-                    setSelectedCategory(null);
-                  }}>
-                    <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
+                localCodeSearch.length > 0 ? (
+                  <TouchableOpacity onPress={handleClearCodeSearch}>
+                    <Ionicons name="close" size={20} color="#666" />
                   </TouchableOpacity>
-                ) : undefined
+                ) : null
               }
-              style={{ marginBottom: 0 }}
+              style={{ marginBottom: spacing.xs }}
             />
           </View>
           <TouchableOpacity
@@ -786,9 +816,27 @@ const createQuoteFromSingleProduct = (product: Product) => {
             <Ionicons name="barcode" size={24} color={colors.text.inverse} />
           </TouchableOpacity>
         </View>
+
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputContainerSearch}>
+            <Input
+              placeholder="Buscar por descripción..."
+              value={localDescriptionSearch}
+              onChangeText={handleDescriptionSearchChange}
+              leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+              rightIcon={
+                localDescriptionSearch.length > 0 ? (
+                  <TouchableOpacity onPress={handleClearDescriptionSearch}>
+                    <Ionicons name="close" size={20} color="#666" />
+                  </TouchableOpacity>
+                ) : null
+              }
+              style={{ marginBottom: 0 }}
+            />
+          </View>
+        </View>
       </View>
 
-      {/* Barra de selección (cuando hay productos seleccionados) */}
       {selectedCount > 0 && (
         <View style={styles.selectionBar}>
           <View style={styles.selectionInfo}>
@@ -807,9 +855,6 @@ const createQuoteFromSingleProduct = (product: Product) => {
         </View>
       )}
 
-      
-
-      {/* Lista de productos */}
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id.toString()}
@@ -823,14 +868,12 @@ const createQuoteFromSingleProduct = (product: Product) => {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
-      {/* Departamentos - AHORA CON BÚSQUEDA */}
       <CategoryFilter
         categories={categories}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
       />
 
-      {/* Modal de Escáner */}
       <Modal
         visible={showScanner}
         animationType="slide"
@@ -891,6 +934,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   searchInputContainerSearch: {
     flex: 1,
@@ -981,16 +1025,19 @@ const styles = StyleSheet.create({
   categoryChipActiveText: {
     color: colors.text.inverse,
   },
- 
+  searchChip: {
+    width: 48,
+    height: 48,
+    padding: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
-
-  // CONTROLES DE CANTIDAD - CONTENEDOR VERTICAL
   quantityControls: {
     gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // FILA HORIZONTAL PARA +, INPUT, -
   quantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1053,7 +1100,6 @@ const styles = StyleSheet.create({
   separator: {
     height: spacing.sm,
   },
-  // Estilos del Escáner
   scannerContainer: {
     flex: 1,
     backgroundColor: colors.gray[900],
@@ -1219,7 +1265,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
   },
 
-  // Estilos del Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1317,41 +1362,41 @@ const styles = StyleSheet.create({
   },
 
   priceSelectContainer: {
-  flexDirection: 'row',
-  gap: spacing.xs,
-  marginBottom: spacing.xs,
-  justifyContent: 'space-between',
-},
-priceButton: {
-  flex: 1,
-  borderWidth: 1,
-  borderColor: colors.gray[200],
-  borderRadius: borderRadius.sm,
-  paddingHorizontal: spacing.xs,
-  paddingVertical: spacing.xs,
-  alignItems: 'center',
-  backgroundColor: colors.gray[50],
-},
-priceButtonSelected: {
-  borderColor: colors.primary[500],
-  backgroundColor: colors.primary[50],
-  borderWidth: 2,
-},
-priceButtonLabel: {
-  fontSize: typography.fontSize.xs,
-  color: colors.text.secondary,
-  fontWeight: typography.fontWeight.medium,
-},
-priceButtonLabelSelected: {
-  color: colors.primary[500],
-},
-priceButtonValue: {
-  fontSize: typography.fontSize.sm,
-  fontWeight: typography.fontWeight.bold,
-  color: colors.text.primary,
-  marginTop: 2,
-},
-priceButtonValueSelected: {
-  color: colors.primary[500],
-},
+    flexDirection: 'column',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+    justifyContent: 'space-between',
+  },
+  priceButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.gray[50],
+  },
+  priceButtonSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
+    borderWidth: 2,
+  },
+  priceButtonLabel: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  priceButtonLabelSelected: {
+    color: colors.primary[500],
+  },
+  priceButtonValue: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+  priceButtonValueSelected: {
+    color: colors.primary[500],
+  },
 });
