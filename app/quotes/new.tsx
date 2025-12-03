@@ -1,4 +1,6 @@
-// app/quotes/new.tsx
+// ✅ CÓDIGO COMPLETO: app/quotes/new.tsx
+// Integración completa de sale_tax y aliquot de BD
+
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,6 +24,20 @@ import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import { formatCurrency } from '../../utils/helpers';
+
+// ✨ FUNCIÓN AUXILIAR: Formatear cantidad
+const formatQuantity = (quantity: any): string => {
+  const num = Number(quantity) || 0;
+  
+  if (Number.isInteger(num)) {
+    return num.toString();
+  }
+  
+  return num.toLocaleString('es-VE', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 3
+  });
+};
 
 export default function NewQuoteScreen(): JSX.Element {
   const { customer_id, preselected_products, quantity, prices } = useLocalSearchParams();
@@ -63,18 +79,18 @@ export default function NewQuoteScreen(): JSX.Element {
   
   const [selectedProduct, setSelectedProduct] = useState(null);
   
-  // ✨ CAMBIO PRINCIPAL: Tracking individual de datos por producto (NO global)
+  // Tracking individual de datos por producto
   const [productInputs, setProductInputs] = useState<
     Record<number, { quantity: string; unit_price: string | null; discount: string }>
   >({});
   
-  // ✨ Track de precio seleccionado por tipo (cost, price, higher_price)
+  // Track de precio seleccionado por tipo
   const [selectedPriceType, setSelectedPriceType] = useState<'cost' | 'price' | 'higher_price'>('price');
   
   const [errors, setErrors] = useState({});
   const [editingItemId, setEditingItemId] = useState(null);
 
-  // ✨ NUEVO: Track para descuentos por IVA exento
+  // Track para descuentos por IVA exento
   const [itemExemptions, setItemExemptions] = useState<Record<number, { 
     is_exempt: boolean; 
     discount_percent: number 
@@ -84,8 +100,6 @@ export default function NewQuoteScreen(): JSX.Element {
   // FUNCIONES AUXILIARES PARA productInputs
   // ============================================================
 
-  // ✨ Obtener datos de un producto específico
-  // ✨ maxPrice: permite preseleccionar el máximo al inicializar
   const getProductInput = (productId: number, maxPrice?: number | string) => {
     if (!productInputs[productId]) {
       const priceValue = maxPrice ? maxPrice.toString() : null;
@@ -93,7 +107,7 @@ export default function NewQuoteScreen(): JSX.Element {
         ...prev,
         [productId]: {
           quantity: '1',
-          unit_price: priceValue,  // ✨ MÁXIMO PRESELECCIONADO
+          unit_price: priceValue,
           discount: '0',
         }
       }));
@@ -106,7 +120,6 @@ export default function NewQuoteScreen(): JSX.Element {
     return productInputs[productId];
   };
 
-  // ✨ Actualizar datos de un producto específico
   const updateProductInput = (productId: number, field: string, value: any) => {
     setProductInputs(prev => ({
       ...prev,
@@ -117,7 +130,6 @@ export default function NewQuoteScreen(): JSX.Element {
     }));
   };
 
-  // ✨ NUEVO: Actualizar exención de IVA para un producto
   const updateItemExemption = (productId: number, isExempt: boolean, discountPercent: number = 0) => {
     setItemExemptions(prev => ({
       ...prev,
@@ -125,7 +137,6 @@ export default function NewQuoteScreen(): JSX.Element {
     }));
   };
 
-  // ✨ NUEVO: Obtener datos de exención
   const getItemExemption = (productId: number) => {
     return itemExemptions[productId] || { is_exempt: false, discount_percent: 0 };
   };
@@ -236,7 +247,6 @@ export default function NewQuoteScreen(): JSX.Element {
     return 'N/A';
   };
 
-  // ✨ Obtener precio según tipo
   const getPriceByType = (product, priceType: 'cost' | 'price' | 'higher_price') => {
     if (priceType === 'cost') return product.cost;
     if (priceType === 'higher_price') return product.higher_price;
@@ -270,6 +280,12 @@ export default function NewQuoteScreen(): JSX.Element {
       const newItems = selectedProducts.map((product, index) => {
         const qty = quantityProducts[index] || 1;
         const unitPrice = pricesArray[index] || product.price;
+        
+        // ✨ Auto-detectar exención según sale_tax
+        const isExempt = product.sale_tax === 'EX';
+        const discountPercent = isExempt ? (product.aliquot || 16) : 0;
+        updateItemExemption(product.id, isExempt, discountPercent);
+        
         return {
           id: `pre_${product.id}`,
           product_id: product.id,
@@ -296,7 +312,7 @@ export default function NewQuoteScreen(): JSX.Element {
   useEffect(() => {
     const filtered = products.filter(p => 
       (p.status === 'active') && (
-        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.description.toLowerCase().includes(productSearch.toLowerCase()) ||
         p.code.toLowerCase().includes(productSearch.toLowerCase())
       )
     );
@@ -350,9 +366,8 @@ export default function NewQuoteScreen(): JSX.Element {
 
   const calculateTotals = () => {
     let subtotal = 0;
-    let taxableBase = 0; // ✨ Base sobre la cual se cobra IVA
+    let taxableBase = 0;
 
-    // Calcular subtotal y qué parte es gravable
     quoteItems.forEach(item => {
       const itemSubtotal = item.quantity * item.unit_price;
       const itemDiscount = itemSubtotal * (item.discount / 100);
@@ -361,8 +376,8 @@ export default function NewQuoteScreen(): JSX.Element {
       subtotal += itemTotal;
       
       // ✨ Si NO está exento, suma a la base tributaria
-      const exemption = getItemExemption(item.product_id);
-      if (!exemption.is_exempt) {
+      const isExempt = item.product.sale_tax === 'EX';
+      if (!isExempt) {
         taxableBase += itemTotal;
       }
     });
@@ -381,16 +396,24 @@ export default function NewQuoteScreen(): JSX.Element {
   // FUNCIONES DE PRODUCTO
   // ============================================================
 
+  // ✨ CAMBIO 1: selectProduct con auto-detección de sale_tax
   const selectProduct = (product) => {
     setSelectedProduct(product);
     setSelectedPriceType('price');
     updateProductInput(product.id, 'quantity', '1');
     updateProductInput(product.id, 'unit_price', product.price.toString());
     updateProductInput(product.id, 'discount', '0');
+    
+    // ✨ Auto-detectar si es exento según sale_tax de BD
+    const isExempt = product.sale_tax === 'EX';
+    const discountPercent = isExempt ? (product.aliquot || 16) : 0;
+    updateItemExemption(product.id, isExempt, discountPercent);
+    
     setShowProductSelector(false);
     setShowItemModal(true);
   };
 
+  // ✨ CAMBIO 2: editItem con sale_tax y aliquot
   const editItem = (item) => {
     setSelectedProduct(item.product);
     setEditingItemId(item.id);
@@ -398,11 +421,10 @@ export default function NewQuoteScreen(): JSX.Element {
     updateProductInput(item.product.id, 'unit_price', item.unit_price.toString());
     updateProductInput(item.product.id, 'discount', item.discount.toString());
     
-    // ✨ NUEVO: Cargar exención si existe
-    const exemption = getItemExemption(item.product_id);
-    if (exemption.is_exempt) {
-      updateItemExemption(item.product.id, true, exemption.discount_percent);
-    }
+    // ✨ Cargar sale_tax y aliquot de producto
+    const isExempt = item.product.sale_tax === 'EX';
+    const discountPercent = isExempt ? (item.product.aliquot || 16) : 0;
+    updateItemExemption(item.product.id, isExempt, discountPercent);
     
     const priceType = item.unit_price === item.product.cost ? 'cost' :
                      item.unit_price === item.product.higher_price ? 'higher_price' :
@@ -491,6 +513,7 @@ export default function NewQuoteScreen(): JSX.Element {
     );
   };
 
+  // ✨ CAMBIO 6: saveQuote con sale_tax y aliquot
   const saveQuote = async () => {
     const newErrors = {};
 
@@ -516,7 +539,10 @@ export default function NewQuoteScreen(): JSX.Element {
           unit_price: item.unit_price,
           discount: item.discount,
           name: item.product?.name,
-          buy_tax: getItemExemption(item.product_id).is_exempt ? 1 : 0, // ✨ NUEVO: marcar si es exento
+          // ✨ Usar sale_tax de BD directamente
+          buy_tax: item.product.sale_tax === 'EX' ? 1 : 0,
+          sale_tax: item.product.sale_tax,
+          aliquot: item.product.aliquot,
         })),
         valid_until: formData.valid_until,
         terms_conditions: formData.terms_conditions.trim(),
@@ -551,7 +577,6 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
-  // ✨ FUNCIÓN MEJORADA: Agregar producto desde modal selector
   const addProductToQuote = (product: any) => {
     const productInput = getProductInput(product.id, product.price);
     
@@ -613,7 +638,7 @@ export default function NewQuoteScreen(): JSX.Element {
     
     Alert.alert(
       'Éxito',
-      `${product.name} agregado al presupuesto`,
+      `${product.description} agregado al presupuesto`,
       [{ text: 'OK', onPress: () => {} }],
       { cancelable: false }
     );
@@ -708,10 +733,9 @@ export default function NewQuoteScreen(): JSX.Element {
             <Text style={styles.emptyText}>No hay productos agregados</Text>
           ) : (
             quoteItems.map((item) => {
-              // ✨ NUEVO: Calcular descuento por IVA exento
-              const exemption = getItemExemption(item.product_id);
-              const subtotal = item.quantity * item.unit_price;
-              const exemptionDiscount = exemption.is_exempt ? (subtotal * (exemption.discount_percent / 100)) : 0;
+              // ✨ Detectar exención según sale_tax
+              const isExempt = item.product.sale_tax === 'EX';
+              const exemptionDiscount = isExempt ? (item.quantity * item.unit_price * ((item.product.aliquot || 16) / 100)) : 0;
               
               return (
               <View key={item.id} style={styles.item}>
@@ -719,18 +743,18 @@ export default function NewQuoteScreen(): JSX.Element {
                   style={styles.itemInfo}
                   onPress={() => editItem(item)}
                 >
-                  <Text style={styles.itemName}>{item.product?.name}</Text>
+                  <Text style={styles.itemName}>{item.product?.description}</Text>
                   <Text style={styles.itemDetails}>
-                    Cant: {item.quantity} • Precio: {formatCurrency(item.unit_price)}
+                    Cant: {formatQuantity(item.quantity)} • Precio: {formatCurrency(item.unit_price)}
                     {item.discount > 0 && ` • Desc: ${item.discount}%`}
                   </Text>
                   
-                  {/* ✨ NUEVO: Mostrar descuento por IVA exento */}
-                  {exemption.is_exempt && (
+                  {/* ✨ Mostrar descuento por IVA exento */}
+                  {isExempt && (
                     <View style={styles.exemptionContainer}>
                       <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                       <Text style={styles.exemptionText}>
-                        IVA Exento: -{formatCurrency(exemptionDiscount)}
+                        IVA Exento ({item.product.aliquot || 16}%): -{formatCurrency(exemptionDiscount)}
                       </Text>
                     </View>
                   )}
@@ -860,7 +884,7 @@ export default function NewQuoteScreen(): JSX.Element {
         </View>
       </ScrollView>
 
-      {/* ✨ MODAL SELECTOR DE CLIENTES */}
+      {/* MODAL SELECTOR DE CLIENTES */}
       <Modal visible={showCustomerSelector} animationType="slide">
         <View style={styles.modal}>
           <View style={styles.modalHeaderNew}>
@@ -968,7 +992,7 @@ export default function NewQuoteScreen(): JSX.Element {
         </View>
       </Modal>
 
-      {/* ✨ MODAL SELECTOR DE PRODUCTOS */}
+      {/* MODAL SELECTOR DE PRODUCTOS */}
       <Modal visible={showProductSelector} animationType="slide">
         <View style={styles.modal}>
           <View style={styles.modalHeaderProductNew}>
@@ -1007,30 +1031,56 @@ export default function NewQuoteScreen(): JSX.Element {
             data={filteredProducts}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => {
-              // ✨ MÁXIMO PRESELECCIONADO: Pasamos item.price
               const productInput = getProductInput(item.id, item.price);
+              const isLowStock = item.stock <= (item.min_stock || 0);
+              const isExempt = item.sale_tax === 'EX';
               
               return (
+                <Card style={[
+                  styles.productCard,
+                  isLowStock && styles.productCardLowStock
+                  ]}>
                 <View style={styles.productRowModalFull}>
                   <View style={styles.productLeftModalFull}>
-                    <View style={styles.productAvatarModalFull}>
-                      <Text style={styles.productAvatarTextModalFull}>
-                        {item.code.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+                    
                     <View style={styles.productInfoModalFull}>
-                      <Text style={styles.productNameModalFull} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      
-                      {item.code && (
-                        <View style={styles.infoRowProductModalFull}>
-                          <Ionicons name="barcode-outline" size={14} color={colors.text.secondary} />
-                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
-                            {item.code}
+
+                      {/* ✨ CAMBIO 5: Mostrar sale_tax y aliquot con badges mejorados */}
+                      <View style={styles.productMetaBadges}>
+                        {/* Badge de Tipo de Venta */}
+                        <View style={[
+                          styles.metaBadge,
+                          isExempt && styles.metaBadgeExempt
+                        ]}>
+                          <Ionicons 
+                            name={isExempt ? "checkmark-circle-outline" : "alert-circle-outline"} 
+                            size={12}
+                            color={isExempt ? colors.success : colors.warning}
+                          />
+                          <Text style={[
+                            styles.metaBadgeText,
+                            isExempt && styles.metaBadgeExemptText
+                          ]}>
+                            {isExempt ? 'Exento' : item.sale_tax}
                           </Text>
                         </View>
-                      )}
+                        
+                        {/* Badge de Alícuota */}
+                        {item.aliquot && (
+                          <View style={styles.metaBadge}>
+                            <Text style={styles.metaBadgeText}>{item.aliquot}%</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles.productCode}>
+                        {item.code}
+                      </Text>
+                      
+                      <Text style={styles.productNameModalFull}>
+                        {item.description}
+                      </Text>
+               
                       
                       {item.category?.description && (
                         <View style={styles.infoRowProductModalFull}>
@@ -1041,14 +1091,7 @@ export default function NewQuoteScreen(): JSX.Element {
                         </View>
                       )}
 
-                      <View style={styles.infoRowProductModalFull}>
-                        <Ionicons name="layers" size={14} color={colors.text.secondary} />
-                        <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
-                          Stock: {item.stock}
-                        </Text>
-                      </View>
-
-                      {/* ✨ PRECIOS SELECCIONABLES - INDIVIDUAL POR PRODUCTO */}
+                      {/* PRECIOS SELECCIONABLES - INDIVIDUAL POR PRODUCTO */}
                       <View style={styles.priceSelectContainerModal}>
                         {/* MÁXIMO */}
                         <TouchableOpacity
@@ -1121,6 +1164,13 @@ export default function NewQuoteScreen(): JSX.Element {
                             {formatCurrency(item.higher_price)}
                           </Text>
                         </TouchableOpacity>
+
+                        <View style={styles.infoRowProductModalFull}>
+                        <Ionicons name="layers" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                          Disponibilidad: {item.stock}
+                        </Text>
+                      </View>
                       </View>
                     </View>
                   </View>
@@ -1156,7 +1206,7 @@ export default function NewQuoteScreen(): JSX.Element {
                           updateProductInput(item.id, 'quantity', numericValue || '1');
                         }}
                         keyboardType="number-pad"
-                        placeholder="1"
+                        placeholder="0"
                         placeholderTextColor={colors.text.tertiary}
                       />
 
@@ -1185,6 +1235,7 @@ export default function NewQuoteScreen(): JSX.Element {
                     </TouchableOpacity>
                   </View>
                 </View>
+                </Card>
               );
             }}
             contentContainerStyle={styles.productsListModal}
@@ -1222,6 +1273,27 @@ export default function NewQuoteScreen(): JSX.Element {
                 <>
                   <View style={styles.productInfo}>
                     <Text style={styles.productName}>{selectedProduct.name}</Text>
+                    
+                    {/* ✨ CAMBIO 3: Mostrar sale_tax y aliquot de BD */}
+                    <View style={styles.productMetaInfo}>
+                      <View style={styles.metaRow}>
+                        <Text style={styles.metaLabel}>Tipo de Venta:</Text>
+                        <Text style={[
+                          styles.metaValue,
+                          selectedProduct.sale_tax === 'EX' && { color: colors.success }
+                        ]}>
+                          {selectedProduct.sale_tax === 'EX' ? '✓ Exento (EX)' : selectedProduct.sale_tax}
+                        </Text>
+                      </View>
+                      
+                      {selectedProduct.aliquot && (
+                        <View style={styles.metaRow}>
+                          <Text style={styles.metaLabel}>Alícuota:</Text>
+                          <Text style={styles.metaValue}>{selectedProduct.aliquot}%</Text>
+                        </View>
+                      )}
+                    </View>
+                    
                     <Text style={styles.productDetails}>
                       Stock total: {selectedProduct.stock}
                     </Text>
@@ -1318,32 +1390,45 @@ export default function NewQuoteScreen(): JSX.Element {
                     </View>
                   </View>
 
-                  {/* ✨ NUEVO: Toggle para IVA Exento */}
+                  {/* ✨ CAMBIO 4: Toggle IVA Exento - CON INFORMACIÓN DE BD */}
                   <View style={styles.exemptionToggleContainer}>
                     <View style={styles.exemptionToggleLeft}>
-                      <Ionicons name="checkmark-circle-outline" size={20} color={colors.success} />
+                      <Ionicons 
+                        name={selectedProduct.sale_tax === 'EX' ? "checkmark-circle" : "alert-circle-outline"} 
+                        size={20} 
+                        color={selectedProduct.sale_tax === 'EX' ? colors.success : colors.warning} 
+                      />
                       <View>
-                        <Text style={styles.exemptionToggleLabel}>IVA Exento</Text>
+                        <Text style={styles.exemptionToggleLabel}>
+                          {selectedProduct.sale_tax === 'EX' ? 'Producto Exento' : 'Producto Gravable'}
+                        </Text>
                         <Text style={styles.exemptionToggleSubtext}>
-                          Aplicar descuento del 16%
+                          {selectedProduct.sale_tax === 'EX' 
+                            ? `Este producto NO tiene IVA (Exento)` 
+                            : `IVA: ${selectedProduct.aliquot || 16}%`
+                          }
                         </Text>
                       </View>
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.exemptionToggleButton,
-                        getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleButtonActive
-                      ]}
-                      onPress={() => {
-                        const current = getItemExemption(selectedProduct.id);
-                        updateItemExemption(selectedProduct.id, !current.is_exempt, current.is_exempt ? 0 : 16);
-                      }}
-                    >
-                      <View style={[
-                        styles.exemptionToggleDot,
-                        getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleDotActive
-                      ]} />
-                    </TouchableOpacity>
+                    
+                    {/* Solo permitir toggle si NO es exento en BD */}
+                    {selectedProduct.sale_tax !== 'EX' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.exemptionToggleButton,
+                          getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleButtonActive
+                        ]}
+                        onPress={() => {
+                          const current = getItemExemption(selectedProduct.id);
+                          updateItemExemption(selectedProduct.id, !current.is_exempt, selectedProduct.aliquot || 16);
+                        }}
+                      >
+                        <View style={[
+                          styles.exemptionToggleDot,
+                          getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleDotActive
+                        ]} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               )}
@@ -1952,9 +2037,9 @@ const styles = StyleSheet.create({
     color: colors.text.inverse,
   },
 
-  productsListModal: {
-    flexGrow: 1,
-    paddingBottom: 100,
+  productsListModal: {    
+    paddingBottom: 150,
+    padding: spacing.md,
   },
   separatorProductModal: {
     height: 1,
@@ -2084,7 +2169,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  // ✨ NUEVO: Estilos para IVA Exento
+  // ✨ Estilos para sale_tax y aliquot
   exemptionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2149,5 +2234,73 @@ const styles = StyleSheet.create({
   },
   exemptionToggleDotActive: {
     alignSelf: 'flex-end',
+  },
+  productCard: {
+    marginBottom: 10,
+    padding: 0,
+    borderRadius: borderRadius.md,
+  },
+  productCardLowStock: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  productCode: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginBottom: 2,
+    fontFamily: 'monospace',
+  },
+
+  // Estilos para badges de sale_tax y aliquot
+  productMetaBadges: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginVertical: spacing.xs,
+  },
+  metaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.sm,
+  },
+  metaBadgeExempt: {
+    backgroundColor: colors.success + '15',
+  },
+  metaBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+  },
+  metaBadgeExemptText: {
+    color: colors.success,
+  },
+
+  // Estilos para información de producto
+  productMetaInfo: {
+    marginVertical: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.primary[100],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary[100],
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  metaLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+  },
+  metaValue: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
   },
 });

@@ -684,7 +684,7 @@ export default function QuotesScreen(): JSX.Element {
   const handleDeleteQuote = async (quote: Quote): Promise<void> => {
     Alert.alert(
       'Eliminar Presupuesto',
-      `¿Estás seguro de que quieres eliminar el presupuesto #${quote.quote_number}?`,
+      `¿Estás seguro de que quieres eliminar el presupuesto ${quote.quote_number}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -745,7 +745,7 @@ export default function QuotesScreen(): JSX.Element {
         <Card style={[styles.quoteCard, isExpired && styles.expiredCard]}>
           <View style={styles.quoteHeader}>
             <View style={styles.quoteNumberContainer}>
-              <Text style={styles.quoteNumber}>#{item.quote_number}</Text>
+              <Text style={styles.quoteNumber}>{item.quote_number}</Text>
               <Text style={styles.quoteDate}>{formatDate(item.quote_date)}</Text>
             </View>
             <View style={styles.quoteStatusContainer}>

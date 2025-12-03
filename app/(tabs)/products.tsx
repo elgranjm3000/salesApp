@@ -1199,6 +1199,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: spacing.sm,
     gap: spacing.sm,
+    
   },
   checkboxContainer: {
     padding: spacing.xs,

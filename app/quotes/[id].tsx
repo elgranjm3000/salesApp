@@ -27,7 +27,7 @@ export default function QuoteDetailScreen(): JSX.Element {
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [rateDate, setRateDate] = useState<string>('');
 
-  // ✨ FUNCIÓN PRINCIPAL: Calcular totales basado en buy_tax
+  // ✨ FUNCIÓN PRINCIPAL: Calcular totales basado en sale_tax
 const calculateCorrectTotals = useMemo(() => {
   if (!quote || !quote.items) {
     return {
@@ -51,13 +51,12 @@ const calculateCorrectTotals = useMemo(() => {
 
   (quote.items || []).forEach((item: any) => {
     // ✅ VALIDACIÓN: Asegurar que sean números
-    const itemTotal = Number(item.total) || 0;           // ← CONVERTIR A NÚMERO
-    const itemDiscount = Number(item.discount_amount) || 0;  // ← CONVERTIR A NÚMERO
+    const itemTotal = Number(item.total) || 0;
+    const itemDiscount = Number(item.discount_amount) || 0;
 
     // ✅ VALIDACIÓN: Verificar que NO sean NaN
     if (isNaN(itemTotal)) {
       console.warn('⚠️ item.total es NaN:', item.total);
-      // Reemplazar por 0
       item.total = 0;
     }
     if (isNaN(itemDiscount)) {
@@ -65,7 +64,10 @@ const calculateCorrectTotals = useMemo(() => {
       item.discount_amount = 0;
     }
 
-    if (item.buy_tax === 1) {
+    // ✨ NUEVO: Detectar exención según sale_tax de BD
+    const isExempt = item.sale_tax === 'EX';
+    
+    if (isExempt) {
       exemptTotal += itemTotal;
       exemptDiscount += itemDiscount;
     } else {
@@ -95,7 +97,7 @@ const calculateCorrectTotals = useMemo(() => {
   }
 
   const finalTaxableBase = Math.max(0, taxableTotal - taxableDiscount);
-  const taxAmount = Math.max(0, finalTaxableBase * 0.16);  // ← Asegurar >= 0
+  const taxAmount = Math.max(0, finalTaxableBase * 0.16);
   
   const total = subtotal - totalDiscount + taxAmount;
 
@@ -154,7 +156,6 @@ const calculateCorrectTotals = useMemo(() => {
         setBcvRate(quoteData.bcv_rate);
         setRateDate(quoteData.bcv_date);
       } else {
-        // Si no tiene tasa guardada, obtener la actual (para presupuestos antiguos)
         const currentRate = await fetchCurrentBCVRate();
         setBcvRate(currentRate.rate);
         setRateDate(`${currentRate.date} (actual)`);
@@ -190,7 +191,8 @@ const formatWithBCV = (amount: number) => {
   // Generar HTML para el PDF
   const generatePDFHTML = () => {
     const itemsHTML = quote.items?.map((item: any, index: number) => {
-      const isExempt = item.buy_tax === 1;
+      // ✨ Detectar exención según sale_tax de BD
+      const isExempt = item.sale_tax === 'EX';
       return `
       <tr style="border-bottom: 1px solid #e5e7eb;">
         <td style="padding: 12px; text-align: left;">${index + 1}</td>
@@ -211,7 +213,7 @@ const formatWithBCV = (amount: number) => {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Presupuesto #${quote.id}</title>
+        <title>Presupuesto ${quote.quote_number}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
@@ -379,7 +381,7 @@ const formatWithBCV = (amount: number) => {
           <div class="header">
             <div class="logo">📋</div>
             <div class="company-name">${quote.company?.name || 'Empresa'}</div>
-            <div class="quote-number">Presupuesto #${quote.id}</div>
+            <div class="quote-number">Presupuesto ${quote.quote_number}</div>
           </div>
 
           <!-- Información Cliente y Empresa -->
@@ -430,20 +432,20 @@ const formatWithBCV = (amount: number) => {
             <h3>Resumen Financiero</h3>
             <div class="summary-row">
               <span>Subtotal:</span>
-              <span>${formatCurrency(calculateCorrectTotals.subtotal)}</span>
+              <span>${formatCurrency(quote.subtotal)}</span>
             </div>
             <div class="summary-row">
               <span>Descuento:</span>
-              <span class="discount">-${formatCurrency(calculateCorrectTotals.discountAmount)}</span>
+              <span class="discount">-${formatCurrency(quote.discount_amount)}</span>
             </div>
             <div class="summary-row">
               <span>IVA:</span>
-              <span>${formatCurrency(calculateCorrectTotals.taxAmount)}</span>
+              <span>${formatCurrency(quote.tax_amount)}</span>
             </div>
             <div class="summary-row total">
               <span>TOTAL:</span>
               <div>
-                <div>${formatCurrency(calculateCorrectTotals.total)}</div>
+                <div>${formatCurrency(quote.total)}</div>
                 ${bcvRate ? `<div style="font-size: 14px; color: #6b7280; margin-top: 4px;">${(calculateCorrectTotals.total * bcvRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</div>` : ''}
               </div>
             </div>
@@ -514,7 +516,7 @@ const formatWithBCV = (amount: number) => {
         if (isAvailable) {
           await Sharing.shareAsync(pdfUri, {
             mimeType: 'application/pdf',
-            dialogTitle: `Presupuesto #${quote.id}`,
+            dialogTitle: `Presupuesto ${quote.quote_number}`,
             UTI: 'com.adobe.pdf'
           });
         }
@@ -575,7 +577,7 @@ const formatWithBCV = (amount: number) => {
           <View style={styles.iconContainer}>
             <Ionicons name="document-text" size={32} color={colors.primary[500]} />
           </View>
-          <Text style={styles.title}>Presupuesto #{quote.id}</Text>
+          <Text style={styles.title}>Presupuesto {quote.quote_number}</Text>
         </View>
         <Text style={styles.subtitle}> 
           Empresa: {quote.customer?.name || 'Sin cliente asignado'}
@@ -684,26 +686,54 @@ const formatWithBCV = (amount: number) => {
         ) : (
           <View style={styles.itemsList}>
             {quote.items.map((item: any, index: number) => {
-              // ✨ buy_tax: 1 = exento, 0 = no exento
+              // ✨ Detectar exención según sale_tax de BD
               const isExempt = item.buy_tax === 1;
               
               return (
               <View key={item.id || index} style={styles.quoteItem}>
                 <View style={styles.itemHeader}>
                   <Text style={styles.itemName}>
-                    {item.product?.name || item.name || 'Producto sin nombre'}
+                    {item.product?.description || item.description || 'Producto sin nombre'}
                   </Text>
                   <View style={styles.itemBadge}>
                     <Text style={styles.itemBadgeText}>#{index + 1}</Text>
                   </View>
                 </View>
                 
-                {/* ✨ NUEVO: Mostrar IVA exento si buy_tax = 1 */}
+                {/* ✨ NUEVO: Mostrar badges de sale_tax y aliquot */}
+                 <View style={styles.productMetaBadges}>
+                  {/* Badge de Tipo de Venta */}
+                  <View style={[
+                    styles.metaBadge,
+                    isExempt && styles.metaBadgeExempt
+                  ]}>
+                    <Ionicons 
+                      name={isExempt ? "checkmark-circle-outline" : "alert-circle-outline"} 
+                      size={12}
+                      color={isExempt ? colors.success : colors.warning}
+                    />
+                    <Text style={[
+                      styles.metaBadgeText,
+                      isExempt && styles.metaBadgeExemptText
+                    ]}>
+                      {isExempt ? 'Exento' : item.sale_tax}
+                    </Text>
+                  </View>
+                  
+                  {/* Badge de Alícuota */}
+                  {item.aliquot && (
+                    <View style={styles.metaBadge}>
+                      <Text style={styles.metaBadgeText}>{item.aliquot}%</Text>
+                    </View>
+                  )}
+                </View>
+                
+                {/* ✨ Mostrar IVA exento si sale_tax = EX */}
                 {isExempt && (
                   <View style={styles.exemptionContainer}>
                     <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                     <Text style={styles.exemptionText}>
-                      IVA Exento
+                      IVA Exento ({item.aliquot || 16}%)
                     </Text>
                   </View>
                 )}
@@ -774,19 +804,20 @@ const formatWithBCV = (amount: number) => {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal:</Text>
           <Text style={styles.summaryValue}>
-            {formatWithBCV(calculateCorrectTotals.subtotal)}
+            {formatWithBCV(quote.subtotal)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Descuento:</Text>
           <Text style={[styles.summaryValue, styles.discountText]}>
-            -{formatWithBCV(calculateCorrectTotals.totalDiscount)}
+            -{formatWithBCV(quote.discount_amount)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>IVA (16%):</Text>
           <Text style={styles.summaryValue}>
-            {formatWithBCV(calculateCorrectTotals.taxAmount)}
+            
+            {formatWithBCV(quote.tax_amount)}
           </Text>
         </View>
         <View style={styles.divider} />
@@ -794,11 +825,11 @@ const formatWithBCV = (amount: number) => {
           <Text style={styles.totalLabel}>TOTAL:</Text>
           <View>
             <Text style={styles.totalValueUSD}>
-              {formatCurrency(calculateCorrectTotals.total)}
+              {formatCurrency(quote.total)}
             </Text>
             {bcvRate && (
               <Text style={styles.totalValueBCV}>
-                Bs. {(calculateCorrectTotals.total * bcvRate).toLocaleString('es-VE', {
+                Bs. {(quote.total * bcvRate).toLocaleString('es-VE', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2
                     })}
@@ -1021,6 +1052,35 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.primary[600],
   },
+  
+  // ✨ Estilos para badges de sale_tax y aliquot
+  productMetaBadges: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginVertical: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  metaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.sm,
+  },
+  metaBadgeExempt: {
+    backgroundColor: colors.success + '15',
+  },
+  metaBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+  },
+  metaBadgeExemptText: {
+    color: colors.success,
+  },
+  
   itemDetails: {
     marginBottom: spacing.md,
   },
