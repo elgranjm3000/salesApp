@@ -434,10 +434,7 @@ const formatWithBCV = (amount: number) => {
               <span>Subtotal:</span>
               <span>${formatCurrency(quote.subtotal)}</span>
             </div>
-            <div class="summary-row">
-              <span>Descuento:</span>
-              <span class="discount">-${formatCurrency(quote.discount_amount)}</span>
-            </div>
+            
             <div class="summary-row">
               <span>IVA:</span>
               <span>${formatCurrency(quote.tax_amount)}</span>
@@ -648,23 +645,23 @@ const formatWithBCV = (amount: number) => {
 
       {/* Información General */}
       <Card style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Información General</Text>
+        <Text style={[styles.sectionTitle,{textAlign:'center'}]}>Información General</Text>
         <View style={styles.infoRow}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Válido hasta:</Text>
-            <Text style={styles.infoValue}>{formatDateOnly(quote.valid_until) || 'No especificado'}</Text>
+          <View style={[styles.infoItem]}>
+            <Text style={[styles.infoLabel, {textAlign:'center'}]}>Válido hasta:</Text>
+            <Text style={[styles.infoValue, {textAlign:'center'}]}>{formatDateOnly(quote.valid_until) || 'No especificado'}</Text>
           </View>
-          <View style={styles.infoItem}>
+          {/* <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Descuento general:</Text>
             <Text style={styles.infoValue}>{quote.discount || 0}%</Text>
-          </View>
+          </View> */}
         </View>
-        {quote.terms_conditions && (
+        {/* {quote.terms_conditions && (
           <View style={styles.textSection}>
             <Text style={styles.infoLabel}>Términos y condiciones:</Text>
             <Text style={styles.infoDescription}>{quote.terms_conditions}</Text>
           </View>
-        )}
+        )}*/}
         {quote.notes && (
           <View style={styles.textSection}>
             <Text style={styles.infoLabel}>Observaciones:</Text>
@@ -749,14 +746,14 @@ const formatWithBCV = (amount: number) => {
                       {formatWithBCV(item.unit_price || 0)}
                     </Text>
                   </View>
-                  {item.discount_percentage > 0 && (
+                  {/*{item.discount_percentage > 0 && (
                     <View style={styles.itemDetailRow}>
                       <Text style={styles.itemDetailLabel}>Descuento:</Text>
                       <Text style={[styles.itemDetailValue, styles.discountText]}>
                         -{item.discount_percentage}%
                       </Text>
                     </View>
-                  )}
+                  )}*/}
                 </View>
                 <View style={styles.itemTotalRow}>
                   <Text style={styles.itemTotalLabel}>Total:</Text>
@@ -807,12 +804,12 @@ const formatWithBCV = (amount: number) => {
             {formatWithBCV(quote.subtotal)}
           </Text>
         </View>
-        <View style={styles.summaryRow}>
+        {/*<View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Descuento:</Text>
           <Text style={[styles.summaryValue, styles.discountText]}>
             -{formatWithBCV(quote.discount_amount)}
           </Text>
-        </View>
+        </View>*/}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>IVA (16%):</Text>
           <Text style={styles.summaryValue}>
@@ -1050,7 +1047,7 @@ const styles = StyleSheet.create({
   itemBadgeText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
-    color: colors.primary[600],
+    color: colors.primary[50],
   },
   
   // ✨ Estilos para badges de sale_tax y aliquot

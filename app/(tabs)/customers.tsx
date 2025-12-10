@@ -184,6 +184,16 @@ export default function CustomersScreen(): JSX.Element {
                 </Text>
               </View>
             )}
+
+
+             {customer.phone && (
+              <View style={styles.infoRow}>
+                <Ionicons name="call-outline" size={14} color={colors.text.secondary} />
+                <Text style={styles.infoText} numberOfLines={1}>
+                  {customer.phone}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

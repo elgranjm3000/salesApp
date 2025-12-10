@@ -1,10 +1,4 @@
-// ✨ CAMBIOS REALIZADOS:
-// 1. Importado TouchableOpacity (línea agregada)
-// 2. Envuelto el <Card> con <TouchableOpacity> en renderQuoteItem
-// 3. Agregado onPress={() => router.push(`/quotes/${item.id}`)}
-// 4. Agregado activeOpacity={0.7} para efecto visual
-// 5. Cerrado </TouchableOpacity> al final del Card
-
+// app/(tabs)/quotes/index.tsx - Listado usando QuoteItemCard
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -19,17 +13,15 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity, // ✨ YA EXISTE
+  TouchableOpacity,
   View
 } from 'react-native';
+import { QuoteItemCard } from '../../components/Quoteitemcard'; // ✨ IMPORT
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
-import { debounce, formatCurrency, formatDate } from '../../utils/helpers';
-
-// ... (tipos y funciones igual como en el original)
+import { debounce } from '../../utils/helpers';
 
 interface FilterState {
   status: Quote['status'] | 'all';
@@ -106,78 +98,6 @@ interface Seller {
   };
 }
 
-interface QuoteItemProps {
-  quote: Quote;
-  onEdit: (quote: Quote) => void;
-  onDelete: (quote: Quote) => void;
-  onDuplicate: (quote: Quote) => void;
-  onSend: (quote: Quote) => void;
-  bcvRate: number | null;
-}
-
-const getStatusColor = (status: Quote['status']) => {
-  switch (status) {
-    case 'approved':
-      return colors.success;
-    case 'sent':
-      return colors.info;
-    case 'draft':
-      return colors.warning;
-    case 'rejected':
-      return colors.error;
-    case 'expired':
-      return colors.gray[500];
-    default:
-      return colors.text.secondary;
-  }
-};
-
-const getStatusText = (status: Quote['status']) => {
-  switch (status) {
-    case 'approved':
-      return 'Aprobado';
-    case 'sent':
-      return 'Enviado';
-    case 'draft':
-      return 'Borrador';
-    case 'rejected':
-      return 'No aprobado';
-    case 'expired':
-      return 'Expirado';
-    default:
-      return status;
-  }
-};
-
-const getStatusIcon = (status: Quote['status']) => {
-  switch (status) {
-    case 'approved':
-      return 'checkmark-circle';
-    case 'sent':
-      return 'paper-plane';
-    case 'draft':
-      return 'create-outline';
-    case 'rejected':
-      return 'close-circle';
-    case 'expired':
-      return 'time-outline';
-    default:
-      return 'document-text-outline';
-  }
-};
-
-const formatWithBCV = (amount: number, bcvRate: number | null) => {
-  const usdFormatted = formatCurrency(amount);
-  if (bcvRate) {
-    const bcvAmount = `Bs. ${(amount * bcvRate).toLocaleString('es-VE', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    })}`;
-    return `${usdFormatted}\n ${bcvAmount}`;
-  }
-  return usdFormatted;
-};
-
 interface CombinedFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
@@ -197,7 +117,7 @@ const CombinedFilters: React.FC<CombinedFiltersProps> = ({
   const statusOptions = [
     { value: 'all', label: 'Todos', icon: 'list' },
     { value: 'approved', label: 'Aprobados', icon: 'checkmark-circle' },
-    { value: 'rejected', label: 'No aprobado', icon: 'close-circle' },    
+    { value: 'rejected', label: 'No aprobado', icon: 'close-circle' },
   ];
 
   const dateOptions = [
@@ -219,7 +139,7 @@ const CombinedFilters: React.FC<CombinedFiltersProps> = ({
     if (filters.status !== 'all') activeFilters.push('Estado');
     if (filters.seller) activeFilters.push('Vendedor');
     if (filters.dateFilter !== 'all') activeFilters.push('Fecha');
-    
+
     if (activeFilters.length === 0) return 'Todos';
     return `Filtros (${activeFilters.length})`;
   };
@@ -475,7 +395,6 @@ export default function QuotesScreen(): JSX.Element {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loadingSellers, setLoadingSellers] = useState<boolean>(false);
   const [bcvRate, setBcvRate] = useState<number | null>(null);
-  const [rateDate, setRateDate] = useState<string>('');
 
   const [filters, setFilters] = useState<FilterState>({
     status: 'all',
@@ -522,20 +441,17 @@ export default function QuotesScreen(): JSX.Element {
         const cached = JSON.parse(cachedRate);
         if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
           setBcvRate(cached.rate);
-          setRateDate(`${cached.date} (cache)`);
           return;
         }
       }
 
       let rate = null;
-      let date = '';
 
       try {
         const response1 = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
         const data1 = await response1.json();
         if (data1.rates?.VES) {
           rate = data1.rates.VES;
-          date = data1.date || new Date().toLocaleDateString();
         }
       } catch (error) {
         console.log('API 1 falló:', error);
@@ -547,7 +463,6 @@ export default function QuotesScreen(): JSX.Element {
           const data2 = await response2.json();
           if (data2.USD?.bcv) {
             rate = data2.USD.bcv;
-            date = 'DolarToday';
           }
         } catch (error) {
           console.log('API 2 falló:', error);
@@ -556,20 +471,16 @@ export default function QuotesScreen(): JSX.Element {
 
       if (rate) {
         setBcvRate(rate);
-        setRateDate(date);
         await AsyncStorage.setItem('bcv_rate', JSON.stringify({
           rate,
-          date,
           timestamp: Date.now()
         }));
       } else {
         setBcvRate(36.5);
-        setRateDate('Tasa aproximada');
       }
     } catch (error) {
       console.log('Error al obtener tasa BCV:', error);
       setBcvRate(36.5);
-      setRateDate('Tasa aproximada');
     }
   };
 
@@ -629,7 +540,7 @@ export default function QuotesScreen(): JSX.Element {
     }
 
     if (filters.seller) {
-      filtered = filtered.filter(quote => quote.user_seller_id === filters.seller?.user_id);
+      filtered = filtered.filter(quote => quote.user_id === filters.seller?.user_id);
     }
 
     if (searchText) {
@@ -681,120 +592,13 @@ export default function QuotesScreen(): JSX.Element {
     debouncedSearchByDocument(text);
   };
 
-  const handleDeleteQuote = async (quote: Quote): Promise<void> => {
-    Alert.alert(
-      'Eliminar Presupuesto',
-      `¿Estás seguro de que quieres eliminar el presupuesto ${quote.quote_number}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.deleteQuote(quote.id);
-              loadQuotes();
-              Alert.alert('Éxito', 'Presupuesto eliminado correctamente');
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo eliminar el presupuesto');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleDuplicateQuote = async (quote: Quote): Promise<void> => {
-    try {
-      await api.duplicateQuote(quote.id);
-      loadQuotes();
-      Alert.alert('Éxito', 'Presupuesto duplicado correctamente');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo duplicar el presupuesto');
-    }
-  };
-
-  const handleSendQuote = async (quote: Quote): Promise<void> => {
-    try {
-      await api.sendQuote(quote.id);
-      loadQuotes();
-      Alert.alert('Éxito', 'Presupuesto enviado correctamente');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo enviar el presupuesto');
-    }
-  };
-
-  const handleEditQuote = (quote: Quote): void => {
-    router.push(`/quotes/${quote.id}`);
-  };
-
-  const formatItemCount = (count: number): string => {
-    return `${count} ${count === 1 ? 'artículo' : 'artículos'}`;
-  };
-
-  // ✨ CAMBIO PRINCIPAL: renderQuoteItem ahora está envuelto en TouchableOpacity
-  const renderQuoteItem: ListRenderItem<Quote> = ({ item }) => {
-    const isExpired = new Date(item.valid_until) < new Date();
-    const expiringSoon = !isExpired && (new Date(item.valid_until).getTime() - new Date().getTime()) < 3 * 24 * 60 * 60 * 1000;
-
-    return (
-      <TouchableOpacity
-        onPress={() => router.push(`/quotes/${item.id}`)}
-        activeOpacity={0.7}
-      >
-        <Card style={[styles.quoteCard, isExpired && styles.expiredCard]}>
-          <View style={styles.quoteHeader}>
-            <View style={styles.quoteNumberContainer}>
-              <Text style={styles.quoteNumber}>{item.quote_number}</Text>
-              <Text style={styles.quoteDate}>{formatDate(item.quote_date)}</Text>
-            </View>
-            <View style={styles.quoteStatusContainer}>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-                <Ionicons name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} style={{ marginRight: spacing.xs }} />
-                <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                  {getStatusText(item.status)}
-                </Text>
-              </View>
-             
-              {expiringSoon && !isExpired && (
-                <View style={styles.expiringSoonBadge}>
-                  <Ionicons name="alert-circle" size={12} color={colors.warning} />
-                  <Text style={styles.expiringSoonText}>Próximo a expirar</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.quoteBody}>
-            <View style={styles.customerInfo}>
-              <View style={styles.customerDetails}>
-                <Text style={styles.customerName}>{item.customer?.name}</Text>
-                <Text style={styles.customerEmail}>{item.customer?.document_number || 'sin documento'}</Text>
-                <Text style={styles.customerEmail}>{item.customer?.phone || 'S/N'}</Text>
-                {item.user && <Text style={styles.sellerText}>Por: {item.user.name}</Text>}
-              </View>
-            </View>
-
-            <View style={styles.quoteAmountContainer}>
-              <View style={styles.amountDisplay}>
-                <Text style={styles.quoteTotal}>{formatWithBCV(item.total, bcvRate)}</Text>
-                <Text style={styles.itemsCount}>
-                    {formatItemCount(item.items?.length || 0)}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.quoteFooter}>
-            <View style={styles.validUntilContainer}>
-              <Ionicons name="calendar-outline" size={14} color={colors.text.secondary} />
-              <Text style={styles.validUntilText}>Válido hasta: {formatDate(item.valid_until)}</Text>
-            </View>
-          </View>
-        </Card>
-      </TouchableOpacity> 
-    );
-  };
+  // ✨ Componente render usando QuoteItemCard
+  const renderQuoteItem: ListRenderItem<Quote> = ({ item }) => (
+    <QuoteItemCard
+      quote={item}
+      bcvRate={bcvRate}
+    />
+  );
 
   return (
     <View style={styles.container}>
@@ -803,7 +607,7 @@ export default function QuotesScreen(): JSX.Element {
           <Text style={styles.title}>Presupuestos</Text>
         </View>
 
-        <View style={styles.headerActions}>        
+        <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => router.push('/quotes/new')}
@@ -883,18 +687,24 @@ export default function QuotesScreen(): JSX.Element {
   );
 }
 
-// ... (Todos los estilos igual)
 const styles = StyleSheet.create({
   container: {
     marginTop: 40,
     flex: 1,
     backgroundColor: colors.background,
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
   header: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
+    flex: 1,
   },
   title: {
     fontSize: typography.fontSize.xl,
@@ -1070,147 +880,6 @@ const styles = StyleSheet.create({
   separator: {
     height: spacing.sm,
   },
-  quoteCard: {
-    marginBottom: 0,
-  },
-  expiredCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.error,
-    backgroundColor: colors.error + '05',
-  },
-  quoteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  quoteNumberContainer: {
-    flex: 1,
-  },
-  quoteNumber: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  quoteDate: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  quoteStatusContainer: {
-    alignItems: 'flex-end',
-    gap: spacing.xs,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-  },
-  statusText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-  },
-  expiredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.error + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  expiredText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.error,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.bold,
-  },
-  expiringSoonBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  expiringSoonText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.bold,
-  },
-  quoteBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  customerDetails: {
-    flex: 1,
-  },
-  customerName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  customerEmail: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  sellerText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.tertiary,
-    marginLeft: spacing.xs,
-  },
-  quoteAmountContainer: {
-    alignItems: 'flex-end',
-  },
-  amountDisplay: {
-    alignItems: 'flex-end',
-  },
-  quoteTotal: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.success,
-    textAlign: 'right',
-  },
-  quoteTotalBCV: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.success,
-    opacity: 0.8,
-    marginTop: spacing.xs,
-  },
-  itemsCount: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  quoteFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
-  },
-  validUntilContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  validUntilText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1242,11 +911,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
   },
 });

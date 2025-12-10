@@ -1,4 +1,4 @@
-// app/(tabs)/index.tsx - Dashboard con selector de empresas CORREGIDO
+// app/(tabs)/index.tsx - Dashboard con presupuestos recientes desde API directo
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,12 +14,12 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { QuoteItemCard } from '../../components/Quoteitemcard';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { borderRadius, colors, spacing, typography } from '../../theme/design';
 import type { DashboardData, Sale } from '../../types';
-import { formatCurrency, formatFecha } from '../../utils/helpers';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -32,6 +32,7 @@ interface Quote {
     name: string;
     email?: string;
     phone?: string;
+    document_number?: string;
   };
   user_id: number;
   user?: {
@@ -100,8 +101,11 @@ export default function DashboardScreen(): JSX.Element {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [recentQuotes, setRecentQuotes] = useState<Quote[]>([]);
+  const [loadingRecentQuotes, setLoadingRecentQuotes] = useState<boolean>(false);
   const [showRecentQuotes, setShowRecentQuotes] = useState<boolean>(false);
   const [showCompanySelector, setShowCompanySelector] = useState<boolean>(false);
+  const [bcvRate, setBcvRate] = useState<number | null>(null);
   const { user, logout } = useAuth();
 
   const handleAutoLogout = useCallback(async () => {
@@ -127,72 +131,178 @@ export default function DashboardScreen(): JSX.Element {
   useFocusEffect(
     useCallback(() => {
       loadInitialData();
-      
+      console.log("cargado de inmediato al enfocar la pantalla del dashboard");
     }, [])
   );
 
-  const loadInitialData = async (): Promise<void> => {
-  try {
-    setLoading(true);
-    
-    // 1️⃣ Cargar empresa guardada
-    const storedCompany = await AsyncStorage.getItem('selectedCompany');
-    let companyToUse: Company | null = null;
-    
-    if (storedCompany) {
-      companyToUse = JSON.parse(storedCompany);
-      setSelectedCompany(companyToUse);
-      console.log('✅ Empresa cargada desde AsyncStorage:', companyToUse.name);
-    }
-    
-    // 2️⃣ Cargar datos pasando la empresa como parámetro
-    await Promise.all([
-      loadDashboardData(companyToUse), // ✅ Pasar empresa directamente
-      loadCompanies(storedCompany)
-    ]);
-  } catch (error) {
-    console.log('Error loading initial data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  useEffect(() => {
+    fetchBCVRate();
+  }, []);
 
-const loadDashboardData = async (company?: Company | null): Promise<void> => {
-  try {
-    const companyId = company?.id || selectedCompany?.id;
-    console.log('Cargando datos del dashboard para la empresa ID:', companyId);
-    const data = await api.getDashboard({ company_id: companyId });
-    setDashboardData(data);
-  } catch (error) {
-    console.log('Error loading dashboard:', error);
-  }
-};
-
-  const loadCompanies = async (storedCompanyJson?: string | null): Promise<void> => {
+  const fetchBCVRate = async () => {
     try {
-      const response = await api.getCompanies({ per_page: 100 });
-      setCompanies(response.data);
-      
-      // Solo establecer la primera empresa si NO hay ninguna guardada
-      if (response.data.length > 0 && !storedCompanyJson) {
-        const firstCompany = response.data[0];
-        setSelectedCompany(firstCompany);
-        await AsyncStorage.setItem('selectedCompany', JSON.stringify(firstCompany));
-        console.log('✅ Primera empresa establecida por defecto:', firstCompany.name);
+      const cachedRate = await AsyncStorage.getItem('bcv_rate');
+      if (cachedRate) {
+        const cached = JSON.parse(cachedRate);
+        if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+          setBcvRate(cached.rate);
+          return;
+        }
+      }
+
+      let rate = null;
+
+      try {
+        const response1 = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data1 = await response1.json();
+        if (data1.rates?.VES) {
+          rate = data1.rates.VES;
+        }
+      } catch (error) {
+        console.log('API 1 falló:', error);
+      }
+
+      if (!rate) {
+        try {
+          const response2 = await fetch('https://s3.amazonaws.com/dolartoday/data.json');
+          const data2 = await response2.json();
+          if (data2.USD?.bcv) {
+            rate = data2.USD.bcv;
+          }
+        } catch (error) {
+          console.log('API 2 falló:', error);
+        }
+      }
+
+      if (rate) {
+        setBcvRate(rate);
+        await AsyncStorage.setItem('bcv_rate', JSON.stringify({
+          rate,
+          timestamp: Date.now()
+        }));
+      } else {
+        setBcvRate(36.5);
       }
     } catch (error) {
-      console.log('Error loading companies:', error);
+      console.log('Error al obtener tasa BCV:', error);
+      setBcvRate(36.5);
     }
   };
 
-const handleSelectCompany = async (company: Company) => {
-  setSelectedCompany(company);
-  await AsyncStorage.setItem('selectedCompany', JSON.stringify(company));
-  console.log('✅ Empresa seleccionada y guardada:', company.name);
-  setShowCompanySelector(false);
-  // ✅ Pasar la empresa directamente
-  loadDashboardData(company);
-};
+  // ✅ FUNCIÓN MEJORADA - Carga empresa PRIMERO, luego dashboard
+  const loadInitialData = async (): Promise<void> => {
+    try {
+      setLoading(true);
+
+      // 1️⃣ Cargar empresa guardada O primera empresa disponible
+      let companyToUse: Company | null = null;
+      const storedCompany = await AsyncStorage.getItem('selectedCompany');
+
+      if (storedCompany) {
+        companyToUse = JSON.parse(storedCompany);
+        console.log('✅ Empresa cargada desde AsyncStorage:', companyToUse.name);
+      } else {
+        // Si no hay empresa guardada, cargar lista de empresas
+        console.log('📦 No hay empresa guardada, cargando lista...');
+        const companiesResponse = await api.getCompanies({ per_page: 100 });
+        const allCompanies = companiesResponse.data;
+
+        if (allCompanies.length > 0) {
+          companyToUse = allCompanies[0];
+          setCompanies(allCompanies);
+          setSelectedCompany(companyToUse);
+          await AsyncStorage.setItem('selectedCompany', JSON.stringify(companyToUse));
+          console.log('✅ Primera empresa establecida por defecto:', companyToUse.name);
+        } else {
+          console.warn('⚠️ No hay empresas disponibles');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2️⃣ Establecer la empresa en el estado
+      setSelectedCompany(companyToUse);
+
+      // 3️⃣ Cargar DASHBOARD con la empresa (AHORA sí con datos)
+      await loadDashboardData(companyToUse);
+
+      // 4️⃣ Cargar lista de empresas si no la cargamos antes
+      if (storedCompany) {
+        await loadCompanies();
+      }
+
+    } catch (error) {
+      console.error('❌ Error en loadInitialData:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FUNCIÓN MEJORADA - Recibe company como parámetro REQUERIDO
+  const loadDashboardData = async (company: Company): Promise<void> => {
+    try {
+      console.log('🔄 Cargando datos del dashboard...');
+      console.log('   📊 Company ID:', company.id);
+      console.log('   🏢 Company Name:', company.name);
+
+      const data = await api.getDashboard({ company_id: company.id });
+      setDashboardData(data);
+      console.log('✅ Dashboard cargado exitosamente');
+    } catch (error) {
+      console.error('❌ Error loading dashboard:', error);
+      setDashboardData(null);
+    }
+  };
+
+  // Cargar lista de empresas
+  const loadCompanies = async (): Promise<void> => {
+    try {
+      const response = await api.getCompanies({ per_page: 100 });
+      setCompanies(response.data);
+      console.log('✅ Lista de empresas cargada:', response.data.length);
+    } catch (error) {
+      console.error('❌ Error loading companies:', error);
+    }
+  };
+
+  // ✨ NUEVA FUNCIÓN - Cargar presupuestos recientes desde API directo
+  const loadRecentQuotesFromAPI = async (): Promise<void> => {
+    try {
+      setLoadingRecentQuotes(true);
+      console.log('🔄 Cargando presupuestos recientes desde API...');
+      
+      const response = await api.getQuotes();
+      const allQuotes: Quote[] = response.data || [];
+      
+      // Ordenar por fecha más reciente y tomar los primeros 5
+      const sorted = allQuotes
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5);
+      
+      setRecentQuotes(sorted);
+      console.log('✅ Presupuestos recientes cargados:', sorted.length);
+    } catch (error) {
+      console.error('❌ Error cargando presupuestos recientes:', error);
+      setRecentQuotes([]);
+    } finally {
+      setLoadingRecentQuotes(false);
+    }
+  };
+
+  // Cambiar empresa seleccionada
+  const handleSelectCompany = async (company: Company) => {
+    try {
+      setSelectedCompany(company);
+      await AsyncStorage.setItem('selectedCompany', JSON.stringify(company));
+      console.log('✅ Empresa seleccionada:', company.name);
+      setShowCompanySelector(false);
+
+      // Cargar datos del dashboard de la nueva empresa
+      await loadDashboardData(company);
+    } catch (error) {
+      console.error('❌ Error al cambiar empresa:', error);
+    }
+  };
 
   const getStatusText = (status: Quote['status']) => {
     switch (status) {
@@ -227,16 +337,16 @@ const handleSelectCompany = async (company: Company) => {
     return 'Buenas noches, ';
   };
 
-  const QuickAction: React.FC<QuickActionProps> = ({ 
-    title, 
-    icon, 
-    onPress, 
+  const QuickAction: React.FC<QuickActionProps> = ({
+    title,
+    icon,
+    onPress,
     color = colors.primary[500],
     disabled = false
   }) => (
-    <TouchableOpacity 
-      style={[styles.quickAction, disabled && styles.quickActionDisabled]} 
-      onPress={onPress} 
+    <TouchableOpacity
+      style={[styles.quickAction, disabled && styles.quickActionDisabled]}
+      onPress={onPress}
       activeOpacity={0.7}
       disabled={disabled}
     >
@@ -244,36 +354,6 @@ const handleSelectCompany = async (company: Company) => {
         <Ionicons name={icon} size={24} color={colors.text.inverse} />
       </View>
       <Text style={styles.quickActionText} numberOfLines={2}>{title}</Text>
-    </TouchableOpacity>
-  );
-
-  const SaleItem: React.FC<SaleItemProps> = ({ sale }) => (
-    <TouchableOpacity 
-      style={styles.saleItem}
-      onPress={() => {
-        setShowRecentQuotes(false);
-        router.push(`/quotes/${sale.id}`);
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.saleHeader}>
-        <View style={styles.saleLeft}>
-          <Text style={styles.saleNumber}>#{sale?.id}</Text>
-          <Text style={styles.saleCustomer}>{sale?.customer || 'Cliente no especificado'}</Text>
-        </View>
-        <View style={styles.saleRight}>
-          <Text style={styles.saleAmount}>{formatCurrency(sale.total)}</Text>
-          <Text style={styles.saleDate}>{formatFecha(sale.date)}</Text>
-        </View>
-      </View>
-      <View style={[
-        styles.statusBadge,
-        { backgroundColor: getStatusColor(sale.status) + '20' }
-      ]}>
-        <Text style={[styles.statusText, { color: getStatusColor(sale.status) }]}>
-          {getStatusText(sale.status)}
-        </Text>
-      </View>
     </TouchableOpacity>
   );
 
@@ -301,37 +381,35 @@ const handleSelectCompany = async (company: Company) => {
       showsVerticalScrollIndicator={false}
     >
       {/* Header Compacto */}
-   <View style={styles.header}>
-  <View style={styles.headerMain}>
-    <View style={styles.userInfo}>
-      <View style={styles.greetingRow}>
-        <Text style={styles.greeting}>{getGreeting()}</Text>
-         <TouchableOpacity 
-      style={styles.profileButton}
-      onPress={() => router.push('/profile')}
-    >
-      <View style={styles.avatarContainer}>
-        <Ionicons name="person" size={20} color={colors.primary[500]} />
+      <View style={styles.header}>
+        <View style={styles.headerMain}>
+          <View style={styles.userInfo}>
+            <View style={styles.greetingRow}>
+              <Text style={styles.greeting}>{getGreeting()}</Text>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/profile')}
+              >
+                <View style={styles.avatarContainer}>
+                  <Ionicons name="person" size={20} color={colors.primary[500]} />
+                </View>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.userName}>{user?.name}</Text>
+            {selectedCompany && (
+              <TouchableOpacity
+                style={styles.companySelector}
+                onPress={() => setShowCompanySelector(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="business" size={14} color={colors.primary[500]} />
+                <Text style={styles.companyName}>{selectedCompany.name}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </View>
-    </TouchableOpacity>
-        
-      </View>
-      <Text style={styles.userName}>{user?.name}</Text>
-      {selectedCompany && (
-          <TouchableOpacity
-            style={styles.companySelector}
-            onPress={() => setShowCompanySelector(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="business" size={14} color={colors.primary[500]} />
-            <Text style={styles.companyName}>{selectedCompany.name}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.primary[500]} />
-          </TouchableOpacity>
-        )}
-    </View>
-   
-  </View>
-</View>
 
       <View style={styles.content}>
         {/* Acciones Rápidas */}
@@ -340,23 +418,26 @@ const handleSelectCompany = async (company: Company) => {
             title="Crear Presupuesto"
             icon="add-circle"
             color={colors.primary[500]}
-            onPress={() => router.push({ 
-              pathname: '/quotes/new', 
-              params: { company_id: selectedCompany?.id?.toString() } 
+            onPress={() => router.push({
+              pathname: '/quotes/new',
+              params: { company_id: selectedCompany?.id?.toString() }
             })}
           />
           <QuickAction
             title="Presupuestos Recientes"
             icon="document-text"
             color={colors.info}
-            onPress={() => setShowRecentQuotes(true)}
+            onPress={() => {
+              setShowRecentQuotes(true);
+              loadRecentQuotesFromAPI(); // ✨ Cargar datos al abrir modal
+            }}
           />
         </View>
 
         {/* Métricas */}
         <View style={styles.metricsContainer}>
           <View style={styles.metricsGrid}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.metricCard, { borderLeftColor: colors.success }]}
               onPress={() => router.push('/quotes')}
               activeOpacity={0.7}
@@ -367,7 +448,7 @@ const handleSelectCompany = async (company: Company) => {
               <Text style={styles.metricTitle}>Presupuestos Hoy</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.metricCard, { borderLeftColor: colors.primary[100] }]}
               onPress={() => router.push('/quotes')}
               activeOpacity={0.7}
@@ -378,7 +459,7 @@ const handleSelectCompany = async (company: Company) => {
               <Text style={styles.metricTitle}>Presupuestos Mes</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.metricCard, { borderLeftColor: colors.info }]}
               onPress={() => router.push('/products')}
               activeOpacity={0.7}
@@ -389,7 +470,7 @@ const handleSelectCompany = async (company: Company) => {
               <Text style={styles.metricTitle}>Productos</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.metricCard, { borderLeftColor: colors.primary[500] }]}
               onPress={() => router.push('/customers')}
               activeOpacity={0.7}
@@ -434,10 +515,10 @@ const handleSelectCompany = async (company: Company) => {
                     styles.companyIcon,
                     selectedCompany?.id === company.id && styles.companyIconSelected
                   ]}>
-                    <Ionicons 
-                      name="business" 
-                      size={20} 
-                      color={selectedCompany?.id === company.id ? colors.text.inverse : colors.primary[500]} 
+                    <Ionicons
+                      name="business"
+                      size={20}
+                      color={selectedCompany?.id === company.id ? colors.text.inverse : colors.primary[500]}
                     />
                   </View>
                   <View style={styles.companyInfo}>
@@ -463,7 +544,7 @@ const handleSelectCompany = async (company: Company) => {
         </View>
       </Modal>
 
-      {/* Modal de Presupuestos Recientes */}
+      {/* ✨ Modal de Presupuestos Recientes - Usando api.getQuotes() */}
       <Modal
         visible={showRecentQuotes}
         animationType="slide"
@@ -478,13 +559,34 @@ const handleSelectCompany = async (company: Company) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            {dashboardData?.data?.recent_quotes && dashboardData.data?.recent_quotes.length > 0 ? (
+          <ScrollView 
+            style={styles.modalContent}
+            refreshControl={
+              <RefreshControl 
+                refreshing={loadingRecentQuotes} 
+                onRefresh={loadRecentQuotesFromAPI}
+              />
+            }
+          >
+            {loadingRecentQuotes ? (
+              <View style={styles.loadingCenter}>
+                <LoadingSpinner text="Cargando presupuestos..." />
+              </View>
+            ) : recentQuotes.length > 0 ? (
               <>
-                {dashboardData.data?.recent_quotes.slice(0, 5).map((sale) => (
-                  <SaleItem key={sale.id} sale={sale} />
+                {recentQuotes.map((quote: Quote) => (
+                  <QuoteItemCard
+                    key={quote.id}
+                    quote={quote}
+                    bcvRate={bcvRate}
+                    onCardPress={() => {
+                      setShowRecentQuotes(false);
+                      router.push(`/quotes/${quote.id}`);
+                    }}
+                    isModal={true}
+                  />
                 ))}
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.viewAllButton}
                   onPress={() => {
                     setShowRecentQuotes(false);
@@ -498,7 +600,7 @@ const handleSelectCompany = async (company: Company) => {
             ) : (
               <View style={styles.emptyState}>
                 <Ionicons name="document-text" size={64} color={colors.text.tertiary} />
-                <Text style={styles.emptyStateText}>No hay presupuestos recientes</Text>
+                <Text style={styles.emptyStateText}>No hay presupuestos disponibles</Text>
               </View>
             )}
           </ScrollView>
@@ -518,6 +620,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.background,
+  },
+  loadingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 300,
   },
   loadingText: {
     fontSize: typography.fontSize.lg,
@@ -552,12 +660,12 @@ const styles = StyleSheet.create({
   },
   companySelector: {
     flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: colors.primary[50],
-  paddingHorizontal: 8,
-  paddingVertical: 4,
-  borderRadius: 12,
-  gap: 4,
+    alignItems: 'center',
+    backgroundColor: colors.primary[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
   companyName: {
     fontSize: typography.fontSize.sm,
@@ -567,9 +675,9 @@ const styles = StyleSheet.create({
   profileButton: {
     padding: 1,
     marginTop: 35,
-    paddingLeft: 160,     // Espacio a la izquierda si lo necesitas
-    paddingRight: 0,      // Elimina el espacio derecho
-    alignSelf: 'flex-end' // Lo alinea al borde derecho del contenedor
+    paddingLeft: 160,
+    paddingRight: 0,
+    alignSelf: 'flex-end'
   },
   avatarContainer: {
     width: 40,
@@ -723,60 +831,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginTop: spacing.xs,
-  },
-  saleItem: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  saleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  saleLeft: {
-    flex: 1,
-  },
-  saleNumber: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  saleCustomer: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  saleRight: {
-    alignItems: 'flex-end',
-  },
-  saleAmount: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.success,
-  },
-  saleDate: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-    marginTop: spacing.xs,
-  },
-  statusText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
   },
   viewAllButton: {
     flexDirection: 'row',

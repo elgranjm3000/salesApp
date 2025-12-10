@@ -14,7 +14,7 @@ import {
 // npx expo start --tunnel --clear para que ve la app
 // cloudflared tunnel --url http://localhost:80
 const BASE_URL = 'https://chrystal.com.ve/chrystalmobile.chrystal.com.ve/public/api'; // Cambiar por tu IP
-//const BASE_URL = 'https://newsletter-comparable-entry-revenues.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
+//const BASE_URL = 'https://satisfy-state-reunion-that.trycloudflare.com/sales-api/public/api'; // Cambiar por tu IP
 
 interface LoginCredentials {
   email: string;

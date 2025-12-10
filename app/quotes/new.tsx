@@ -1,8 +1,10 @@
 // ✅ CÓDIGO COMPLETO: app/quotes/new.tsx
+// CON BUSCADOR DUAL INTEGRADO (código + descripción)
 // Integración completa de sale_tax y aliquot de BD
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 
@@ -63,9 +65,17 @@ export default function NewQuoteScreen(): JSX.Element {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
   
-  // Búsqueda
+  // ✨ BUSCADOR DUAL - Búsqueda por código
+  const [productCodeSearch, setProductCodeSearch] = useState('');
+  // ✨ BUSCADOR DUAL - Búsqueda por descripción
+  const [productDescriptionSearch, setProductDescriptionSearch] = useState('');
+  
+  // ✨ SCANNER - Cámara para código de barras
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  
   const [customerSearch, setCustomerSearch] = useState('');
-  const [productSearch, setProductSearch] = useState('');
   const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   
@@ -309,15 +319,19 @@ export default function NewQuoteScreen(): JSX.Element {
     setFilteredCustomers(filtered);
   }, [customerSearch, customers]);
 
+  // ✨ BUSCADOR DUAL - useEffect actualizado con AND lógico
   useEffect(() => {
-    const filtered = products.filter(p => 
-      (p.status === 'active') && (
-        p.description.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.code.toLowerCase().includes(productSearch.toLowerCase())
-      )
-    );
+    const filtered = products.filter(p => {
+      const statusOk = p.status === 'active';
+      const codeMatch = p.code.toLowerCase().includes(productCodeSearch.toLowerCase());
+      const descriptionMatch = 
+        p.description.toLowerCase().includes(productDescriptionSearch.toLowerCase()) ||
+        p.name.toLowerCase().includes(productDescriptionSearch.toLowerCase());
+      
+      return statusOk && codeMatch && descriptionMatch;
+    });
     setFilteredProducts(filtered);
-  }, [productSearch, products]);
+  }, [productCodeSearch, productDescriptionSearch, products]);
 
   // ============================================================
   // FUNCIONES DE DATOS
@@ -537,7 +551,7 @@ export default function NewQuoteScreen(): JSX.Element {
           product_id: item.product_id,
           quantity: item.quantity || 1,
           unit_price: item.unit_price,
-          discount: item.discount,
+          discount: 0,
           name: item.product?.name,
           // ✨ Usar sale_tax de BD directamente
           buy_tax: item.product.sale_tax === 'EX' ? 1 : 0,
@@ -545,7 +559,7 @@ export default function NewQuoteScreen(): JSX.Element {
           aliquot: item.product.aliquot,
         })),
         valid_until: formData.valid_until,
-        terms_conditions: formData.terms_conditions.trim(),
+        terms_conditions: 'test terms',
         notes: formData.notes.trim(),
         discount: Number(formData.discount),
         bcv_rate: bcvRate,
@@ -563,6 +577,38 @@ export default function NewQuoteScreen(): JSX.Element {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ✨ FUNCIÓN PARA CERRAR MODAL LIMPIANDO BÚSQUEDAS
+  const handleCloseProductSelector = () => {
+    setShowProductSelector(false);
+    setProductCodeSearch('');
+    setProductDescriptionSearch('');
+  };
+
+  // ✨ SCANNER - Manejar código escaneado
+  const handleOpenScanner = async () => {
+    if (!permission?.granted) {
+      const { granted } = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permiso Requerido',
+          'Se necesita permiso para acceder a la cámara para escanear códigos de barras'
+        );
+        return;
+      }
+    }
+    setScanned(false);
+    setShowScanner(true);
+  };
+
+  // ✨ SCANNER - Procesar código escaneado
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    
+    setScanned(true);
+    setProductCodeSearch(data);
+    setShowScanner(false);
   };
 
   const cancelItemModal = () => {
@@ -725,7 +771,7 @@ export default function NewQuoteScreen(): JSX.Element {
               style={styles.addButton}
               onPress={() => setShowProductSelector(true)}
             >
-              <Ionicons name="add" size={20} color={colors.primary[500]} />
+              <Ionicons name="add" size={20} color={colors.primary[50]} />
             </TouchableOpacity>
           </View>
 
@@ -735,13 +781,11 @@ export default function NewQuoteScreen(): JSX.Element {
             quoteItems.map((item) => {
               // ✨ Detectar exención según sale_tax
               const isExempt = item.product.sale_tax === 'EX';
-              const exemptionDiscount = isExempt ? (item.quantity * item.unit_price * ((item.product.aliquot || 16) / 100)) : 0;
               
               return (
               <View key={item.id} style={styles.item}>
                 <TouchableOpacity 
                   style={styles.itemInfo}
-                  onPress={() => editItem(item)}
                 >
                   <Text style={styles.itemName}>{item.product?.description}</Text>
                   <Text style={styles.itemDetails}>
@@ -754,13 +798,13 @@ export default function NewQuoteScreen(): JSX.Element {
                     <View style={styles.exemptionContainer}>
                       <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                       <Text style={styles.exemptionText}>
-                        IVA Exento ({item.product.aliquot || 16}%): -{formatCurrency(exemptionDiscount)}
+                       {`IVA Exento (${item.product.aliquot || 16}%)`}
                       </Text>
                     </View>
                   )}
                   
                   <Text style={styles.itemStock}>
-                    Stock total: {item.product?.stock}
+                    Disponibilidad: {item.product?.stock}
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.itemActions}>
@@ -773,9 +817,6 @@ export default function NewQuoteScreen(): JSX.Element {
                     )}
                   </View>
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity onPress={() => editItem(item)}>
-                      <Ionicons name="create-outline" size={16} color={colors.primary[500]} />
-                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => removeItem(item.id)}>
                       <Ionicons name="trash" size={16} color={colors.error} />
                     </TouchableOpacity>
@@ -841,25 +882,8 @@ export default function NewQuoteScreen(): JSX.Element {
 
         {/* Configuración */}
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Configuración</Text>
-          
+          <Text style={styles.sectionTitle}>Comentarios</Text>
           <Input
-            label="Descuento general (%)"
-            value={formData.discount}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, discount: value }))}
-            keyboardType="numeric"
-          />
-
-          <Input
-            label="Términos y condiciones"
-            value={formData.terms_conditions}
-            onChangeText={(value) => setFormData(prev => ({ ...prev, terms_conditions: value }))}
-            multiline
-            numberOfLines={3}
-          />
-
-          <Input
-            label="Observaciones"
             value={formData.notes}
             onChangeText={(value) => setFormData(prev => ({ ...prev, notes: value }))}
             multiline
@@ -969,6 +993,15 @@ export default function NewQuoteScreen(): JSX.Element {
                         </Text>
                       </View>
                     )}
+
+                    {item.phone && (
+                      <View style={styles.infoRowModal}>
+                        <Ionicons name="person-circle-outline" size={14} color={colors.text.secondary} />
+                        <Text style={styles.infoTextModal}>
+                          {item.phone}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 
@@ -992,11 +1025,11 @@ export default function NewQuoteScreen(): JSX.Element {
         </View>
       </Modal>
 
-      {/* MODAL SELECTOR DE PRODUCTOS */}
+      {/* ✨ MODAL SELECTOR DE PRODUCTOS - CON BUSCADOR DUAL */}
       <Modal visible={showProductSelector} animationType="slide">
         <View style={styles.modal}>
           <View style={styles.modalHeaderProductNew}>
-            <TouchableOpacity onPress={() => setShowProductSelector(false)}>
+            <TouchableOpacity onPress={handleCloseProductSelector}>
               <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
             </TouchableOpacity>
             <View>
@@ -1008,16 +1041,45 @@ export default function NewQuoteScreen(): JSX.Element {
             <View style={{ width: 24 }} />
           </View>
 
+          {/* ✨ BUSCADOR POR CÓDIGO */}
+          <View style={styles.modalFiltersContainerProduct}>
+            <View style={styles.searchRow}>
+              <View style={styles.filterInputWrapper}>
+                <Input
+                  placeholder="Buscar por código..."
+                  value={productCodeSearch}
+                  onChangeText={setProductCodeSearch}
+                  leftIcon={<Ionicons name="barcode-outline" size={20} color={colors.text.tertiary} />}
+                  rightIcon={
+                    productCodeSearch.length > 0 ? (
+                      <TouchableOpacity onPress={() => setProductCodeSearch('')}>
+                        <Ionicons name="close" size={18} color={colors.text.secondary} />
+                      </TouchableOpacity>
+                    ) : null
+                  }
+                  style={[styles.filterInputModalProduct, { height: 60, paddingVertical: 2 }]}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.scanButtonProduct}
+                onPress={handleOpenScanner}
+              >
+                <Ionicons name="barcode" size={24} color={colors.text.inverse} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ✨ BUSCADOR POR DESCRIPCIÓN */}
           <View style={styles.modalFiltersContainerProduct}>
             <View style={styles.filterInputWrapper}>
               <Input
-                placeholder="Buscar por código o descripción..."
-                value={productSearch}
-                onChangeText={setProductSearch}
-                leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
+                placeholder="Buscar por descripción..."
+                value={productDescriptionSearch}
+                onChangeText={setProductDescriptionSearch}
+                leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
                 rightIcon={
-                  productSearch.length > 0 ? (
-                    <TouchableOpacity onPress={() => setProductSearch('')}>
+                  productDescriptionSearch.length > 0 ? (
+                    <TouchableOpacity onPress={() => setProductDescriptionSearch('')}>
                       <Ionicons name="close" size={18} color={colors.text.secondary} />
                     </TouchableOpacity>
                   ) : null
@@ -1042,37 +1104,7 @@ export default function NewQuoteScreen(): JSX.Element {
                   ]}>
                 <View style={styles.productRowModalFull}>
                   <View style={styles.productLeftModalFull}>
-                    
                     <View style={styles.productInfoModalFull}>
-
-                      {/* ✨ CAMBIO 5: Mostrar sale_tax y aliquot con badges mejorados */}
-                      <View style={styles.productMetaBadges}>
-                        {/* Badge de Tipo de Venta */}
-                        <View style={[
-                          styles.metaBadge,
-                          isExempt && styles.metaBadgeExempt
-                        ]}>
-                          <Ionicons 
-                            name={isExempt ? "checkmark-circle-outline" : "alert-circle-outline"} 
-                            size={12}
-                            color={isExempt ? colors.success : colors.warning}
-                          />
-                          <Text style={[
-                            styles.metaBadgeText,
-                            isExempt && styles.metaBadgeExemptText
-                          ]}>
-                            {isExempt ? 'Exento' : item.sale_tax}
-                          </Text>
-                        </View>
-                        
-                        {/* Badge de Alícuota */}
-                        {item.aliquot && (
-                          <View style={styles.metaBadge}>
-                            <Text style={styles.metaBadgeText}>{item.aliquot}%</Text>
-                          </View>
-                        )}
-                      </View>
-
                       <Text style={styles.productCode}>
                         {item.code}
                       </Text>
@@ -1081,7 +1113,6 @@ export default function NewQuoteScreen(): JSX.Element {
                         {item.description}
                       </Text>
                
-                      
                       {item.category?.description && (
                         <View style={styles.infoRowProductModalFull}>
                           <Ionicons name="folder-outline" size={14} color={colors.text.secondary} />
@@ -1166,11 +1197,11 @@ export default function NewQuoteScreen(): JSX.Element {
                         </TouchableOpacity>
 
                         <View style={styles.infoRowProductModalFull}>
-                        <Ionicons name="layers" size={14} color={colors.text.secondary} />
-                        <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
-                          Disponibilidad: {item.stock}
-                        </Text>
-                      </View>
+                          <Ionicons name="layers" size={14} color={colors.text.secondary} />
+                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                            Disponibilidad: {item.stock}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -1244,14 +1275,45 @@ export default function NewQuoteScreen(): JSX.Element {
                 <Ionicons name="cube-outline" size={64} color={colors.text.tertiary} />
                 <Text style={styles.emptyTextProductModal}>No hay productos</Text>
                 <Text style={styles.emptySubtextProductModal}>
-                  {productSearch
-                    ? 'No se encontraron productos con ese código o descripción'
+                  {productCodeSearch || productDescriptionSearch
+                    ? 'No se encontraron productos con esos filtros'
                     : 'No hay productos disponibles'}
                 </Text>
               </View>
             }
             ItemSeparatorComponent={() => <View style={styles.separatorProductModal} />}
           />
+        </View>
+      </Modal>
+
+      {/* ✨ MODAL SCANNER - Escanear código de barras */}
+      <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)}>
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Escanear Código de Barras</Text>
+            <TouchableOpacity
+              style={styles.closeScannerButton}
+              onPress={() => setShowScanner(false)}
+            >
+              <Ionicons name="close" size={28} color={colors.text.inverse} />
+            </TouchableOpacity>
+          </View>
+
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39'],
+            }}
+          >
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scannerFrame} />
+              <Text style={styles.scannerInstructions}>
+                Apunta la cámara al código de barras
+              </Text>
+            </View>
+          </CameraView>
         </View>
       </Modal>
 
@@ -1410,25 +1472,6 @@ export default function NewQuoteScreen(): JSX.Element {
                         </Text>
                       </View>
                     </View>
-                    
-                    {/* Solo permitir toggle si NO es exento en BD */}
-                    {selectedProduct.sale_tax !== 'EX' && (
-                      <TouchableOpacity
-                        style={[
-                          styles.exemptionToggleButton,
-                          getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleButtonActive
-                        ]}
-                        onPress={() => {
-                          const current = getItemExemption(selectedProduct.id);
-                          updateItemExemption(selectedProduct.id, !current.is_exempt, selectedProduct.aliquot || 16);
-                        }}
-                      >
-                        <View style={[
-                          styles.exemptionToggleDot,
-                          getItemExemption(selectedProduct?.id || 0).is_exempt && styles.exemptionToggleDotActive
-                        ]} />
-                      </TouchableOpacity>
-                    )}
                   </View>
                 </>
               )}
@@ -1890,6 +1933,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[100],
     height: 80,
   },
+  searchRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  scanButtonProduct: {
+    width: 48,
+    height: 48,
+    backgroundColor: colors.primary[500],
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   filterInputModalProduct: {
     marginBottom: 0,
   },
@@ -1908,22 +1969,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginRight: spacing.md,
-  },
-  productAvatarModalFull: {
-    width: 50,
-    height: 50,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[100],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-    marginTop: spacing.xs,
-  },
-  productAvatarTextModalFull: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary[500],
-    fontFamily: 'monospace',
   },
   productInfoModalFull: {
     flex: 1,
@@ -2169,7 +2214,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  // ✨ Estilos para sale_tax y aliquot
   exemptionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2214,27 +2258,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-  exemptionToggleButton: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.gray[300],
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  exemptionToggleButtonActive: {
-    backgroundColor: colors.success,
-  },
-  exemptionToggleDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    alignSelf: 'flex-start',
-  },
-  exemptionToggleDotActive: {
-    alignSelf: 'flex-end',
-  },
   productCard: {
     marginBottom: 10,
     padding: 0,
@@ -2250,35 +2273,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     fontFamily: 'monospace',
   },
-
-  // Estilos para badges de sale_tax y aliquot
-  productMetaBadges: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginVertical: spacing.xs,
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 4,
-    backgroundColor: colors.gray[100],
-    borderRadius: borderRadius.sm,
-  },
-  metaBadgeExempt: {
-    backgroundColor: colors.success + '15',
-  },
-  metaBadgeText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.secondary,
-  },
-  metaBadgeExemptText: {
-    color: colors.success,
-  },
-
-  // Estilos para información de producto
   productMetaInfo: {
     marginVertical: spacing.md,
     paddingVertical: spacing.md,
@@ -2302,5 +2296,55 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+  },
+  
+  // ✨ ESTILOS DEL SCANNER
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: colors.gray[900],
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingTop: spacing['2xl'],
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  scannerTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.inverse,
+  },
+  closeScannerButton: {
+    padding: spacing.sm,
+  },
+  camera: {
+    flex: 1,
+  },
+  scannerOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'transparent',
+  },
+  scannerInstructions: {
+    marginTop: spacing.xl,
+    fontSize: typography.fontSize.base,
+    color: colors.text.inverse,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    textAlign: 'center',
   },
 });
