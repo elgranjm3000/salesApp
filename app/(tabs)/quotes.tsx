@@ -622,17 +622,18 @@ export default function QuotesScreen(): JSX.Element {
           placeholder="Buscar por nombre..."
           value={localSearch}
           onChangeText={handleSearchChange}
-          leftIcon={<Ionicons name="search" size={20} color={colors.text.tertiary} />}
+          leftIcon={<Ionicons name="search" size={18} color={colors.text.tertiary} />}
           rightIcon={
             localSearch.length > 0 ? (
               <TouchableOpacity onPress={() => {
                 setLocalSearch('');
                 setSearchText('');
               }}>
-                <Ionicons name="close" size={20} color="#666" />
+                <Ionicons name="close" size={18} color="#666" />
               </TouchableOpacity>
             ) : null
           }
+          style={styles.compactInput}
         />
       </View>
 
@@ -641,17 +642,18 @@ export default function QuotesScreen(): JSX.Element {
           placeholder="Buscar por documento..."
           value={localDocumentSearch}
           onChangeText={handleDocumentSearchChange}
-          leftIcon={<Ionicons name="card-outline" size={20} color={colors.text.tertiary} />}
+          leftIcon={<Ionicons name="card-outline" size={18} color={colors.text.tertiary} />}
           rightIcon={
             localDocumentSearch.length > 0 ? (
               <TouchableOpacity onPress={() => {
                 setLocalDocumentSearch('');
                 setSearchByDocument('');
               }}>
-                <Ionicons name="close" size={20} color="#666" />
+                <Ionicons name="close" size={18} color="#666" />
               </TouchableOpacity>
             ) : null
           }
+          style={styles.compactInput}
         />
       </View>
 
@@ -713,7 +715,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.xs,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
@@ -911,5 +913,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+
+  // ✨ Estilo compacto para inputs de búsqueda
+  compactInput: {
+    marginBottom: 0,
   },
 });

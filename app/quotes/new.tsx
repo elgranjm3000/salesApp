@@ -54,6 +54,10 @@ export default function NewQuoteScreen(): JSX.Element {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [quoteItems, setQuoteItems] = useState([]);
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsHasMore, setProductsHasMore] = useState(true);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [totalProductsCount, setTotalProductsCount] = useState(0);
   
   // BCV
   const [bcvRate, setBcvRate] = useState<number | null>(null);
@@ -232,19 +236,17 @@ export default function NewQuoteScreen(): JSX.Element {
     }
   };
 
-  const formatWithBCV = (amount: number) => {
-    const usdFormatted = formatCurrency(amount);
-    if (bcvRate) {
-      const bcvAmount = (amount * bcvRate).toLocaleString('es-VE', {
-        style: 'currency',
-        currency: 'VES',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-      return `${usdFormatted}\n${bcvAmount}`;
-    }
-    return usdFormatted;
-  };
+const formatWithBCV = (amount: number) => {
+  const usdFormatted = formatCurrency(amount);
+  if (bcvRate) {
+    const bcvAmount = `Bs. ${(amount * bcvRate).toLocaleString('es-VE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+    return `${usdFormatted} / ${bcvAmount}`;
+  }
+  return usdFormatted;
+};
 
   const formatBCV = (amount: number) => {
     if (bcvRate) {
@@ -337,35 +339,66 @@ export default function NewQuoteScreen(): JSX.Element {
   // FUNCIONES DE DATOS
   // ============================================================
 
-  const loadInitialData = async () => {
+  const loadInitialData = async (pageNum: number = 1, loadMore: boolean = false) => {
     try {
-      setLoading(true);
-      
+      if (!loadMore) setLoading(true);
+      else setLoadingMoreProducts(true);
+
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
       setSelectedCompany(company);
-      
+
       const [customersRes, productsRes] = await Promise.all([
-        api.getCustomers({ per_page: 100, company_id: company?.id }),
-        api.getProducts({ per_page: 100, company_id: company?.id }),
+        pageNum === 1 ? api.getCustomers({ per_page: 100, company_id: company?.id }) : Promise.resolve({ data: customers }),
+        api.getProducts({ per_page: 50, page: pageNum, company_id: company?.id }),
       ]);
-      
-      setCustomers(customersRes.data || []);
-      setProducts(productsRes.data || []);
-      
+
+      const newProducts = productsRes.data || [];
+
+      if (pageNum === 1) {
+        setCustomers(customersRes.data || []);
+        setProducts(newProducts);
+
+        // Guardar el total de productos disponibles
+        const pagination = productsRes.pagination;
+        if (pagination) {
+          setTotalProductsCount(pagination.total);
+        }
+      } else {
+        setProducts(prev => [...prev, ...newProducts]);
+      }
+
+      // Verificar si hay más páginas
+      const pagination = productsRes.pagination;
+      if (pagination) {
+        const totalPages = Math.ceil(pagination.total / pagination.per_page);
+        setProductsHasMore(pageNum < totalPages);
+      } else {
+        setProductsHasMore(newProducts.length > 0);
+      }
+
       const validUntil = new Date();
       validUntil.setDate(validUntil.getDate() + 1);
       setFormData(prev => ({
         ...prev,
         valid_until: validUntil.toISOString().split('T')[0]
       }));
-      
+
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert('Error', 'No se pudo cargar la información');
     } finally {
       setLoading(false);
+      setLoadingMoreProducts(false);
     }
+  };
+
+  const loadMoreProducts = async () => {
+    if (loadingMoreProducts || !productsHasMore) return;
+
+    const nextPage = productsPage + 1;
+    setProductsPage(nextPage);
+    await loadInitialData(nextPage, true);
   };
 
   // ============================================================
@@ -543,7 +576,7 @@ export default function NewQuoteScreen(): JSX.Element {
 
     try {
       setSaving(true);
-      
+
       const quoteData = {
         customer_id: selectedCustomer.id,
         company_id: selectedCompany?.id,
@@ -564,16 +597,36 @@ export default function NewQuoteScreen(): JSX.Element {
         discount: Number(formData.discount),
         bcv_rate: bcvRate,
         bcv_date: rateDate,
-        status: 'rejected',
+        status: 'draft', // ✅ Cambiado de 'rejected' a 'draft'
       };
+
+      console.log('📤 Enviando quote:', JSON.stringify(quoteData, null, 2));
+
       const quote = await api.createQuote(quoteData);
-      
+
       Alert.alert('Éxito', 'Presupuesto creado correctamente');
       router.replace(`/quotes/${quote.data.id}`);
-      
-    } catch (error) {
-      console.error('Error creating quote:', error);
-      Alert.alert('Error', 'No se pudo crear el presupuesto');
+
+    } catch (error: any) {
+      console.error('❌ Error creating quote:', error);
+
+      // ✅ Mostrar detalles del error
+      let errorMessage = 'No se pudo crear el presupuesto';
+
+      if (error?.response) {
+        console.error('Error response:', error.response.data);
+
+        // Extraer mensaje del servidor
+        const serverMessage = error.response.data?.message ||
+                             error.response.data?.error ||
+                             JSON.stringify(error.response.data);
+
+        errorMessage = `Error ${error.response.status}: ${serverMessage}`;
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
+      Alert.alert('Error al crear presupuesto', errorMessage, [{ text: 'OK' }]);
     } finally {
       setSaving(false);
     }
@@ -781,18 +834,96 @@ export default function NewQuoteScreen(): JSX.Element {
             quoteItems.map((item) => {
               // ✨ Detectar exención según sale_tax
               const isExempt = item.product.sale_tax === 'EX';
-              
+              // ✨ Determinar el tipo de precio actual
+              const currentPriceType = item.unit_price === item.product.cost ? 'cost' :
+                                       item.unit_price === item.product.higher_price ? 'higher_price' : 'price';
+
               return (
               <View key={item.id} style={styles.item}>
-                <TouchableOpacity 
-                  style={styles.itemInfo}
-                >
-                  <Text style={styles.itemName}>{item.product?.description}</Text>
-                  <Text style={styles.itemDetails}>
-                    Cant: {formatQuantity(item.quantity)} • Precio: {formatCurrency(item.unit_price)}
-                    {item.discount > 0 && ` • Desc: ${item.discount}%`}
-                  </Text>
-                  
+                <View style={styles.itemInfo}>
+                  <Text style={styles.productCode}>{item.product?.code}</Text>
+                  <Text style={styles.productNameModalFull}>{item.product?.description}</Text>
+                  {item.product?.category?.description && (
+                        <View style={styles.infoRowProductModalFull}>
+                          <Ionicons name="folder-outline" size={14} color={colors.text.secondary} />
+                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                            {item.product?.category?.description}
+                          </Text>
+                        </View>
+                      )}
+
+                  {/* ✨ Selector de precio */}
+                  <View style={styles.priceSelectContainerInline}>
+                    <TouchableOpacity
+                      style={[
+                        styles.priceButtonInline,
+                        currentPriceType === 'price' && styles.priceButtonInlineSelected
+                      ]}
+                      onPress={() => {
+                        setQuoteItems(prev => prev.map(i =>
+                          i.id === item.id
+                            ? { ...i, unit_price: item.product.price, total_price: item.quantity * item.product.price }
+                            : i
+                        ));
+                      }}
+                    >
+                      <Text style={[
+                        styles.priceButtonLabelInline,
+                        currentPriceType === 'price' && styles.priceButtonLabelInlineSelected
+                      ]}>Máximo</Text>
+                      <Text style={[
+                        styles.priceButtonValueInline,
+                        currentPriceType === 'price' && styles.priceButtonValueInlineSelected
+                      ]}>{formatCurrency(item.product.price)}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.priceButtonInline,
+                        currentPriceType === 'cost' && styles.priceButtonInlineSelected
+                      ]}
+                      onPress={() => {
+                        setQuoteItems(prev => prev.map(i =>
+                          i.id === item.id
+                            ? { ...i, unit_price: item.product.cost, total_price: item.quantity * item.product.cost }
+                            : i
+                        ));
+                      }}
+                    >
+                      <Text style={[
+                        styles.priceButtonLabelInline,
+                        currentPriceType === 'cost' && styles.priceButtonLabelInlineSelected
+                      ]}>Oferta</Text>
+                      <Text style={[
+                        styles.priceButtonValueInline,
+                        currentPriceType === 'cost' && styles.priceButtonValueInlineSelected
+                      ]}>{formatCurrency(item.product.cost)}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.priceButtonInline,
+                        currentPriceType === 'higher_price' && styles.priceButtonInlineSelected
+                      ]}
+                      onPress={() => {
+                        setQuoteItems(prev => prev.map(i =>
+                          i.id === item.id
+                            ? { ...i, unit_price: item.product.higher_price, total_price: item.quantity * item.product.higher_price }
+                            : i
+                        ));
+                      }}
+                    >
+                      <Text style={[
+                        styles.priceButtonLabelInline,
+                        currentPriceType === 'higher_price' && styles.priceButtonLabelInlineSelected
+                      ]}>Mayor</Text>
+                      <Text style={[
+                        styles.priceButtonValueInline,
+                        currentPriceType === 'higher_price' && styles.priceButtonValueInlineSelected
+                      ]}>{formatCurrency(item.product.higher_price)}</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   {/* ✨ Mostrar descuento por IVA exento */}
                   {isExempt && (
                     <View style={styles.exemptionContainer}>
@@ -802,12 +933,52 @@ export default function NewQuoteScreen(): JSX.Element {
                       </Text>
                     </View>
                   )}
-                  
+
                   <Text style={styles.itemStock}>
                     Disponibilidad: {item.product?.stock}
                   </Text>
-                </TouchableOpacity>
+                </View>
+
+                {/* ✨ Controles de cantidad y total */}
                 <View style={styles.itemActions}>
+                  {/* Controles de cantidad */}
+                  <View style={styles.quantityContainerInline}>
+                    <TouchableOpacity
+                      style={styles.quantityButtonInline}
+                      onPress={() => {
+                        if (item.quantity > 1) {
+                          setQuoteItems(prev => prev.map(i =>
+                            i.id === item.id
+                              ? { ...i, quantity: i.quantity - 1, total_price: (i.quantity - 1) * i.unit_price }
+                              : i
+                          ));
+                        }
+                      }}
+                      disabled={item.quantity <= 1}
+                    >
+                      <Ionicons
+                        name="remove"
+                        size={14}
+                        color={item.quantity <= 1 ? colors.gray[300] : colors.primary[500]}
+                      />
+                    </TouchableOpacity>
+
+                    <Text style={styles.quantityTextInline}>{item.quantity}</Text>
+
+                    <TouchableOpacity
+                      style={styles.quantityButtonInline}
+                      onPress={() => {
+                        setQuoteItems(prev => prev.map(i =>
+                          i.id === item.id
+                            ? { ...i, quantity: i.quantity + 1, total_price: (i.quantity + 1) * i.unit_price }
+                            : i
+                        ));
+                      }}
+                    >
+                      <Ionicons name="add" size={14} color={colors.primary[500]} />
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.priceContainer}>
                     <Text style={styles.itemTotal}>{formatCurrency(item.total_price)}</Text>
                     {bcvRate && (
@@ -835,10 +1006,7 @@ export default function NewQuoteScreen(): JSX.Element {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal:</Text>
               <View style={styles.summaryAmounts}>
-                <Text style={styles.summaryValue}>{formatCurrency(totals.subtotal)}</Text>
-                {bcvRate && (
-                  <Text style={styles.summaryValueBCV}>{formatBCV(totals.subtotal)}</Text>
-                )}
+                <Text style={styles.summaryValue}>{formatWithBCV(totals.subtotal)}</Text>               
               </View>
             </View>
             
@@ -861,20 +1029,14 @@ export default function NewQuoteScreen(): JSX.Element {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>IVA (16%):</Text>
               <View style={styles.summaryAmounts}>
-                <Text style={styles.summaryValue}>{formatCurrency(totals.tax)}</Text>
-                {bcvRate && (
-                  <Text style={styles.summaryValueBCV}>{formatBCV(totals.tax)}</Text>
-                )}
+                <Text style={styles.summaryValue}>{formatWithBCV(totals.tax)}</Text>                
               </View>
             </View>
             
             <View style={[styles.summaryRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Total:</Text>
               <View style={styles.summaryAmounts}>
-                <Text style={styles.totalValue}>{formatCurrency(totals.total)}</Text>
-                {bcvRate && (
-                  <Text style={styles.totalValueBCV}>{formatBCV(totals.total)}</Text>
-                )}
+                <Text style={styles.totalValue}>{formatWithBCV(totals.total)}</Text>                
               </View>
             </View>
           </Card>
@@ -1035,7 +1197,10 @@ export default function NewQuoteScreen(): JSX.Element {
             <View>
               <Text style={styles.modalTitleProductNew}>Seleccionar Producto</Text>
               <Text style={styles.modalSubtitleProduct}>
-                {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}
+                {productCodeSearch || productDescriptionSearch
+                  ? `${filteredProducts.length} de ${totalProductsCount} producto${totalProductsCount !== 1 ? 's' : ''}`
+                  : `${totalProductsCount} producto${totalProductsCount !== 1 ? 's' : ''}`
+                }
               </Text>
             </View>
             <View style={{ width: 24 }} />
@@ -1092,11 +1257,21 @@ export default function NewQuoteScreen(): JSX.Element {
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id.toString()}
+            onEndReached={loadMoreProducts}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={() => loadingMoreProducts ? (
+              <View style={styles.loadingMoreContainerProduct}>
+                <View style={styles.loadingMoreSpinnerProduct} />
+                <Text style={styles.loadingMoreTextProduct}>Cargando más productos...</Text>
+              </View>
+            ) : productsHasMore && filteredProducts.length > 0 ? null : <View style={styles.endListContainerProduct}>
+              <Text style={styles.endListTextProduct}>— No hay más productos —</Text>
+            </View>}
             renderItem={({ item }) => {
               const productInput = getProductInput(item.id, item.price);
               const isLowStock = item.stock <= (item.min_stock || 0);
               const isExempt = item.sale_tax === 'EX';
-              
+
               return (
                 <Card style={[
                   styles.productCard,
@@ -1108,11 +1283,11 @@ export default function NewQuoteScreen(): JSX.Element {
                       <Text style={styles.productCode}>
                         {item.code}
                       </Text>
-                      
+
                       <Text style={styles.productNameModalFull}>
                         {item.description}
                       </Text>
-               
+
                       {item.category?.description && (
                         <View style={styles.infoRowProductModalFull}>
                           <Ionicons name="folder-outline" size={14} color={colors.text.secondary} />
@@ -1221,10 +1396,10 @@ export default function NewQuoteScreen(): JSX.Element {
                         }}
                         disabled={productInput.quantity === '0'}
                       >
-                        <Ionicons 
-                          name="remove" 
+                        <Ionicons
+                          name="remove"
                           size={16}
-                          color={productInput.quantity === '0' ? colors.gray[300] : colors.primary[500]} 
+                          color={productInput.quantity === '0' ? colors.gray[300] : colors.primary[500]}
                         />
                       </TouchableOpacity>
 
@@ -1249,10 +1424,10 @@ export default function NewQuoteScreen(): JSX.Element {
                           updateProductInput(item.id, 'quantity', (current + 1).toString());
                         }}
                       >
-                        <Ionicons 
-                          name="add" 
+                        <Ionicons
+                          name="add"
                           size={16}
-                          color={colors.primary[500]} 
+                          color={colors.primary[500]}
                         />
                       </TouchableOpacity>
                     </View>
@@ -1270,7 +1445,7 @@ export default function NewQuoteScreen(): JSX.Element {
               );
             }}
             contentContainerStyle={styles.productsListModal}
-            ListEmptyComponent={
+            ListEmptyComponent={loading ? null :
               <View style={styles.emptyContainerProductModal}>
                 <Ionicons name="cube-outline" size={64} color={colors.text.tertiary} />
                 <Text style={styles.emptyTextProductModal}>No hay productos</Text>
@@ -1663,9 +1838,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray[50],
     borderRadius: borderRadius.md,
     marginBottom: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning 
   },
   itemInfo: {
-    flex: 1,
+    flex: 1,  
+    
   },
   itemName: {
     fontSize: typography.fontSize.base,
@@ -2345,6 +2523,102 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
+    textAlign: 'center',
+  },
+
+  // ✨ NUEVOS ESTILOS PARA EDICIÓN EN LÍNEA
+  priceSelectContainerInline: {
+    flexDirection: 'column', // ← Cambiado a vertical
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  priceButtonInline: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.gray[50],
+    alignItems: 'flex-start', // ← Alinear a la izquierda
+  },
+  priceButtonInlineSelected: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[500],
+    borderWidth: 2,
+  },
+  priceButtonLabelInline: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  priceButtonLabelInlineSelected: {
+    color: colors.primary[500],
+  },
+  priceButtonValueInline: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+  priceButtonValueInlineSelected: {
+    color: colors.primary[500],
+  },
+
+  quantityContainerInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  quantityButtonInline: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quantityTextInline: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  loadingMoreContainerProduct: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  loadingMoreSpinnerProduct: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    borderStyle: 'solid',
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  loadingMoreTextProduct: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  endListContainerProduct: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  endListTextProduct: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.tertiary,
     textAlign: 'center',
   },
 });

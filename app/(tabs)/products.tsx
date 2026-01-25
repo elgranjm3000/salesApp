@@ -258,6 +258,10 @@ export default function ProductsScreen(): JSX.Element {
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [totalProductsCount, setTotalProductsCount] = useState<number>(0);
   const [codeSearch, setCodeSearch] = useState<string>('');
   const [descriptionSearch, setDescriptionSearch] = useState<string>('');
   const [localCodeSearch, setLocalCodeSearch] = useState<string>('');
@@ -278,9 +282,12 @@ export default function ProductsScreen(): JSX.Element {
 
    useFocusEffect(
     useCallback(() => {
-      loadData();
+      setPage(1);
+      setHasMore(true);
+      setLoadingMore(false);
+      loadData(1, false);
       setSelectedProducts(new Set());
-      setProductQuantities({});      
+      setProductQuantities({});
       setCodeSearch('');
       setLocalCodeSearch('');
       setDescriptionSearch('');
@@ -293,31 +300,92 @@ export default function ProductsScreen(): JSX.Element {
     filterProducts();
   }, [codeSearch, descriptionSearch, products, selectedCategory]);
 
-  const loadData = async (): Promise<void> => {
+  const loadMoreProducts = async (): Promise<void> => {
+    if (loadingMore || !hasMore) return;
+
+    const nextPage = page + 1;
+    setPage(nextPage);
+    await loadData(nextPage, true);
+  };
+
+  const loadData = async (pageNum: number = 1, loadMore: boolean = false): Promise<void> => {
     try {
-      setLoading(true);
+      if (!loadMore) setLoading(true);
+      else setLoadingMore(true);
+
       const storedCompany = await AsyncStorage.getItem('selectedCompany');
       const company = storedCompany ? JSON.parse(storedCompany) : null;
-      
+
+      // ✅ Validar que haya empresa seleccionada
+      if (!company) {
+        console.warn('⚠️ No hay empresa seleccionada');
+        Alert.alert(
+          'Empresa no seleccionada',
+          'Por favor selecciona una empresa primero desde el Dashboard.',
+          [
+            { text: 'Ir al Dashboard', onPress: () => router.replace('/(tabs)') }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      console.log('🔄 Cargando productos para empresa:', company.name, 'ID:', company.id, 'Página:', pageNum);
+
       const [productsResponse, categoriesResponse] = await Promise.all([
-        api.getProducts({ company_id: company?.id }),
-        api.getCategories({ company_id: company?.id })
+        api.getProducts({ company_id: company.id, page: pageNum, per_page: 50 }),
+        pageNum === 1 ? api.getCategories({ company_id: company.id }) : Promise.resolve({ data: categories })
       ]);
 
-      setProducts(productsResponse.data || []);
-      setCategories(categoriesResponse.data || []);
-      
-      // Inicializar precios por defecto a 'price' (máximo)
-      const defaultPrices: Record<number, 'cost' | 'price' | 'higher_price'> = {};
-      (productsResponse.data || []).forEach(product => {
-        defaultPrices[product.id] = 'cost'; // 'price' es el máximo
-      });
-      setSelectedPrices(defaultPrices);
-    } catch (error) {
-      console.log('Error loading data:', error);
-      Alert.alert('Error', 'No se pudo cargar la información');
+      const newProducts = productsResponse.data || [];
+      console.log('✅ Productos cargados:', newProducts.length, 'Total:', productsResponse.pagination?.total);
+
+      if (pageNum === 1) {
+        setProducts(newProducts);
+        setCategories(categoriesResponse.data || []);
+
+        // Inicializar precios por defecto a 'price' (máximo)
+        const defaultPrices: Record<number, 'cost' | 'price' | 'higher_price'> = {};
+        newProducts.forEach(product => {
+          defaultPrices[product.id] = 'cost'; // 'price' es el máximo
+        });
+        setSelectedPrices(defaultPrices);
+
+        // Guardar el total de productos disponibles
+        const pagination = productsResponse.pagination;
+        if (pagination) {
+          setTotalProductsCount(pagination.total);
+        }
+      } else {
+        setProducts(prev => [...prev, ...newProducts]);
+      }
+
+      // Verificar si hay más páginas
+      const pagination = productsResponse.pagination;
+      if (pagination) {
+        const totalPages = Math.ceil(pagination.total / pagination.per_page);
+        setHasMore(pageNum < totalPages);
+      } else {
+        setHasMore(newProducts.length > 0);
+      }
+
+      // ✅ Validar que se cargaron productos (solo en primera carga)
+      if (pageNum === 1 && newProducts.length === 0) {
+        Alert.alert(
+          'Sin productos',
+          'No hay productos disponibles para esta empresa. Contacta al administrador.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading data:', error);
+
+      // ✅ Mostrar mensaje específico del error
+      const errorMessage = error?.response?.data?.message || error?.message || 'Error al cargar la información';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -860,11 +928,25 @@ const ProductItem: React.FC<ProductItemProps> = ({
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadData} />
+          <RefreshControl refreshing={loading} onRefresh={() => {
+            setPage(1);
+            setHasMore(true);
+            loadData(1, false);
+          }} />
         }
+        onEndReached={loadMoreProducts}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={() => loadingMore ? (
+          <View style={styles.loadingMoreContainer}>
+            <View style={styles.loadingMoreSpinner} />
+            <Text style={styles.loadingMoreText}>Cargando más productos...</Text>
+          </View>
+        ) : hasMore && filteredProducts.length > 0 ? null : <View style={styles.endListContainer}>
+          <Text style={styles.endListText}>— No hay más productos —</Text>
+        </View>}
         contentContainerStyle={styles.productsList}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={renderEmpty}
+        ListEmptyComponent={loading ? null : renderEmpty}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
@@ -1399,5 +1481,35 @@ const styles = StyleSheet.create({
   },
   priceButtonValueSelected: {
     color: colors.primary[500],
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  loadingMoreSpinner: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    borderStyle: 'solid',
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  loadingMoreText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  endListContainer: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  endListText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.tertiary,
+    textAlign: 'center',
   },
 });

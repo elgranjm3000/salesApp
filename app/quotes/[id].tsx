@@ -688,18 +688,26 @@ const formatWithBCV = (amount: number) => {
               
               return (
               <View key={item.id || index} style={styles.quoteItem}>
-                <View style={styles.itemHeader}>
+                 <Text style={styles.productCode}>{item.product?.code}</Text>
+                <View style={styles.itemHeader}>                 
                   <Text style={styles.itemName}>
                     {item.product?.description || item.description || 'Producto sin nombre'}
                   </Text>
+                      {item.product?.category?.description && (
+                        <View style={styles.infoRowProductModalFull}>
+                          <Ionicons name="folder-outline" size={14} color={colors.text.secondary} />
+                          <Text style={styles.infoTextProductModalFull} numberOfLines={1}>
+                            {item.product?.category?.description}
+                          </Text>
+                        </View>
+                      )}
                   <View style={styles.itemBadge}>
                     <Text style={styles.itemBadgeText}>#{index + 1}</Text>
                   </View>
                 </View>
                 
-                {/* ✨ NUEVO: Mostrar badges de sale_tax y aliquot */}
-                 <View style={styles.productMetaBadges}>
-                  {/* Badge de Tipo de Venta */}
+                 {/* <View style={styles.productMetaBadges}>
+                 
                   <View style={[
                     styles.metaBadge,
                     isExempt && styles.metaBadgeExempt
@@ -716,14 +724,14 @@ const formatWithBCV = (amount: number) => {
                       {isExempt ? 'Exento' : item.sale_tax}
                     </Text>
                   </View>
-                  
-                  {/* Badge de Alícuota */}
+                 
+
                   {item.aliquot && (
                     <View style={styles.metaBadge}>
                       <Text style={styles.metaBadgeText}>{item.aliquot}%</Text>
                     </View>
                   )}
-                </View>
+                </View> */}
                 
                 {/* ✨ Mostrar IVA exento si sale_tax = EX */}
                 {isExempt && (
@@ -737,11 +745,10 @@ const formatWithBCV = (amount: number) => {
                 
                 <View style={styles.itemDetails}>
                   <View style={styles.itemDetailRow}>
-                    <Text style={styles.itemDetailLabel}>Cantidad:</Text>
-                    <Text style={styles.itemDetailValue}>{parseInt(item.quantity) || 0}</Text>
+                    <Text style={styles.itemDetails}>Cant: {parseInt(item.quantity) || 0}</Text>
                   </View>
                   <View style={styles.itemDetailRow}>
-                    <Text style={styles.itemDetailLabel}>Precio unitario:</Text>
+                    <Text style={styles.itemDetailLabel}>Precio:</Text>
                     <Text style={styles.itemDetailValue}>
                       {formatWithBCV(item.unit_price || 0)}
                     </Text>
@@ -770,7 +777,7 @@ const formatWithBCV = (amount: number) => {
 
       {/* Resumen Financiero - CON CÁLCULOS CORRECTOS */}
       <Card style={styles.summaryCard}>
-        <Text style={styles.sectionTitle}>Resumen Financiero</Text>
+        {/*<Text style={styles.sectionTitle}>Resumen Financiero</Text>*/}
         
         {/* ✨ DESGLOSE: Mostrar solo si hay productos exentos */}
         {calculateCorrectTotals.hasExemptions && (
@@ -819,19 +826,12 @@ const formatWithBCV = (amount: number) => {
         </View>
         <View style={styles.divider} />
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>TOTAL:</Text>
+          <Text style={styles.summaryLabel}>TOTAL:</Text>
           <View>
-            <Text style={styles.totalValueUSD}>
-              {formatCurrency(quote.total)}
+            <Text style={styles.summaryValue}>
+              {formatWithBCV(quote.total)}
             </Text>
-            {bcvRate && (
-              <Text style={styles.totalValueBCV}>
-                Bs. {(quote.total * bcvRate).toLocaleString('es-VE', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-              </Text>
-            )}
+            
           </View>
         </View>
       </Card>
@@ -1017,6 +1017,7 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     gap: spacing.md,
+     
   },
   quoteItem: {
     padding: spacing.lg,
@@ -1024,6 +1025,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.gray[200],
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning 
   },
   itemHeader: {
     flexDirection: 'row',
@@ -1079,7 +1082,9 @@ const styles = StyleSheet.create({
   },
   
   itemDetails: {
-    marginBottom: spacing.md,
+      fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   itemDetailRow: {
     flexDirection: 'row',
@@ -1194,7 +1199,7 @@ const styles = StyleSheet.create({
     color: colors.primary[600],
   },
   totalValueUSD: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.primary[600],
     textAlign: 'right',
@@ -1227,5 +1232,21 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.success,
     fontWeight: typography.fontWeight.medium,
+  },
+    productCode: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginBottom: 2,
+    fontFamily: 'monospace',
+  },
+    infoRowProductModalFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+   infoTextProductModalFull: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    flex: 1,
   },
 });

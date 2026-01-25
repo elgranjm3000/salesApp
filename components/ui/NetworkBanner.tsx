@@ -1,91 +1,109 @@
+/**
+ * NetworkBanner - Banner de estado de red con sincronización funcional
+ *
+ * Muestra:
+ * - Estado de conexión (online/offline)
+ * - Operaciones pendientes de sincronizar
+ * - Botón de sincronización manual
+ * - Progreso de sincronización
+ */
+
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { useSync } from '../../context/SyncContext';
 import { colors, spacing, typography } from '../../theme/design';
-import StorageService from '../../utils/storage';
 
 export const NetworkBanner: React.FC = () => {
-  const networkStatus = useNetworkStatus();
-  const [offlineSalesCount, setOfflineSalesCount] = useState(0);
+  const { isOnline, isSyncing, pendingCount, syncProgress, syncNow } = useSync();
   const [bannerHeight] = useState(new Animated.Value(0));
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    loadOfflineSalesCount();
-  }, []);
+    const shouldShow = !isOnline || pendingCount > 0 || isSyncing;
 
-  useEffect(() => {
-    const shouldShow = !networkStatus.isConnected || offlineSalesCount > 0;
-    
     if (shouldShow !== isVisible) {
       setIsVisible(shouldShow);
-      
+
       Animated.timing(bannerHeight, {
-        toValue: shouldShow ? 50 : 0,
+        toValue: shouldShow ? 60 : 0, // Aumentado a 60 para más espacio
         duration: 300,
         useNativeDriver: false,
       }).start();
     }
-  }, [networkStatus.isConnected, offlineSalesCount, isVisible]);
-
-  const loadOfflineSalesCount = async () => {
-    try {
-      const sales = await StorageService.getOfflineSales();
-      setOfflineSalesCount(sales.length);
-    } catch (error) {
-      console.error('Error loading offline sales count:', error);
-    }
-  };
+  }, [isOnline, pendingCount, isSyncing, isVisible]);
 
   const getBannerConfig = () => {
-    if (!networkStatus.isConnected) {
+    if (!isOnline) {
       return {
         backgroundColor: colors.warning,
         icon: 'wifi-off' as keyof typeof Ionicons.glyphMap,
         text: 'Sin conexión - Modo offline activo',
         textColor: colors.text.inverse,
+        showSync: false,
       };
     }
-    
-    if (offlineSalesCount > 0) {
+
+    if (isSyncing) {
+      const { current, total } = syncProgress;
       return {
         backgroundColor: colors.info,
-        icon: 'cloud-upload' as keyof typeof Ionicons.glyphMap,
-        text: `${offlineSalesCount} venta${offlineSalesCount > 1 ? 's' : ''} pendiente${offlineSalesCount > 1 ? 's' : ''} de sincronizar`,
+        icon: 'sync' as keyof typeof Ionicons.glyphMap,
+        text: `Sincronizando... (${current}/${total})`,
         textColor: colors.text.inverse,
+        showSync: false,
+      };
+    }
+
+    if (pendingCount > 0) {
+      return {
+        backgroundColor: colors.primary[500],
+        icon: 'cloud-upload' as keyof typeof Ionicons.glyphMap,
+        text: `${pendingCount} operación${pendingCount > 1 ? 'es' : ''} pendiente${pendingCount > 1 ? 's' : ''}`,
+        textColor: colors.text.inverse,
+        showSync: true,
       };
     }
 
     return null;
   };
 
+  const handleSync = async () => {
+    try {
+      await syncNow();
+    } catch (error) {
+      console.error('Error al sincronizar:', error);
+    }
+  };
+
   const bannerConfig = getBannerConfig();
 
   if (!bannerConfig) return null;
 
+  // Animar icono si está sincronizando
+  const IconComponent = isSyncing ? Animated.createAnimatedComponent(Ionicons) : Ionicons;
+
   return (
-    <Animated.View style={[styles.container, { 
+    <Animated.View style={[styles.container, {
       height: bannerHeight,
-      backgroundColor: bannerConfig.backgroundColor 
+      backgroundColor: bannerConfig.backgroundColor
     }]}>
       <View style={styles.content}>
-        <Ionicons 
-          name={bannerConfig.icon} 
-          size={16} 
-          color={bannerConfig.textColor} 
+        <IconComponent
+          name={bannerConfig.icon}
+          size={18}
+          color={bannerConfig.textColor}
+          style={isSyncing && styles.spinningIcon}
         />
         <Text style={[styles.text, { color: bannerConfig.textColor }]}>
           {bannerConfig.text}
         </Text>
-        
-        {offlineSalesCount > 0 && networkStatus.isConnected && (
-          <TouchableOpacity 
+
+        {bannerConfig.showSync && (
+          <TouchableOpacity
             style={styles.syncButton}
-            onPress={() => {
-              // Aquí puedes implementar la lógica de sincronización
-              console.log('Sync offline sales');
-            }}
+            onPress={handleSync}
+            activeOpacity={0.7}
           >
             <Text style={styles.syncButtonText}>Sincronizar</Text>
           </TouchableOpacity>
@@ -106,7 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    height: 50,
+    height: 60,
   },
   text: {
     fontSize: typography.fontSize.sm,
@@ -126,5 +144,8 @@ const styles = StyleSheet.create({
     color: colors.text.inverse,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
+  },
+  spinningIcon: {
+    // Animación de rotación podría agregarse aquí
   },
 });
