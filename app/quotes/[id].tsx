@@ -27,27 +27,32 @@ export default function QuoteDetailScreen(): JSX.Element {
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [rateDate, setRateDate] = useState<string>('');
 
-  // ✨ FUNCIÓN PRINCIPAL: Calcular totales basado en sale_tax
+  // ✨ FUNCIÓN PRINCIPAL: Calcular totales agrupados por alícuota
 const calculateCorrectTotals = useMemo(() => {
   if (!quote || !quote.items) {
     return {
-      taxableTotal: 0,
-      taxableDiscount: 0,
+      taxGroups: {},
       exemptTotal: 0,
-      exemptDiscount: 0,
       subtotal: 0,
       totalDiscount: 0,
-      finalTaxableBase: 0,
-      taxAmount: 0,
+      totalTax: 0,
       total: 0,
       hasExemptions: false,
     };
   }
 
-  let taxableTotal = 0;
+  // ✨ Agrupar impuestos por alícuota
+  interface TaxGroup {
+    base: number;
+    aliquot: number;
+    tax: number;
+    label: string;
+  }
+
+  const taxGroups: Record<number, TaxGroup> = {};
   let exemptTotal = 0;
-  let taxableDiscount = 0;
-  let exemptDiscount = 0;
+  let subtotal = 0;
+  let totalDiscount = 0;
 
   (quote.items || []).forEach((item: any) => {
     // ✅ VALIDACIÓN: Asegurar que sean números
@@ -64,52 +69,47 @@ const calculateCorrectTotals = useMemo(() => {
       item.discount_amount = 0;
     }
 
-    // ✨ NUEVO: Detectar exención según sale_tax de BD
+    // Determinar tipo de impuesto del producto
     const isExempt = item.sale_tax === 'EX';
-    
+    const aliquot = Number(item.aliquot) || 16; // Usar aliquot del producto o default 16
+
+    const itemSubtotal = itemTotal + itemDiscount;
+
     if (isExempt) {
-      exemptTotal += itemTotal;
-      exemptDiscount += itemDiscount;
+      // Producto exento
+      exemptTotal += itemSubtotal;
     } else {
-      taxableTotal += itemTotal;
-      taxableDiscount += itemDiscount;
+      // Producto gravado - agrupar por alícuota
+      if (!taxGroups[aliquot]) {
+        taxGroups[aliquot] = {
+          base: 0,
+          aliquot: aliquot,
+          tax: 0,
+          label: `${aliquot}%`
+        };
+      }
+      taxGroups[aliquot].base += itemSubtotal;
+      taxGroups[aliquot].tax += itemSubtotal * (aliquot / 100);
     }
+
+    subtotal += itemSubtotal;
+    totalDiscount += itemDiscount;
   });
 
-  const subtotal = taxableTotal + exemptTotal;
-  const totalDiscount = taxableDiscount + exemptDiscount;
-  
-  // ✅ VALIDACIÓN: Comprobar NaN antes de operaciones
-  if (isNaN(subtotal) || isNaN(totalDiscount)) {
-    console.error('❌ Error en cálculo de subtotal o totalDiscount');
-    return {
-      taxableTotal: 0,
-      taxableDiscount: 0,
-      exemptTotal: 0,
-      exemptDiscount: 0,
-      subtotal: 0,
-      totalDiscount: 0,
-      finalTaxableBase: 0,
-      taxAmount: 0,
-      total: 0,
-      hasExemptions: false,
-    };
-  }
+  // Calcular total de impuestos
+  let totalTax = 0;
+  Object.values(taxGroups).forEach(group => {
+    totalTax += group.tax;
+  });
 
-  const finalTaxableBase = Math.max(0, taxableTotal - taxableDiscount);
-  const taxAmount = Math.max(0, finalTaxableBase * 0.16);
-  
-  const total = subtotal - totalDiscount + taxAmount;
+  const total = subtotal + totalTax;
 
   return {
-    taxableTotal,
-    taxableDiscount,
+    taxGroups,
     exemptTotal,
-    exemptDiscount,
     subtotal,
     totalDiscount,
-    finalTaxableBase,
-    taxAmount,
+    totalTax,
     total,
     hasExemptions: exemptTotal > 0,
   };
@@ -335,13 +335,40 @@ const formatWithBCV = (amount: number) => {
             margin-bottom: 12px;
             padding: 4px 0;
           }
-          .summary-row.total { 
-            border-top: 2px solid #3b82f6; 
-            padding-top: 16px; 
+          .summary-row.total {
+            border-top: 2px solid #3b82f6;
+            padding-top: 16px;
             margin-top: 16px;
             font-size: 20px;
             font-weight: bold;
             color: #1e293b;
+          }
+          .tax-breakdown {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+          }
+          .tax-breakdown-info {
+            flex: 1;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+          }
+          .tax-breakdown-info span:first-child {
+            color: #6b7280;
+            font-size: 13px;
+            flex: 1;
+          }
+          .tax-breakdown-info span:last-child {
+            font-weight: 500;
+            color: #1f2937;
+            font-size: 13px;
+          }
+          .tax-breakdown-amount {
+            font-weight: 600;
+            color: #3b82f6;
+            font-size: 13px;
           }
           .discount { color: #dc2626; }
           
@@ -434,11 +461,36 @@ const formatWithBCV = (amount: number) => {
               <span>Subtotal:</span>
               <span>${formatCurrency(quote.subtotal)}</span>
             </div>
-            
-            <div class="summary-row">
-              <span>IVA:</span>
-              <span>${formatCurrency(quote.tax_amount)}</span>
-            </div>
+
+            <!-- ✨ Desglose de impuestos por alícuota -->
+            ${Object.values(calculateCorrectTotals.taxGroups).length > 0 ? `
+              <div style="border-top: 1px solid #e5e7eb; margin: 16px 0;"></div>
+              <h4 style="text-align: center; color: #6b7280; font-size: 14px; margin: 16px 0 8px; font-weight: 600;">Desglose de Impuestos</h4>
+
+              ${Object.values(calculateCorrectTotals.taxGroups)
+                .sort((a, b) => b.aliquot - a.aliquot)
+                .map(group => `
+                  <div class="tax-breakdown">
+                    <div class="tax-breakdown-info">
+                      <span>Base Gravada ${group.label}:</span>
+                      <span>${formatCurrency(group.base)}</span>
+                    </div>
+                    <div class="tax-breakdown-amount">+ ${formatCurrency(group.tax)}</div>
+                  </div>
+                `).join('')}
+
+              ${calculateCorrectTotals.hasExemptions ? `
+                <div class="tax-breakdown">
+                  <div class="tax-breakdown-info">
+                    <span>Exento:</span>
+                    <span>${formatCurrency(calculateCorrectTotals.exemptTotal)}</span>
+                  </div>
+                  <div class="tax-breakdown-amount">+ ${formatCurrency(0)}</div>
+                </div>
+              ` : ''}
+
+              <div style="border-top: 1px solid #e5e7eb; margin: 16px 0;"></div>
+            ` : ''}
             <div class="summary-row total">
               <span>TOTAL:</span>
               <div>
@@ -817,13 +869,37 @@ const formatWithBCV = (amount: number) => {
             -{formatWithBCV(quote.discount_amount)}
           </Text>
         </View>*/}
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>IVA (16%):</Text>
-          <Text style={styles.summaryValue}>
-            
-            {formatWithBCV(quote.tax_amount)}
-          </Text>
-        </View>
+        {/* ✨ Desglose de impuestos por alícuota */}
+        {Object.values(calculateCorrectTotals.taxGroups).length > 0 && (
+          <>
+            <View style={styles.taxDivider} />
+            <Text style={styles.taxSectionTitle}>Desglose de Impuestos</Text>
+
+            {Object.values(calculateCorrectTotals.taxGroups)
+              .sort((a, b) => b.aliquot - a.aliquot)
+              .map((group) => (
+                <View key={group.aliquot} style={styles.taxGroupRow}>
+                  <View style={styles.taxGroupInfo}>
+                    <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
+                    <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
+                  </View>
+                  <Text style={styles.taxGroupTax}>+ {formatCurrency(group.tax)}</Text>
+                </View>
+              ))}
+
+            {calculateCorrectTotals.hasExemptions && (
+              <View style={styles.taxGroupRow}>
+                <View style={styles.taxGroupInfo}>
+                  <Text style={styles.taxGroupLabel}>Exento:</Text>
+                  <Text style={styles.taxGroupBase}>{formatCurrency(calculateCorrectTotals.exemptTotal)}</Text>
+                </View>
+                <Text style={styles.taxGroupTax}>+ {formatCurrency(0)}</Text>
+              </View>
+            )}
+
+            <View style={styles.taxDivider} />
+          </>
+        )}
         <View style={styles.divider} />
         <View style={styles.totalRow}>
           <Text style={styles.summaryLabel}>TOTAL:</Text>
@@ -1248,5 +1324,46 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     flex: 1,
+  },
+  // ✨ Estilos para desglose de impuestos
+  taxDivider: {
+    height: 1,
+    backgroundColor: colors.gray[200],
+    marginVertical: spacing.sm,
+  },
+  taxSectionTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  taxGroupRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  taxGroupInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  taxGroupLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    flex: 1,
+  },
+  taxGroupBase: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  taxGroupTax: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.info,
   },
 });
