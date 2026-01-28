@@ -349,23 +349,12 @@ const formatWithBCV = (amount: number) => {
             align-items: center;
             padding: 8px 0;
           }
-          .tax-breakdown-info {
-            flex: 1;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-          }
-          .tax-breakdown-info span:first-child {
+          .tax-breakdown span:first-child {
             color: #6b7280;
             font-size: 13px;
             flex: 1;
           }
-          .tax-breakdown-info span:last-child {
-            font-weight: 500;
-            color: #1f2937;
-            font-size: 13px;
-          }
-          .tax-breakdown-amount {
+          .tax-breakdown span:last-child {
             font-weight: 600;
             color: #3b82f6;
             font-size: 13px;
@@ -471,21 +460,15 @@ const formatWithBCV = (amount: number) => {
                 .sort((a, b) => b.aliquot - a.aliquot)
                 .map(group => `
                   <div class="tax-breakdown">
-                    <div class="tax-breakdown-info">
-                      <span>Base Gravada ${group.label}:</span>
-                      <span>${formatCurrency(group.base)}</span>
-                    </div>
-                    <div class="tax-breakdown-amount">${formatCurrency(group.tax)}</div>
+                    <span>Impuesto ${group.label}:</span>
+                    <span>${formatCurrency(group.tax)}</span>
                   </div>
                 `).join('')}
 
               ${calculateCorrectTotals.hasExemptions ? `
                 <div class="tax-breakdown">
-                  <div class="tax-breakdown-info">
-                    <span>Exento:</span>
-                    <span>${formatCurrency(calculateCorrectTotals.exemptTotal)}</span>
-                  </div>
-                  <div class="tax-breakdown-amount">${formatCurrency(0)}</div>
+                  <span>Exento:</span>
+                  <span>${formatCurrency(0)}</span>
                 </div>
               ` : ''}
 
@@ -879,20 +862,14 @@ const formatWithBCV = (amount: number) => {
               .sort((a, b) => b.aliquot - a.aliquot)
               .map((group) => (
                 <View key={group.aliquot} style={styles.taxGroupRow}>
-                  <View style={styles.taxGroupInfo}>
-                    <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
-                    <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
-                  </View>
+                  <Text style={styles.taxGroupLabel}>Impuesto {group.label}:</Text>
                   <Text style={styles.taxGroupTax}>{formatCurrency(group.tax)}</Text>
                 </View>
               ))}
 
             {calculateCorrectTotals.hasExemptions && (
               <View style={styles.taxGroupRow}>
-                <View style={styles.taxGroupInfo}>
-                  <Text style={styles.taxGroupLabel}>Exento:</Text>
-                  <Text style={styles.taxGroupBase}>{formatCurrency(calculateCorrectTotals.exemptTotal)}</Text>
-                </View>
+                <Text style={styles.taxGroupLabel}>Exento:</Text>
                 <Text style={styles.taxGroupTax}>{formatCurrency(0)}</Text>
               </View>
             )}
@@ -1345,21 +1322,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xs,
   },
-  taxGroupInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
   taxGroupLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     flex: 1,
-  },
-  taxGroupBase: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
   },
   taxGroupTax: {
     fontSize: typography.fontSize.sm,

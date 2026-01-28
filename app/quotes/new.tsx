@@ -1098,20 +1098,14 @@ const formatWithBCV = (amount: number) => {
                   .sort((a, b) => b.aliquot - a.aliquot)
                   .map((group) => (
                     <View key={group.aliquot} style={styles.taxGroupRow}>
-                      <View style={styles.taxGroupInfo}>
-                        <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
-                        <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
-                      </View>
+                      <Text style={styles.taxGroupLabel}>Impuesto {group.label}:</Text>
                       <Text style={styles.taxGroupTax}>{formatCurrency(group.tax)}</Text>
                     </View>
                   ))}
 
                 {totals.exemptTotal > 0 && (
                   <View style={styles.taxGroupRow}>
-                    <View style={styles.taxGroupInfo}>
-                      <Text style={styles.taxGroupLabel}>Exento:</Text>
-                      <Text style={styles.taxGroupBase}>{formatCurrency(totals.exemptTotal)}</Text>
-                    </View>
+                    <Text style={styles.taxGroupLabel}>Exento:</Text>
                     <Text style={styles.taxGroupTax}>{formatCurrency(0)}</Text>
                   </View>
                 )}
@@ -2728,21 +2722,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xs,
   },
-  taxGroupInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
   taxGroupLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     flex: 1,
-  },
-  taxGroupBase: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
   },
   taxGroupTax: {
     fontSize: typography.fontSize.sm,
