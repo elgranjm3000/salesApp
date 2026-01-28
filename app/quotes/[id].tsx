@@ -181,24 +181,33 @@ const formatWithBCV = (amount: number) => {
   return usdFormatted;
 };
 
-  // Generar HTML para el PDF
+  // Generar HTML para el PDF (Estilo clásico venezolano)
   const generatePDFHTML = () => {
     const itemsHTML = quote.items?.map((item: any, index: number) => {
-      // ✨ Detectar exención según sale_tax de BD
       const isExempt = item.sale_tax === 'EX';
       return `
-      <tr style="border-bottom: 1px solid #e5e7eb;">
-        <td style="padding: 12px; text-align: left;">${index + 1}</td>
-        <td style="padding: 12px; text-align: left;">
+      <tr style="border-bottom: 1px solid #000;">
+        <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">${index + 1}</td>
+        <td style="padding: 8px; text-align: left; border-right: 1px solid #000;">
           ${item.product?.name || item.name || 'Producto sin nombre'}
-          ${isExempt ? '<br><span style="color: #10b981; font-size: 12px; font-weight: bold;">✓ IVA Exento</span>' : ''}
+          ${isExempt ? '<br><span style="font-size: 10px; font-weight: bold;">*EXENTO*</span>' : ''}
         </td>
-        <td style="padding: 12px; text-align: center;">${item.quantity || 0}</td>
-        <td style="padding: 12px; text-align: right;">${formatCurrency(item.unit_price || 0)}</td>
-        <td style="padding: 12px; text-align: right; font-weight: bold;">${formatCurrency(item.total || 0)}</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatCurrency(item.unit_price || 0)}</td>
+        <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">${item.quantity || 0}</td>
+        <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">UND</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatCurrency(item.discount_amount || 0)}</td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(item.total || 0)}</td>
       </tr>
     `;
-    }).join('') || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #6b7280;">No hay productos agregados</td></tr>';
+    }).join('') || '<tr><td colspan="7" style="padding: 20px; text-align: center;">No hay productos agregados</td></tr>';
+
+    // Calcular totales para el resumen
+    const subtotal = Number(quote.subtotal) || 0;
+    const discountPercent = Number(quote.discount) || 0;
+    const discountAmount = subtotal * (discountPercent / 100);
+    const totalTax = Object.values(calculateCorrectTotals.taxGroups).reduce((sum, group) => sum + group.tax, 0);
+    const taxableBase = subtotal - discountAmount;
+    const total = Number(quote.total) || 0;
 
     return `
       <!DOCTYPE html>
@@ -209,226 +218,183 @@ const formatWithBCV = (amount: number) => {
         <title>Presupuesto ${quote.quote_number}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { 
-            font-family: 'Arial', sans-serif; 
-            line-height: 1.6; 
-            color: #374151;
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            color: #000;
             background: #fff;
+            padding: 20px;
           }
-          .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
-          .header { 
-            text-align: center; 
-            margin-bottom: 40px; 
-            border-bottom: 3px solid #3b82f6;
-            padding-bottom: 20px;
+          .document {
+            max-width: 800px;
+            margin: 0 auto;
           }
-          .logo { 
-            width: 80px; 
-            height: 80px; 
-            background: #dbeafe; 
-            border-radius: 50%; 
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            color: #3b82f6;
-            font-weight: bold;
-          }
-          .company-name { 
-            font-size: 28px; 
-            font-weight: bold; 
-            color: #1f2937;
-            margin-bottom: 8px;
-          }
-          .quote-number { 
-            font-size: 18px; 
-            color: #6b7280;
-            font-weight: 500;
-          }
-          
-          .info-section { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 40px; 
-            margin-bottom: 40px;
-          }
-          .info-block h3 { 
-            font-size: 16px; 
-            font-weight: bold; 
-            color: #1f2937;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .info-block p { 
-            margin-bottom: 6px; 
-            color: #4b5563;
-          }
-          
-          .exchange-rate {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 30px;
-            text-align: center;
-          }
-          .exchange-rate h4 {
-            color: #92400e;
-            font-size: 14px;
-            margin-bottom: 8px;
-            font-weight: 600;
-          }
-          .exchange-rate .rate {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1f2937;
-          }
-          
-          .products-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-bottom: 30px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border-radius: 8px;
-            overflow: hidden;
-          }
-          .products-table th { 
-            background: #f3f4f6; 
-            padding: 16px 12px; 
-            text-align: left; 
-            font-weight: bold;
-            color: #374151;
-            border-bottom: 2px solid #e5e7eb;
-          }
-          .products-table td { 
-            padding: 12px; 
-            border-bottom: 1px solid #f3f4f6;
-          }
-          .products-table tbody tr:hover {
-            background: #f9fafb;
-          }
-          
-          .summary { 
-            background: #f8fafc; 
-            border-radius: 12px; 
-            padding: 24px;
-            border: 1px solid #e2e8f0;
-          }
-          .summary h3 { 
-            font-size: 18px; 
-            font-weight: bold; 
-            margin-bottom: 20px;
-            color: #1e293b;
-          }
-          .summary-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 12px;
-            padding: 4px 0;
-          }
-          .summary-row.total {
-            border-top: 2px solid #3b82f6;
-            padding-top: 16px;
-            margin-top: 16px;
-            font-size: 20px;
-            font-weight: bold;
-            color: #1e293b;
-          }
-          .tax-breakdown {
+
+          .header-row {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #000;
           }
-          .tax-breakdown span:first-child {
-            color: #6b7280;
-            font-size: 13px;
-            flex: 1;
-          }
-          .tax-breakdown span:last-child {
-            font-weight: 600;
-            color: #3b82f6;
-            font-size: 13px;
-          }
-          .discount { color: #dc2626; }
-          
-          .terms {
-            margin-top: 40px;
-            padding: 20px;
-            background: #f9fafb;
-            border-radius: 8px;
-            border-left: 4px solid #3b82f6;
-          }
-          .terms h4 {
-            font-size: 14px;
+          .company-name {
+            font-size: 16pt;
             font-weight: bold;
-            margin-bottom: 12px;
-            color: #1f2937;
             text-transform: uppercase;
           }
-          .terms p {
-            font-size: 12px;
-            line-height: 1.6;
-            color: #4b5563;
+          .quote-info {
+            text-align: right;
           }
-          
-          .footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
+          .quote-label {
+            font-weight: normal;
+            font-size: 11pt;
+          }
+          .quote-number {
+            font-size: 16pt;
+            font-weight: bold;
+          }
+
+          .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+          }
+          .info-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ccc;
+            font-size: 10pt;
+          }
+          .info-table td:first-child {
+            font-weight: bold;
+            width: 150px;
+            color: #333;
+          }
+          .info-table tr:last-child td {
+            border-bottom: none;
+          }
+
+          .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: 1px solid #000;
+          }
+          .products-table th {
+            background: #fff;
+            padding: 8px;
             text-align: center;
-            color: #6b7280;
-            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid #000;
+            font-size: 10pt;
+            text-transform: uppercase;
+          }
+          .products-table td {
+            padding: 8px;
+            border: 1px solid #000;
+            font-size: 10pt;
+          }
+
+          .summary-table {
+            width: 50%;
+            margin-left: auto;
+            border-collapse: collapse;
+          }
+          .summary-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #ccc;
+            font-size: 11pt;
+          }
+          .summary-table td:first-child {
+            font-weight: normal;
+          }
+          .summary-table td:last-child {
+            text-align: right;
+            font-weight: bold;
+          }
+          .summary-table tr.total-row td {
+            border-top: 2px solid #000;
+            border-bottom: none;
+            padding-top: 12px;
+            font-size: 14pt;
+          }
+
+          .tax-detail {
+            font-size: 9pt;
+            color: #333;
+          }
+
+          .footer-note {
+            text-align: right;
+            margin-top: 30px;
+            font-weight: bold;
+            font-size: 12pt;
           }
         </style>
       </head>
       <body>
-        <div class="container">
+        <div class="document">
           <!-- Header -->
-          <div class="header">
-            <div class="logo">📋</div>
-            <div class="company-name">${quote.company?.name || 'Empresa'}</div>
-            <div class="quote-number">Presupuesto ${quote.quote_number}</div>
+          <div class="header-row">
+            <div class="company-name">${(quote.company?.name || 'EMPRESA').toUpperCase()}</div>
+            <div class="quote-info">
+              <div class="quote-label">Presupuesto No.</div>
+              <div class="quote-number">${String(quote.quote_number || '').padStart(10, '0')}</div>
+            </div>
           </div>
 
-          <!-- Información Cliente y Empresa -->
-          <div class="info-section">
-            <div class="info-block">
-              <h3>Información del Cliente</h3>
-              <p><strong>Nombre:</strong> ${quote.customer?.name || 'Sin cliente asignado'}</p>
-              <p><strong>Email:</strong> ${quote.customer?.email || 'Sin email'}</p>
-              <p><strong>Dirección:</strong> ${quote.customer?.address || 'Sin dirección'}</p>
-              <p><strong>Documento:</strong> ${quote.customer?.document_type && quote.customer?.document_number ? `${quote.customer.document_type}: ${quote.customer.document_number}` : 'Sin documento'}</p>
-            </div>
-            <div class="info-block">
-              <h3>Detalles del Presupuesto</h3>
-              <p><strong>Fecha:</strong> ${formatDateOnly(quote.quote_date) || 'No especificada'}</p>
-              <p><strong>Válido hasta:</strong> ${formatDateOnly(quote.valid_until) || 'No especificado'}</p>
-              <p><strong>Vendedor:</strong> ${quote.seller?.name || 'Sin vendedor asignado'}</p>
-              <p><strong>Descuento general:</strong> ${quote.discount || 0}%</p>
-            </div>
-          </div>
+          <!-- Información del Cliente -->
+          <table class="info-table">
+            <tr>
+              <td>Cliente:</td>
+              <td>${quote.customer?.name || 'Sin cliente asignado'}</td>
+            </tr>
+            <tr>
+              <td>Dirección:</td>
+              <td>${quote.customer?.address || 'Sin dirección'}</td>
+            </tr>
+            <tr>
+              <td>Teléfonos:</td>
+              <td>${quote.customer?.phone || 'sn'}</td>
+            </tr>
+            <tr>
+              <td>Vendedor:</td>
+              <td>${quote.seller?.name || 'GENERICO'}</td>
+            </tr>
+            <tr>
+              <td>Moneda:</td>
+              <td>Bolívar</td>
+            </tr>
+            <tr>
+              <td>Fecha Emisión:</td>
+              <td>${formatDateOnly(quote.quote_date) || ''} ${new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}</td>
+            </tr>
+            <tr>
+              <td>Válido Hasta:</td>
+              <td>${formatDateOnly(quote.valid_until) || ''}</td>
+            </tr>
+          </table>
 
           ${bcvRate ? `
-          <!-- Tasa de Cambio -->
-          <div class="exchange-rate">
-            <h4>Tasa de Cambio</h4>
-            <div class="rate">1 USD = ${formatBcvRate(bcvRate)} Bs.</div>
-            <div style="font-size: 12px; margin-top: 8px;">Actualizada: ${rateDate}</div>
-          </div>
+          <table class="info-table">
+            <tr>
+              <td>Tasa de Cambio:</td>
+              <td>1 USD = ${formatBcvRate(bcvRate)} Bs. (Actualizada: ${rateDate})</td>
+            </tr>
+          </table>
           ` : ''}
 
           <!-- Tabla de Productos -->
           <table class="products-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Producto</th>
-                <th style="text-align: center;">Cantidad</th>
-                <th style="text-align: right;">Precio Unit.</th>
-                <th style="text-align: right;">Total</th>
+                <th style="width: 50px;">Código</th>
+                <th>Descripción</th>
+                <th style="width: 100px;">Precio</th>
+                <th style="width: 80px;">Cantidad</th>
+                <th style="width: 60px;">Unidad</th>
+                <th style="width: 100px;">Descuento</th>
+                <th style="width: 120px;">Total Neto</th>
               </tr>
             </thead>
             <tbody>
@@ -437,71 +403,64 @@ const formatWithBCV = (amount: number) => {
           </table>
 
           <!-- Resumen Financiero -->
-          <div class="summary">
-            <h3>Resumen Financiero</h3>
-            <div class="summary-row">
-              <span>Subtotal:</span>
-              <span>${formatCurrency(quote.subtotal)}</span>
-            </div>
-
-            <!-- ✨ Desglose de impuestos por alícuota -->
-            ${Object.values(calculateCorrectTotals.taxGroups).length > 0 ? `
-              <div style="border-top: 1px solid #e5e7eb; margin: 16px 0;"></div>
-              <h4 style="text-align: center; color: #6b7280; font-size: 14px; margin: 16px 0 8px; font-weight: 600;">Desglose de Impuestos</h4>
-
-              ${Object.values(calculateCorrectTotals.taxGroups)
-                .sort((a, b) => b.aliquot - a.aliquot)
-                .map(group => `
-                  <div class="tax-breakdown">
-                    <span>Impuesto ${group.label}:</span>
-                    <span>${formatCurrency(group.tax)}</span>
-                  </div>
-                `).join('')}
-
-              ${calculateCorrectTotals.hasExemptions ? `
-                <div class="tax-breakdown">
-                  <span>Exento:</span>
-                  <span>${formatCurrency(0)}</span>
-                </div>
-              ` : ''}
-
-              <div style="border-top: 1px solid #e5e7eb; margin: 16px 0;"></div>
+          <table class="summary-table">
+            <tr>
+              <td>SubTotal:</td>
+              <td>${formatCurrency(subtotal)}</td>
+            </tr>
+            <tr>
+              <td>Descuento:</td>
+              <td>${formatCurrency(discountAmount)} (${discountPercent.toFixed(2)}%)</td>
+            </tr>
+            <tr>
+              <td>Flete:</td>
+              <td>0.00 (0.00%)</td>
+            </tr>
+            <tr>
+              <td>Exento:</td>
+              <td>${calculateCorrectTotals.hasExemptions ? formatCurrency(calculateCorrectTotals.exemptTotal) : '0.00'}</td>
+            </tr>
+            <tr>
+              <td>Base Imponible:</td>
+              <td>${formatCurrency(taxableBase)}</td>
+            </tr>
+            ${Object.values(calculateCorrectTotals.taxGroups).length > 0 ? Object.values(calculateCorrectTotals.taxGroups)
+              .sort((a, b) => b.aliquot - a.aliquot)
+              .map(group => `
+            <tr>
+              <td class="tax-detail">Total Impuesto (${group.aliquot.toFixed(2)}%):</td>
+              <td class="tax-detail">${formatCurrency(group.tax)}</td>
+            </tr>
+              `).join('') : ''}
+            <tr class="total-row">
+              <td>Total:</td>
+              <td>${formatCurrency(total)}</td>
+            </tr>
+            ${bcvRate ? `
+            <tr>
+              <td colspan="2" style="text-align: right; font-size: 10pt; padding-top: 8px;">
+                ${formatCurrency(total * bcvRate)} Bs.
+              </td>
+            </tr>
             ` : ''}
-            <div class="summary-row total">
-              <span>TOTAL:</span>
-              <div>
-                <div>${formatCurrency(quote.total)}</div>
-                ${bcvRate ? `<div style="font-size: 14px; color: #6b7280; margin-top: 4px;">${(calculateCorrectTotals.total * bcvRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</div>` : ''}
-              </div>
-            </div>
-          </div>
+          </table>
 
           ${quote.terms_conditions ? `
-          <!-- Términos y Condiciones -->
-          <div class="terms">
-            <h4>Términos y Condiciones</h4>
-            <p>${quote.terms_conditions}</p>
+          <div style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; font-size: 10pt;">
+            <strong>Términos y Condiciones:</strong><br/>
+            ${quote.terms_conditions}
           </div>
           ` : ''}
 
           ${quote.notes ? `
-          <!-- Observaciones -->
-          <div class="terms">
-            <h4>Observaciones</h4>
-            <p>${quote.notes}</p>
+          <div style="margin-top: 15px; padding: 15px; border: 1px solid #ccc; font-size: 10pt;">
+            <strong>Observaciones:</strong><br/>
+            ${quote.notes}
           </div>
           ` : ''}
 
           <!-- Footer -->
-          <div class="footer">
-            <p>Presupuesto generado el ${new Date().toLocaleDateString('es-ES', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}</p>
-          </div>
+          <div class="footer-note">SIN DERECHO A CRÉDITO FISCAL</div>
         </div>
       </body>
       </html>
@@ -816,7 +775,7 @@ const formatWithBCV = (amount: number) => {
             <View style={styles.taxBreakdownRow}>
               <Text style={styles.taxBreakdownLabel}>Base gravable (no exenta):</Text>
               <Text style={styles.taxBreakdownValue}>
-                {formatCurrency(calculateCorrectTotals.finalTaxableBase)}
+                {formatCurrency(calculateCorrectTotals.subtotal - calculateCorrectTotals.exemptTotal)}
               </Text>
             </View>
             
