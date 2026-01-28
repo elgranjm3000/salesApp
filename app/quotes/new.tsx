@@ -1102,7 +1102,7 @@ const formatWithBCV = (amount: number) => {
                         <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
                         <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
                       </View>
-                      <Text style={styles.taxGroupTax}>+ {formatCurrency(group.tax)}</Text>
+                      <Text style={styles.taxGroupTax}>{formatCurrency(group.tax)}</Text>
                     </View>
                   ))}
 
@@ -1112,7 +1112,7 @@ const formatWithBCV = (amount: number) => {
                       <Text style={styles.taxGroupLabel}>Exento:</Text>
                       <Text style={styles.taxGroupBase}>{formatCurrency(totals.exemptTotal)}</Text>
                     </View>
-                    <Text style={styles.taxGroupTax}>+ {formatCurrency(0)}</Text>
+                    <Text style={styles.taxGroupTax}>{formatCurrency(0)}</Text>
                   </View>
                 )}
 

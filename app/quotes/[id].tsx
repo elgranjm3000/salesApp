@@ -475,7 +475,7 @@ const formatWithBCV = (amount: number) => {
                       <span>Base Gravada ${group.label}:</span>
                       <span>${formatCurrency(group.base)}</span>
                     </div>
-                    <div class="tax-breakdown-amount">+ ${formatCurrency(group.tax)}</div>
+                    <div class="tax-breakdown-amount">${formatCurrency(group.tax)}</div>
                   </div>
                 `).join('')}
 
@@ -485,7 +485,7 @@ const formatWithBCV = (amount: number) => {
                     <span>Exento:</span>
                     <span>${formatCurrency(calculateCorrectTotals.exemptTotal)}</span>
                   </div>
-                  <div class="tax-breakdown-amount">+ ${formatCurrency(0)}</div>
+                  <div class="tax-breakdown-amount">${formatCurrency(0)}</div>
                 </div>
               ` : ''}
 
@@ -883,7 +883,7 @@ const formatWithBCV = (amount: number) => {
                     <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
                     <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
                   </View>
-                  <Text style={styles.taxGroupTax}>+ {formatCurrency(group.tax)}</Text>
+                  <Text style={styles.taxGroupTax}>{formatCurrency(group.tax)}</Text>
                 </View>
               ))}
 
@@ -893,7 +893,7 @@ const formatWithBCV = (amount: number) => {
                   <Text style={styles.taxGroupLabel}>Exento:</Text>
                   <Text style={styles.taxGroupBase}>{formatCurrency(calculateCorrectTotals.exemptTotal)}</Text>
                 </View>
-                <Text style={styles.taxGroupTax}>+ {formatCurrency(0)}</Text>
+                <Text style={styles.taxGroupTax}>{formatCurrency(0)}</Text>
               </View>
             )}
 
