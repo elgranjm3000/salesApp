@@ -413,30 +413,65 @@ const formatWithBCV = (amount: number) => {
 
   const calculateTotals = () => {
     let subtotal = 0;
-    let taxableBase = 0;
+
+    // ✨ Agrupar impuestos por alícuota
+    interface TaxGroup {
+      base: number;
+      aliquot: number;
+      tax: number;
+      label: string;
+    }
+
+    const taxGroups: Record<number, TaxGroup> = {};
+    let exemptTotal = 0;
 
     quoteItems.forEach(item => {
       const itemSubtotal = item.quantity * item.unit_price;
       const itemDiscount = itemSubtotal * (item.discount / 100);
       const itemTotal = itemSubtotal - itemDiscount;
-      
+
       subtotal += itemTotal;
-      
-      // ✨ Si NO está exento, suma a la base tributaria
+
+      // ✨ Determinar tipo de impuesto del producto
       const isExempt = item.product.sale_tax === 'EX';
-      if (!isExempt) {
-        taxableBase += itemTotal;
+      const aliquot = item.product.aliquot || 16;
+
+      if (isExempt) {
+        // Producto exento
+        exemptTotal += itemTotal;
+      } else {
+        // Producto gravado - agrupar por alícuota
+        if (!taxGroups[aliquot]) {
+          taxGroups[aliquot] = {
+            base: 0,
+            aliquot: aliquot,
+            tax: 0,
+            label: `${aliquot}%`
+          };
+        }
+        taxGroups[aliquot].base += itemTotal;
+        taxGroups[aliquot].tax += itemTotal * (aliquot / 100);
       }
     });
 
+    // Aplicar descuento global proporcionalmente
     const discountAmount = subtotal * (Number(formData.discount) / 100);
-    const finalTaxableBase = taxableBase - discountAmount;
-    
-    // ✨ IVA solo se calcula sobre lo que NO está exento
-    const tax = finalTaxableBase * 0.16;
-    const total = subtotal - discountAmount + tax;
-    
-    return { subtotal, discountAmount, tax, total };
+    const total = subtotal - discountAmount;
+
+    // Calcular total de impuestos
+    let totalTax = 0;
+    Object.values(taxGroups).forEach(group => {
+      totalTax += group.tax;
+    });
+
+    return {
+      subtotal,
+      discountAmount,
+      taxGroups,
+      exemptTotal,
+      totalTax,
+      total
+    };
   };
 
   // ============================================================
@@ -1025,18 +1060,43 @@ const formatWithBCV = (amount: number) => {
                 </View>
               </View>
             )}
-            
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>IVA (16%):</Text>
-              <View style={styles.summaryAmounts}>
-                <Text style={styles.summaryValue}>{formatWithBCV(totals.tax)}</Text>                
-              </View>
-            </View>
-            
+
+            {/* ✨ Desglose de impuestos por alícuota */}
+            {Object.values(totals.taxGroups).length > 0 && (
+              <>
+                <View style={styles.taxDivider} />
+                <Text style={styles.taxSectionTitle}>Desglose de Impuestos</Text>
+
+                {Object.values(totals.taxGroups)
+                  .sort((a, b) => b.aliquot - a.aliquot)
+                  .map((group) => (
+                    <View key={group.aliquot} style={styles.taxGroupRow}>
+                      <View style={styles.taxGroupInfo}>
+                        <Text style={styles.taxGroupLabel}>Base Gravada {group.label}:</Text>
+                        <Text style={styles.taxGroupBase}>{formatCurrency(group.base)}</Text>
+                      </View>
+                      <Text style={styles.taxGroupTax}>+ {formatCurrency(group.tax)}</Text>
+                    </View>
+                  ))}
+
+                {totals.exemptTotal > 0 && (
+                  <View style={styles.taxGroupRow}>
+                    <View style={styles.taxGroupInfo}>
+                      <Text style={styles.taxGroupLabel}>Exento:</Text>
+                      <Text style={styles.taxGroupBase}>{formatCurrency(totals.exemptTotal)}</Text>
+                    </View>
+                    <Text style={styles.taxGroupTax}>+ {formatCurrency(0)}</Text>
+                  </View>
+                )}
+
+                <View style={styles.taxDivider} />
+              </>
+            )}
+
             <View style={[styles.summaryRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Total:</Text>
               <View style={styles.summaryAmounts}>
-                <Text style={styles.totalValue}>{formatWithBCV(totals.total)}</Text>                
+                <Text style={styles.totalValue}>{formatWithBCV(totals.total)}</Text>
               </View>
             </View>
           </Card>
@@ -2620,5 +2680,46 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.tertiary,
     textAlign: 'center',
+  },
+  // ✨ Estilos para desglose de impuestos
+  taxDivider: {
+    height: 1,
+    backgroundColor: colors.gray[200],
+    marginVertical: spacing.sm,
+  },
+  taxSectionTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  taxGroupRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  taxGroupInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  taxGroupLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    flex: 1,
+  },
+  taxGroupBase: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  taxGroupTax: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.info,
   },
 });
