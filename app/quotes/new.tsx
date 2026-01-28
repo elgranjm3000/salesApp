@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -78,11 +78,9 @@ export default function NewQuoteScreen(): JSX.Element {
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  
+
   const [customerSearch, setCustomerSearch] = useState('');
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  
+
   // Formulario
   const [formData, setFormData] = useState({
     valid_until: '',
@@ -313,26 +311,53 @@ const formatWithBCV = (amount: number) => {
     }
   }, [preselected_products, products]);
 
-  useEffect(() => {
-    const filtered = customers.filter(c => 
-      c.status === 'active' && 
-      c.name.toLowerCase().includes(customerSearch.toLowerCase())
+  // ✨ BUSCADOR DE CLIENTES OPTIMIZADO
+  const filteredCustomers = useMemo(() => {
+    const searchNormalized = customerSearch.toLowerCase().trim();
+
+    if (!searchNormalized) {
+      return customers.filter(c => c.status === 'active');
+    }
+
+    return customers.filter(c =>
+      c.status === 'active' &&
+      c.name.toLowerCase().includes(searchNormalized)
     );
-    setFilteredCustomers(filtered);
   }, [customerSearch, customers]);
 
-  // ✨ BUSCADOR DUAL - useEffect actualizado con AND lógico
-  useEffect(() => {
-    const filtered = products.filter(p => {
-      const statusOk = p.status === 'active';
-      const codeMatch = p.code.toLowerCase().includes(productCodeSearch.toLowerCase());
-      const descriptionMatch = 
-        p.description.toLowerCase().includes(productDescriptionSearch.toLowerCase()) ||
-        p.name.toLowerCase().includes(productDescriptionSearch.toLowerCase());
-      
-      return statusOk && codeMatch && descriptionMatch;
+  // ✨ BUSCADOR DUAL OPTIMIZADO con useMemo y normalización
+  const filteredProducts = useMemo(() => {
+    // Normalizar términos de búsqueda una sola vez
+    const codeSearchNormalized = productCodeSearch.toLowerCase().trim();
+    const descriptionSearchNormalized = productDescriptionSearch.toLowerCase().trim();
+
+    // Si no hay búsqueda, retornar todos los productos activos
+    if (!codeSearchNormalized && !descriptionSearchNormalized) {
+      return products.filter(p => p.status === 'active');
+    }
+
+    // Filtrar productos
+    return products.filter(p => {
+      // Solo productos activos
+      if (p.status !== 'active') return false;
+
+      // Coincidencia por código (si hay búsqueda de código)
+      if (codeSearchNormalized && !p.code.toLowerCase().includes(codeSearchNormalized)) {
+        return false;
+      }
+
+      // Coincidencia por descripción/nombre (si hay búsqueda de descripción)
+      if (descriptionSearchNormalized) {
+        const descLower = p.description.toLowerCase();
+        const nameLower = p.name.toLowerCase();
+        if (!descLower.includes(descriptionSearchNormalized) &&
+            !nameLower.includes(descriptionSearchNormalized)) {
+          return false;
+        }
+      }
+
+      return true;
     });
-    setFilteredProducts(filtered);
   }, [productCodeSearch, productDescriptionSearch, products]);
 
   // ============================================================
