@@ -28,6 +28,7 @@ export default function QuoteDetailScreen(): JSX.Element {
   const [rateDate, setRateDate] = useState<string>('');
 
   // ✨ FUNCIÓN PRINCIPAL: Calcular totales agrupados por alícuota
+  // Usando tax_percentage y tax_amount del backend
 const calculateCorrectTotals = useMemo(() => {
   if (!quote || !quote.items) {
     return {
@@ -41,7 +42,7 @@ const calculateCorrectTotals = useMemo(() => {
     };
   }
 
-  // ✨ Agrupar impuestos por alícuota
+  // ✨ Agrupar impuestos por alícuota usando datos del backend
   interface TaxGroup {
     base: number;
     aliquot: number;
@@ -55,23 +56,14 @@ const calculateCorrectTotals = useMemo(() => {
   let totalDiscount = 0;
 
   (quote.items || []).forEach((item: any) => {
-    // ✅ VALIDACIÓN: Asegurar que sean números
+    // ✅ Usar tax_percentage y tax_amount del backend
+    const taxPercentage = Number(item.tax_percentage) || 0;
+    const taxAmount = Number(item.tax_amount) || 0;
     const itemTotal = Number(item.total) || 0;
     const itemDiscount = Number(item.discount_amount) || 0;
 
-    // ✅ VALIDACIÓN: Verificar que NO sean NaN
-    if (isNaN(itemTotal)) {
-      console.warn('⚠️ item.total es NaN:', item.total);
-      item.total = 0;
-    }
-    if (isNaN(itemDiscount)) {
-      console.warn('⚠️ item.discount_amount es NaN:', item.discount_amount);
-      item.discount_amount = 0;
-    }
-
-    // Determinar tipo de impuesto del producto
-    const isExempt = item.sale_tax === 'EX';
-    const aliquot = Number(item.aliquot) || 16; // Usar aliquot del producto o default 16
+    // Determinar si es exento por tax_percentage
+    const isExempt = taxPercentage === 0 || item.sale_tax === 'EX';
 
     const itemSubtotal = itemTotal + itemDiscount;
 
@@ -80,16 +72,17 @@ const calculateCorrectTotals = useMemo(() => {
       exemptTotal += itemSubtotal;
     } else {
       // Producto gravado - agrupar por alícuota
-      if (!taxGroups[aliquot]) {
-        taxGroups[aliquot] = {
+      if (!taxGroups[taxPercentage]) {
+        taxGroups[taxPercentage] = {
           base: 0,
-          aliquot: aliquot,
+          aliquot: taxPercentage,
           tax: 0,
-          label: `${aliquot}%`
+          label: `${taxPercentage}%`
         };
       }
-      taxGroups[aliquot].base += itemSubtotal;
-      taxGroups[aliquot].tax += itemSubtotal * (aliquot / 100);
+      // ✅ Usar tax_amount del backend en lugar de recalcular
+      taxGroups[taxPercentage].base += itemSubtotal;
+      taxGroups[taxPercentage].tax += taxAmount;
     }
 
     subtotal += itemSubtotal;
