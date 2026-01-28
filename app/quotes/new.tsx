@@ -479,15 +479,17 @@ const formatWithBCV = (amount: number) => {
       }
     });
 
-    // Aplicar descuento global proporcionalmente
-    const discountAmount = subtotal * (Number(formData.discount) / 100);
-    const total = subtotal - discountAmount;
-
     // Calcular total de impuestos
     let totalTax = 0;
     Object.values(taxGroups).forEach(group => {
       totalTax += group.tax;
     });
+
+    // Aplicar descuento global
+    const discountAmount = subtotal * (Number(formData.discount) / 100);
+
+    // ✅ Total correcto: subtotal - descuento + impuestos
+    const total = subtotal - discountAmount + totalTax;
 
     return {
       subtotal,
