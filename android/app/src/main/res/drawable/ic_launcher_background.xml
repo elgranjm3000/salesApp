@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:drawable="@color/splashscreen_background"/>
   <item>
-    <color android:color="#ffffff"/>
+    <bitmap android:gravity="center" android:src="@drawable/splashscreen_logo"/>
   </item>
 </layer-list>
