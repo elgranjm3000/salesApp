@@ -96,8 +96,8 @@ export default function NewQuoteScreen(): JSX.Element {
     Record<number, { quantity: string; unit_price: string | null; discount: string }>
   >({});
   
-  // Track de precio seleccionado por tipo
-  const [selectedPriceType, setSelectedPriceType] = useState<'cost' | 'price' | 'higher_price'>('price');
+  // Track de precio seleccionado por tipo (0=máximo, 1=oferta, 2=mayor)
+  const [selectedPriceType, setSelectedPriceType] = useState<number>(0);
   
   const [errors, setErrors] = useState({});
   const [editingItemId, setEditingItemId] = useState(null);
@@ -508,16 +508,16 @@ const formatWithBCV = (amount: number) => {
   // ✨ CAMBIO 1: selectProduct con auto-detección de sale_tax
   const selectProduct = (product) => {
     setSelectedProduct(product);
-    setSelectedPriceType('price');
+    setSelectedPriceType(0); // 0 = máximo (precio por defecto)
     updateProductInput(product.id, 'quantity', '1');
     updateProductInput(product.id, 'unit_price', product.price.toString());
     updateProductInput(product.id, 'discount', '0');
-    
+
     // ✨ Auto-detectar si es exento según sale_tax de BD
     const isExempt = product.sale_tax === 'EX';
     const discountPercent = isExempt ? (product.aliquot || 16) : 0;
     updateItemExemption(product.id, isExempt, discountPercent);
-    
+
     setShowProductSelector(false);
     setShowItemModal(true);
   };
@@ -529,16 +529,15 @@ const formatWithBCV = (amount: number) => {
     updateProductInput(item.product.id, 'quantity', item.quantity.toString());
     updateProductInput(item.product.id, 'unit_price', item.unit_price.toString());
     updateProductInput(item.product.id, 'discount', item.discount.toString());
-    
+
+    // ✨ Cargar tipo de precio seleccionado
+    setSelectedPriceType(item.price_type ?? 0);
+
     // ✨ Cargar sale_tax y aliquot de producto
     const isExempt = item.product.sale_tax === 'EX';
     const discountPercent = isExempt ? (item.product.aliquot || 16) : 0;
     updateItemExemption(item.product.id, isExempt, discountPercent);
-    
-    const priceType = item.unit_price === item.product.cost ? 'cost' :
-                     item.unit_price === item.product.higher_price ? 'higher_price' :
-                     'price';
-    setSelectedPriceType(priceType);
+
     setShowItemModal(true);
   };
 
@@ -606,7 +605,7 @@ const formatWithBCV = (amount: number) => {
     setShowItemModal(false);
     setSelectedProduct(null);
     setEditingItemId(null);
-    setSelectedPriceType('price');
+    setSelectedPriceType(0); // 0 = máximo
     updateProductInput(selectedProduct.id, 'quantity', '1');
     updateProductInput(selectedProduct.id, 'unit_price', null);
     updateProductInput(selectedProduct.id, 'discount', '0');
@@ -655,6 +654,8 @@ const formatWithBCV = (amount: number) => {
           buy_tax: item.product.sale_tax === 'EX' ? 1 : 0,
           sale_tax: item.product.sale_tax,
           aliquot: item.product.aliquot,
+          // ✨ Enviar type_price (0=máximo, 1=oferta, 2=mayor)
+          type_price: item.price_type ?? 0,
         })),
         valid_until: formData.valid_until,
         terms_conditions: 'test terms',
@@ -733,7 +734,7 @@ const formatWithBCV = (amount: number) => {
     setShowItemModal(false);
     setSelectedProduct(null);
     setEditingItemId(null);
-    setSelectedPriceType('price');
+    setSelectedPriceType(0); // 0 = máximo
     if (selectedProduct) {
       updateProductInput(selectedProduct.id, 'quantity', '1');
       updateProductInput(selectedProduct.id, 'unit_price', null);
@@ -899,10 +900,10 @@ const formatWithBCV = (amount: number) => {
             quoteItems.map((item) => {
               // ✨ Detectar exención según sale_tax
               const isExempt = item.product.sale_tax === 'EX';
-              // ✨ Usar el tipo de precio guardado, o calcularlo si no existe
-              const currentPriceType = item.price_type || (
-                item.unit_price === item.product.cost ? 'cost' :
-                item.unit_price === item.product.higher_price ? 'higher_price' : 'price'
+              // ✨ Usar el tipo de precio guardado, o calcularlo si no existe (0=máximo, 1=oferta, 2=mayor)
+              const currentPriceType = item.price_type ?? (
+                item.unit_price === item.product.cost ? 1 :
+                item.unit_price === item.product.higher_price ? 2 : 0
               );
 
               return (
@@ -924,69 +925,69 @@ const formatWithBCV = (amount: number) => {
                     <TouchableOpacity
                       style={[
                         styles.priceButtonInline,
-                        currentPriceType === 'price' && styles.priceButtonInlineSelected
+                        currentPriceType === 0 && styles.priceButtonInlineSelected
                       ]}
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.price, total_price: item.quantity * item.product.price, price_type: 'price' }
+                            ? { ...i, unit_price: item.product.price, total_price: item.quantity * item.product.price, price_type: 0 }
                             : i
                         ));
                       }}
                     >
                       <Text style={[
                         styles.priceButtonLabelInline,
-                        currentPriceType === 'price' && styles.priceButtonLabelInlineSelected
+                        currentPriceType === 0 && styles.priceButtonLabelInlineSelected
                       ]}>Máximo</Text>
                       <Text style={[
                         styles.priceButtonValueInline,
-                        currentPriceType === 'price' && styles.priceButtonValueInlineSelected
+                        currentPriceType === 0 && styles.priceButtonValueInlineSelected
                       ]}>{formatCurrency(item.product.price)}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={[
                         styles.priceButtonInline,
-                        currentPriceType === 'cost' && styles.priceButtonInlineSelected
+                        currentPriceType === 1 && styles.priceButtonInlineSelected
                       ]}
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.cost, total_price: item.quantity * item.product.cost, price_type: 'cost' }
+                            ? { ...i, unit_price: item.product.cost, total_price: item.quantity * item.product.cost, price_type: 1 }
                             : i
                         ));
                       }}
                     >
                       <Text style={[
                         styles.priceButtonLabelInline,
-                        currentPriceType === 'cost' && styles.priceButtonLabelInlineSelected
+                        currentPriceType === 1 && styles.priceButtonLabelInlineSelected
                       ]}>Oferta</Text>
                       <Text style={[
                         styles.priceButtonValueInline,
-                        currentPriceType === 'cost' && styles.priceButtonValueInlineSelected
+                        currentPriceType === 1 && styles.priceButtonValueInlineSelected
                       ]}>{formatCurrency(item.product.cost)}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={[
                         styles.priceButtonInline,
-                        currentPriceType === 'higher_price' && styles.priceButtonInlineSelected
+                        currentPriceType === 2 && styles.priceButtonInlineSelected
                       ]}
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.higher_price, total_price: item.quantity * item.product.higher_price, price_type: 'higher_price' }
+                            ? { ...i, unit_price: item.product.higher_price, total_price: item.quantity * item.product.higher_price, price_type: 2 }
                             : i
                         ));
                       }}
                     >
                       <Text style={[
                         styles.priceButtonLabelInline,
-                        currentPriceType === 'higher_price' && styles.priceButtonLabelInlineSelected
+                        currentPriceType === 2 && styles.priceButtonLabelInlineSelected
                       ]}>Mayor</Text>
                       <Text style={[
                         styles.priceButtonValueInline,
-                        currentPriceType === 'higher_price' && styles.priceButtonValueInlineSelected
+                        currentPriceType === 2 && styles.priceButtonValueInlineSelected
                       ]}>{formatCurrency(item.product.higher_price)}</Text>
                     </TouchableOpacity>
                   </View>
@@ -1627,10 +1628,10 @@ const formatWithBCV = (amount: number) => {
                       <TouchableOpacity
                         style={[
                           styles.priceOption,
-                          selectedPriceType === 'price' && styles.priceOptionSelected
+                          selectedPriceType === 0 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
-                          setSelectedPriceType('price');
+                          setSelectedPriceType(0);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.price.toString());
                         }}
                       >
@@ -1638,7 +1639,7 @@ const formatWithBCV = (amount: number) => {
                           <Text style={styles.priceOptionLabel}>Máximo</Text>
                           <Text style={[
                             styles.priceOptionValue,
-                            selectedPriceType === 'price' && styles.priceOptionValueSelected
+                            selectedPriceType === 0 && styles.priceOptionValueSelected
                           ]}>
                             {formatCurrency(selectedProduct.price)}
                           </Text>
@@ -1648,7 +1649,7 @@ const formatWithBCV = (amount: number) => {
                             </Text>
                           )}
                         </View>
-                        {selectedPriceType === 'price' && (
+                        {selectedPriceType === 0 && (
                           <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
                         )}
                       </TouchableOpacity>
@@ -1656,10 +1657,10 @@ const formatWithBCV = (amount: number) => {
                       <TouchableOpacity
                         style={[
                           styles.priceOption,
-                          selectedPriceType === 'cost' && styles.priceOptionSelected
+                          selectedPriceType === 1 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
-                          setSelectedPriceType('cost');
+                          setSelectedPriceType(1);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.cost.toString());
                         }}
                       >
@@ -1667,7 +1668,7 @@ const formatWithBCV = (amount: number) => {
                           <Text style={styles.priceOptionLabel}>Oferta</Text>
                           <Text style={[
                             styles.priceOptionValue,
-                            selectedPriceType === 'cost' && styles.priceOptionValueSelected
+                            selectedPriceType === 1 && styles.priceOptionValueSelected
                           ]}>
                             {formatCurrency(selectedProduct.cost)}
                           </Text>
@@ -1677,7 +1678,7 @@ const formatWithBCV = (amount: number) => {
                             </Text>
                           )}
                         </View>
-                        {selectedPriceType === 'cost' && (
+                        {selectedPriceType === 1 && (
                           <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
                         )}
                       </TouchableOpacity>
@@ -1685,10 +1686,10 @@ const formatWithBCV = (amount: number) => {
                       <TouchableOpacity
                         style={[
                           styles.priceOption,
-                          selectedPriceType === 'higher_price' && styles.priceOptionSelected
+                          selectedPriceType === 2 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
-                          setSelectedPriceType('higher_price');
+                          setSelectedPriceType(2);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.higher_price.toString());
                         }}
                       >
@@ -1696,7 +1697,7 @@ const formatWithBCV = (amount: number) => {
                           <Text style={styles.priceOptionLabel}>Mayor</Text>
                           <Text style={[
                             styles.priceOptionValue,
-                            selectedPriceType === 'higher_price' && styles.priceOptionValueSelected
+                            selectedPriceType === 2 && styles.priceOptionValueSelected
                           ]}>
                             {formatCurrency(selectedProduct.higher_price)}
                           </Text>
@@ -1706,7 +1707,7 @@ const formatWithBCV = (amount: number) => {
                             </Text>
                           )}
                         </View>
-                        {selectedPriceType === 'higher_price' && (
+                        {selectedPriceType === 2 && (
                           <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
                         )}
                       </TouchableOpacity>
