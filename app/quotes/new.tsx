@@ -646,19 +646,23 @@ const formatWithBCV = (amount: number) => {
       const quoteData = {
         customer_id: selectedCustomer.id,
         company_id: selectedCompany?.id,
-        items: quoteItems.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity || 1,
-          unit_price: item.unit_price,
-          discount: 0,
-          name: item.product?.name,
-          // ✨ Usar sale_tax de BD directamente
-          buy_tax: item.product.sale_tax === 'EX' ? 1 : 0,
-          sale_tax: item.product.sale_tax,
-          aliquot: item.product.aliquot,
-          // ✨ Enviar type_price (0=máximo, 1=oferta, 2=mayor)
-          type_price: item.price_type ?? 0,
-        })),
+        items: quoteItems.map(item => {
+          const typePrice = item.price_type ?? 0;
+          console.log('📦 Item para backend:', item.product?.name, 'price_type:', item.price_type, 'type_price enviado:', typePrice);
+          return {
+            product_id: item.product_id,
+            quantity: item.quantity || 1,
+            unit_price: item.unit_price,
+            discount: 0,
+            name: item.product?.name,
+            // ✨ Usar sale_tax de BD directamente
+            buy_tax: item.product.sale_tax === 'EX' ? 1 : 0,
+            sale_tax: item.product.sale_tax,
+            aliquot: item.product.aliquot,
+            // ✨ Enviar type_price (0=máximo, 1=oferta, 2=mayor)
+            type_price: typePrice,
+          };
+        }),
         valid_until: formData.valid_until,
         terms_conditions: 'test terms',
         notes: formData.notes.trim(),
