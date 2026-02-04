@@ -564,6 +564,7 @@ const formatWithBCV = (amount: number) => {
             unit_price: unitPrice,
             discount,
             total_price: totalPrice,
+            price_type: selectedPriceType,
           };
         }
         return item;
@@ -582,6 +583,7 @@ const formatWithBCV = (amount: number) => {
               unit_price: unitPrice,
               discount,
               total_price: newTotalPrice,
+              price_type: selectedPriceType,
             };
           }
           return item;
@@ -595,6 +597,7 @@ const formatWithBCV = (amount: number) => {
           unit_price: unitPrice,
           discount,
           total_price: totalPrice,
+          price_type: selectedPriceType,
         };
         setQuoteItems(prev => [...prev, newItem]);
       }
@@ -896,9 +899,11 @@ const formatWithBCV = (amount: number) => {
             quoteItems.map((item) => {
               // ✨ Detectar exención según sale_tax
               const isExempt = item.product.sale_tax === 'EX';
-              // ✨ Determinar el tipo de precio actual
-              const currentPriceType = item.unit_price === item.product.cost ? 'cost' :
-                                       item.unit_price === item.product.higher_price ? 'higher_price' : 'price';
+              // ✨ Usar el tipo de precio guardado, o calcularlo si no existe
+              const currentPriceType = item.price_type || (
+                item.unit_price === item.product.cost ? 'cost' :
+                item.unit_price === item.product.higher_price ? 'higher_price' : 'price'
+              );
 
               return (
               <View key={item.id} style={styles.item}>
@@ -924,7 +929,7 @@ const formatWithBCV = (amount: number) => {
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.price, total_price: item.quantity * item.product.price }
+                            ? { ...i, unit_price: item.product.price, total_price: item.quantity * item.product.price, price_type: 'price' }
                             : i
                         ));
                       }}
@@ -947,7 +952,7 @@ const formatWithBCV = (amount: number) => {
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.cost, total_price: item.quantity * item.product.cost }
+                            ? { ...i, unit_price: item.product.cost, total_price: item.quantity * item.product.cost, price_type: 'cost' }
                             : i
                         ));
                       }}
@@ -970,7 +975,7 @@ const formatWithBCV = (amount: number) => {
                       onPress={() => {
                         setQuoteItems(prev => prev.map(i =>
                           i.id === item.id
-                            ? { ...i, unit_price: item.product.higher_price, total_price: item.quantity * item.product.higher_price }
+                            ? { ...i, unit_price: item.product.higher_price, total_price: item.quantity * item.product.higher_price, price_type: 'higher_price' }
                             : i
                         ));
                       }}
