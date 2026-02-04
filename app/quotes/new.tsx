@@ -598,6 +598,7 @@ const formatWithBCV = (amount: number) => {
           total_price: totalPrice,
           price_type: selectedPriceType,
         };
+        console.log('✅ Creando nuevo item con price_type:', selectedPriceType, 'Precio:', unitPrice);
         setQuoteItems(prev => [...prev, newItem]);
       }
     }
@@ -905,6 +906,7 @@ const formatWithBCV = (amount: number) => {
                 item.unit_price === item.product.cost ? 1 :
                 item.unit_price === item.product.higher_price ? 2 : 0
               );
+              console.log('🔍 Item:', item.product?.name, 'price_type:', item.price_type, 'currentPriceType:', currentPriceType, 'unit_price:', item.unit_price);
 
               return (
               <View key={item.id} style={styles.item}>
@@ -1631,6 +1633,7 @@ const formatWithBCV = (amount: number) => {
                           selectedPriceType === 0 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
+                          console.log('📌 Seleccionado: Máximo (0)');
                           setSelectedPriceType(0);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.price.toString());
                         }}
@@ -1660,6 +1663,7 @@ const formatWithBCV = (amount: number) => {
                           selectedPriceType === 1 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
+                          console.log('📌 Seleccionado: Oferta (1)');
                           setSelectedPriceType(1);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.cost.toString());
                         }}
@@ -1689,6 +1693,7 @@ const formatWithBCV = (amount: number) => {
                           selectedPriceType === 2 && styles.priceOptionSelected
                         ]}
                         onPress={() => {
+                          console.log('📌 Seleccionado: Mayor (2)');
                           setSelectedPriceType(2);
                           updateProductInput(selectedProduct.id, 'unit_price', selectedProduct.higher_price.toString());
                         }}
