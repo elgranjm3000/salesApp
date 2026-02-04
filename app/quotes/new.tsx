@@ -290,12 +290,12 @@ const formatWithBCV = (amount: number) => {
       const newItems = selectedProducts.map((product, index) => {
         const qty = quantityProducts[index] || 1;
         const unitPrice = pricesArray[index] || product.price;
-        
+
         // ✨ Auto-detectar exención según sale_tax
         const isExempt = product.sale_tax === 'EX';
         const discountPercent = isExempt ? (product.aliquot || 16) : 0;
         updateItemExemption(product.id, isExempt, discountPercent);
-        
+
         return {
           id: `pre_${product.id}`,
           product_id: product.id,
@@ -304,6 +304,7 @@ const formatWithBCV = (amount: number) => {
           unit_price: unitPrice,
           discount: 0,
           total_price: unitPrice * qty,
+          price_type: 0, // 0 = máximo por defecto
         };
       });
       
@@ -771,8 +772,8 @@ const formatWithBCV = (amount: number) => {
         if (index === existingItemIndex) {
           const newQuantity = existing.quantity + quantity;
           const newTotalPrice = calculateItemTotal(
-            newQuantity, 
-            unitPrice, 
+            newQuantity,
+            unitPrice,
             discount
           );
           return {
@@ -781,6 +782,7 @@ const formatWithBCV = (amount: number) => {
             unit_price: unitPrice,
             discount,
             total_price: newTotalPrice,
+            price_type: existing.price_type ?? 0,
           };
         }
         return existing;
@@ -794,7 +796,9 @@ const formatWithBCV = (amount: number) => {
         unit_price: unitPrice,
         discount,
         total_price: totalPrice,
+        price_type: 0, // 0 = máximo por defecto
       };
+      console.log('✅ addProductToQuote: Creando item con price_type: 0 (máximo)');
       setQuoteItems(prev => [...prev, newItem]);
     }
 
