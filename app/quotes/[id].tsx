@@ -184,6 +184,12 @@ const formatWithBCV = (amount: number) => {
 
   // Generar HTML para el PDF (Estilo clásico venezolano)
   const generatePDFHTML = () => {
+    // ✨ Función auxiliar para formatear en Bs.
+    const formatBs = (amountUsd: number) => {
+      if (!bcvRate) return formatCurrency(amountUsd);
+      return (amountUsd * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs.';
+    };
+
     const itemsHTML = quote.items?.map((item: any, index: number) => {
       const isExempt = item.sale_tax === 'EX';
       return `
@@ -193,11 +199,11 @@ const formatWithBCV = (amount: number) => {
           ${item.product?.name || item.name || 'Producto sin nombre'}
           ${isExempt ? '<br><span style="font-size: 10px; font-weight: bold;">*EXENTO*</span>' : ''}
         </td>
-        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatCurrency(item.unit_price || 0)}</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatBs(item.unit_price || 0)}</td>
         <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">${item.quantity || 0}</td>
         <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">UND</td>
-        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatCurrency(item.discount_amount || 0)}</td>
-        <td style="padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(item.total || 0)}</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatBs(item.discount_amount || 0)}</td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">${formatBs(item.total || 0)}</td>
       </tr>
     `;
     }).join('') || '<tr><td colspan="7" style="padding: 20px; text-align: center;">No hay productos agregados</td></tr>';
@@ -407,35 +413,35 @@ const formatWithBCV = (amount: number) => {
           <table class="summary-table">
             <tr>
               <td>SubTotal:</td>
-              <td>${formatCurrency(subtotal)}</td>
+              <td>${formatBs(subtotal)}</td>
             </tr>
             <tr>
               <td>Descuento:</td>
-              <td>${formatCurrency(discountAmount)} (${discountPercent.toFixed(2)}%)</td>
+              <td>${formatBs(discountAmount)} (${discountPercent.toFixed(2)}%)</td>
             </tr>
             <tr>
               <td>Flete:</td>
-              <td>0.00 (0.00%)</td>
+              <td>${formatBs(0)}</td>
             </tr>
             <tr>
               <td>Exento:</td>
-              <td>${calculateCorrectTotals.hasExemptions ? formatCurrency(calculateCorrectTotals.exemptTotal) : '0.00'}</td>
+              <td>${formatBs(calculateCorrectTotals.exemptTotal || 0)}</td>
             </tr>
             <tr>
               <td>Base Imponible:</td>
-              <td>${formatCurrency(taxableBase)}</td>
+              <td>${formatBs(taxableBase)}</td>
             </tr>
             ${Object.values(calculateCorrectTotals.taxGroups).length > 0 ? Object.values(calculateCorrectTotals.taxGroups)
               .sort((a, b) => b.aliquot - a.aliquot)
               .map(group => `
             <tr>
               <td class="tax-detail">Total Impuesto (${group.aliquot.toFixed(2)}%):</td>
-              <td class="tax-detail">${formatCurrency(group.tax)}</td>
+              <td class="tax-detail">${formatBs(group.tax)}</td>
             </tr>
               `).join('') : ''}
             <tr class="total-row">
               <td>Total:</td>
-              <td>${bcvRate ? (total * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs.' : formatCurrency(total)}</td>
+              <td>${formatBs(total)}</td>
             </tr>
             ${bcvRate ? `
             <tr>
