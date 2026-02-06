@@ -116,8 +116,8 @@ const CombinedFilters: React.FC<CombinedFiltersProps> = ({
 
   const statusOptions = [
     { value: 'all', label: 'Todos', icon: 'list' },
-    { value: 'approved', label: 'Aprobados', icon: 'checkmark-circle' },
-    { value: 'rejected', label: 'No aprobado', icon: 'close-circle' },
+    { value: 'approved', label: 'Facturados', icon: 'checkmark-circle' },
+    { value: 'rejected', label: 'No facturados', icon: 'close-circle' },
   ];
 
   const dateOptions = [

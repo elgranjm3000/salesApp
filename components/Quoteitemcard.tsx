@@ -71,13 +71,13 @@ const getStatusColor = (status: Quote['status']) => {
 const getStatusText = (status: Quote['status']) => {
   switch (status) {
     case 'approved':
-      return 'Aprobado';
+      return 'Facturado';
     case 'sent':
       return 'Enviado';
     case 'draft':
       return 'Borrador';
     case 'rejected':
-      return 'No aprobado';
+      return 'No facturado';
     case 'expired':
       return 'Expirado';
     default:
