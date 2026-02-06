@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -496,11 +497,29 @@ const formatWithBCV = (amount: number) => {
     const pdfUri = await generatePDF();
     if (pdfUri) {
       try {
+        // ✨ Generar nombre de archivo personalizado
+        const customerName = (quote.customer?.name || 'Cliente')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+          .replace(/[^A-Z\s]/g, '') // Solo letras mayúsculas y espacios
+          .trim()
+          .replace(/\s+/g, ' '); // Unificar espacios
+
+        const fileName = `PRESUPUESTO NRO. ${quote.quote_number} ${customerName}.pdf`;
+
+        // ✨ Copiar el archivo con el nuevo nombre
+        const newUri = FileSystem.documentDirectory + fileName;
+        await FileSystem.copyAsync({
+          from: pdfUri,
+          to: newUri,
+        });
+
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
-          await Sharing.shareAsync(pdfUri, {
+          await Sharing.shareAsync(newUri, {
             mimeType: 'application/pdf',
-            dialogTitle: `Presupuesto ${quote.quote_number}`,
+            dialogTitle: `Compartir Presupuesto ${quote.quote_number}`,
             UTI: 'com.adobe.pdf'
           });
         }
