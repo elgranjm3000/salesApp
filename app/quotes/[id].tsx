@@ -572,9 +572,11 @@ const formatWithBCV = (amount: number) => {
         <Text style={styles.subtitle}>
           Dirección: {quote.customer?.address || 'sin direccion asignada'}
         </Text>
-        <Text style={styles.subtitle}>
-          Documento: { quote.customer?.document_type && quote.customer?.document_number || 'sin documento asignado' }
-        </Text>
+        {quote.customer?.document_type && quote.customer?.document_number && (
+          <Text style={styles.subtitle}>
+            Documento: {quote.customer.document_type}: {quote.customer.document_number}
+          </Text>
+        )}
         {quote.seller && (
           <Text style={styles.subtitle}>
             Vendedor asignado: {quote.seller.name}
