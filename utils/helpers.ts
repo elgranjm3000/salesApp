@@ -2,13 +2,19 @@ import { Alert } from 'react-native';
 
 // =================== FORMATEO DE MONEDA ===================
 
+// ✨ Función auxiliar para truncar a N decimales (sin redondear)
+const truncateDecimals = (num: number, decimals: number): number => {
+  const factor = Math.pow(10, decimals);
+  return Math.floor(num * factor) / factor;
+};
+
 export const validateBcvRate = (rate: any): number | null => {
   if (rate === null || rate === undefined) return null;
-  
+
   const numericRate = typeof rate === 'string' ? parseFloat(rate) : rate;
-  
+
   if (isNaN(numericRate) || numericRate <= 0) return null;
-  
+
   return numericRate;
 };
 
@@ -18,8 +24,11 @@ export const formatBcvRate = (rate: any, decimals: number = 2): string => {
 };
 
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+  // ✨ Truncar a 2 decimales en lugar de redondear
+  const truncatedAmount = truncateDecimals(amount, 2);
+
   if (currency === 'VEF') {
-    return `Bs. ${amount.toLocaleString('es-VE', {
+    return `Bs. ${truncatedAmount.toLocaleString('es-VE', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -30,7 +39,7 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
   currency: currency,
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-}).format(amount);
+}).format(truncatedAmount);
 
 return `$ ${formatted.replace('$', '')}`;
 };
