@@ -186,12 +186,19 @@ const formatWithBCV = (amount: number) => {
   const generatePDFHTML = () => {
     // ✨ Función auxiliar para formatear en Bs.
     const formatBs = (amountUsd: number) => {
-      if (!bcvRate) return formatCurrency(amountUsd);
+      if (!bcvRate) return '';
       return (amountUsd * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs.';
     };
 
     const itemsHTML = quote.items?.map((item: any, index: number) => {
       const isExempt = item.sale_tax === 'EX';
+      const unitPrice = formatCurrency(item.unit_price || 0);
+      const unitPriceBs = formatBs(item.unit_price || 0);
+      const discount = formatCurrency(item.discount_amount || 0);
+      const discountBs = formatBs(item.discount_amount || 0);
+      const total = formatCurrency(item.total || 0);
+      const totalBs = formatBs(item.total || 0);
+
       return `
       <tr style="border-bottom: 1px solid #000;">
         <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">${index + 1}</td>
@@ -199,11 +206,17 @@ const formatWithBCV = (amount: number) => {
           ${item.product?.name || item.name || 'Producto sin nombre'}
           ${isExempt ? '<br><span style="font-size: 10px; font-weight: bold;">*EXENTO*</span>' : ''}
         </td>
-        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatBs(item.unit_price || 0)}</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">
+          ${unitPrice}${bcvRate ? `<br><span style="font-size: 9pt;">${unitPriceBs}</span>` : ''}
+        </td>
         <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">${item.quantity || 0}</td>
         <td style="padding: 8px; text-align: center; border-right: 1px solid #000;">UND</td>
-        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">${formatBs(item.discount_amount || 0)}</td>
-        <td style="padding: 8px; text-align: right; font-weight: bold;">${formatBs(item.total || 0)}</td>
+        <td style="padding: 8px; text-align: right; border-right: 1px solid #000;">
+          ${discount}${bcvRate ? `<br><span style="font-size: 9pt;">${discountBs}</span>` : ''}
+        </td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">
+          ${total}${bcvRate ? `<br><span style="font-size: 9pt;">${totalBs}</span>` : ''}
+        </td>
       </tr>
     `;
     }).join('') || '<tr><td colspan="7" style="padding: 20px; text-align: center;">No hay productos agregados</td></tr>';
@@ -413,35 +426,35 @@ const formatWithBCV = (amount: number) => {
           <table class="summary-table">
             <tr>
               <td>SubTotal:</td>
-              <td>${formatBs(subtotal)}</td>
+              <td>${formatCurrency(subtotal)}${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(subtotal)}</span>` : ''}</td>
             </tr>
             <tr>
               <td>Descuento:</td>
-              <td>${formatBs(discountAmount)} (${discountPercent.toFixed(2)}%)</td>
+              <td>${formatCurrency(discountAmount)} (${discountPercent.toFixed(2)}%)${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(discountAmount)}</span>` : ''}</td>
             </tr>
             <tr>
               <td>Flete:</td>
-              <td>${formatBs(0)}</td>
+              <td>${formatCurrency(0)}${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(0)}</span>` : ''}</td>
             </tr>
             <tr>
               <td>Exento:</td>
-              <td>${formatBs(calculateCorrectTotals.exemptTotal || 0)}</td>
+              <td>${formatCurrency(calculateCorrectTotals.exemptTotal || 0)}${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(calculateCorrectTotals.exemptTotal || 0)}</span>` : ''}</td>
             </tr>
             <tr>
               <td>Base Imponible:</td>
-              <td>${formatBs(taxableBase)}</td>
+              <td>${formatCurrency(taxableBase)}${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(taxableBase)}</span>` : ''}</td>
             </tr>
             ${Object.values(calculateCorrectTotals.taxGroups).length > 0 ? Object.values(calculateCorrectTotals.taxGroups)
               .sort((a, b) => b.aliquot - a.aliquot)
               .map(group => `
             <tr>
               <td class="tax-detail">Total Impuesto (${group.aliquot.toFixed(2)}%):</td>
-              <td class="tax-detail">${formatBs(group.tax)}</td>
+              <td class="tax-detail">${formatCurrency(group.tax)}${bcvRate ? `<br><span style="font-size: 9pt;">${formatBs(group.tax)}</span>` : ''}</td>
             </tr>
               `).join('') : ''}
             <tr class="total-row">
               <td>Total:</td>
-              <td>${formatBs(total)}</td>
+              <td>${formatBs(total)}${!bcvRate ? formatCurrency(total) : ''}</td>
             </tr>
             ${bcvRate ? `
             <tr>
