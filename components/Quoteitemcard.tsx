@@ -160,13 +160,6 @@ export const QuoteItemCard: React.FC<QuoteItemCardProps> = ({
                 {getStatusText(quote.status)}
               </Text>
             </View>
-
-            {expiringSoon && !isExpired && (
-              <View style={styles.expiringSoonBadge}>
-                <Ionicons name="alert-circle" size={12} color={colors.warning} />
-                <Text style={styles.expiringSoonText}>Próximo a expirar</Text>
-              </View>
-            )}
           </View>
         </View>
 
