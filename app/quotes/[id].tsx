@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -508,10 +508,12 @@ const formatWithBCV = (amount: number) => {
 
         const fileName = `PRESUPUESTO NRO. ${quote.quote_number} ${customerName}.pdf`;
 
-        // ✨ Copiar el archivo con el nuevo nombre usando nueva API
-        const file = new File(pdfUri);
-        const newUri = File.documentDirectory + fileName;
-        await file.copyAsync(newUri);
+        // ✨ Copiar el archivo con el nuevo nombre usando API legacy
+        const newUri = FileSystem.documentDirectory + fileName;
+        await FileSystem.copyAsync({
+          from: pdfUri,
+          to: newUri,
+        });
 
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
