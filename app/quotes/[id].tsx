@@ -435,26 +435,12 @@ const formatWithBCV = (amount: number) => {
               `).join('') : ''}
             <tr class="total-row">
               <td>Total:</td>
-              <td>${formatCurrency(total)}</td>
+              <td>${bcvRate ? formatCurrency(total * bcvRate) + ' Bs.' : formatCurrency(total)}</td>
             </tr>
-            ${bcvRate ? `
-            <tr>
-              <td colspan="2" style="text-align: right; font-size: 10pt; padding-top: 8px;">
-                ${formatCurrency(total * bcvRate)} Bs.
-              </td>
-            </tr>
-            ` : ''}
           </table>
 
-          ${quote.terms_conditions ? `
-          <div style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; font-size: 10pt;">
-            <strong>Términos y Condiciones:</strong><br/>
-            ${quote.terms_conditions}
-          </div>
-          ` : ''}
-
           ${quote.notes ? `
-          <div style="margin-top: 15px; padding: 15px; border: 1px solid #ccc; font-size: 10pt;">
+          <div style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; font-size: 10pt;">
             <strong>Observaciones:</strong><br/>
             ${quote.notes}
           </div>
